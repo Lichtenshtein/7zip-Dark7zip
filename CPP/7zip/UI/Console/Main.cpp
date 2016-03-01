@@ -155,6 +155,7 @@ static const char * const kHelpString =
     "  -ax[r[-|0]][m[-|2]][w[-]]{@listfile|!wildcard} : eXclude archives\n"
     "  -ao{a|s|t|u} : set Overwrite mode\n"
     "  -an : disable archive_name field\n"
+    "  -ba : disable log output totally\n"
     "  -bb[0-3] : set output log level\n"
     "  -bd : disable progress indicator\n"
     "  -bs{o|e|p}{0|1|2} : set output stream for output/error/progress line\n"
@@ -1978,7 +1979,7 @@ static int MainV(
       uo.SfxModule = kDefaultSfxModule;
 
     COpenCallbackConsole openCallback;
-    openCallback.Init(g_StdStream, g_ErrStream, percentsStream, options.DisablePercents);
+    openCallback.Init(options.EnableHeaders ? g_StdStream : NULL, g_ErrStream, percentsStream, options.DisablePercents);
 
     #ifndef Z7_NO_CRYPTO
     bool passwordIsDefined =
@@ -2003,7 +2004,7 @@ static int MainV(
     callback.StdOutMode = uo.StdOutMode;
     callback.Init(
       // NULL,
-      g_StdStream, g_ErrStream, percentsStream, options.DisablePercents);
+      options.EnableHeaders ? g_StdStream : NULL, g_ErrStream, percentsStream, options.DisablePercents);
 
     CUpdateErrorInfo errorInfo;
 
@@ -2026,7 +2027,8 @@ static int MainV(
 
     retCode = WarningsCheck(hresultMain, callback, errorInfo,
         g_StdStream, se,
-        true // options.EnableHeaders
+        //true 
+        options.EnableHeaders
         );
    #endif
   }
