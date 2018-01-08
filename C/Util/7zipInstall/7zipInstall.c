@@ -128,6 +128,7 @@ static LPCWSTR const k_Reg_CLSID_7zip_Inproc = L"CLSID\\" k_7zip_CLSID L"\\Inpro
 static BoolInt g_Install_was_Pressed;
 static BoolInt g_Finished;
 static BoolInt g_SilentMode;
+static BoolInt g_NoRegistryModification;
 
 static HWND g_HWND;
 static HWND g_Path_HWND;
@@ -1077,6 +1078,10 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
             // RemoveQuotes(path);
             error = False;
           }
+          else if (cmd[1] == 'R')
+          {
+              g_NoRegistryModification = True;
+          }
         }
         s = s2;
         if (error && cmdError[0] == 0)
@@ -1605,7 +1610,7 @@ if (res == SZ_OK)
 
     path[pathLen] = 0;
 
-    if (i == db.NumFiles)
+    if (i == db.NumFiles && !g_NoRegistryModification)
     {
       SetRegKey_Path();
       WriteCLSID();
