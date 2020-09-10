@@ -63,8 +63,10 @@ static const CContextMenuItem kMenuItems[] =
   { IDS_CONTEXT_COMPRESS, kCompress },
   { IDS_CONTEXT_COMPRESS_TO, kCompressTo7z },
   { IDS_CONTEXT_COMPRESS_TO, kCompressTo7zWithDate },
+  { IDS_CONTEXT_COMPRESS_TO_7Z_SEPARATE, kCompressTo7zSeparate },
   { IDS_CONTEXT_COMPRESS_TO, kCompressToZip },
   { IDS_CONTEXT_COMPRESS_TO, kCompressToZipWithDate },
+  { IDS_CONTEXT_COMPRESS_TO_ZIP_SEPARATE, kCompressToZipSeparate },
 
   #ifndef UNDER_CE
   { IDS_CONTEXT_COMPRESS_EMAIL, kCompressEmail },

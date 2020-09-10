@@ -13,6 +13,8 @@ BEGIN
   IDS_CONTEXT_EXTRACT_SMART "Smart extract"
   IDS_CONTEXT_EXTRACT_TO_SINGLE "Extract to single folder"
   IDS_CONTEXT_COMPRESS_TO "Add to {0}"
+  IDS_CONTEXT_COMPRESS_TO_7Z_SEPARATE    "Compress to separate .7z"
+  IDS_CONTEXT_COMPRESS_TO_ZIP_SEPARATE    "Compress to separate .zip"
   IDS_CONTEXT_COMPRESS_EMAIL "Compress and email..."
   IDS_CONTEXT_COMPRESS_TO_EMAIL "Compress to {0} and email"
   IDS_SELECT_FILES         "You must select one or more files"
