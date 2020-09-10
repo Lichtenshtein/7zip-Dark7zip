@@ -284,7 +284,9 @@ static const CContextMenuCommand g_Commands[] =
   CMD_REC( kCompressTo7zEmail,  "CompressTo7zEmail",  IDS_CONTEXT_COMPRESS_TO_EMAIL),
   CMD_REC( kCompressToZip,      "CompressToZip",      IDS_CONTEXT_COMPRESS_TO),
   CMD_REC( kCompressToZipWithDate,      "CompressToZip",      IDS_CONTEXT_COMPRESS_TO),
-  CMD_REC( kCompressToZipEmail, "CompressToZipEmail", IDS_CONTEXT_COMPRESS_TO_EMAIL)
+  CMD_REC( kCompressToZipEmail, "CompressToZipEmail", IDS_CONTEXT_COMPRESS_TO_EMAIL),
+  CMD_REC( kCompressToZipSeparate, "CompressToZipSeparate", IDS_CONTEXT_COMPRESS_TO_ZIP_SEPARATE),
+  CMD_REC( kCompressTo7zSeparate, "CompressTo7zSeparate", IDS_CONTEXT_COMPRESS_TO_7Z_SEPARATE)
 };
 
 
@@ -1035,6 +1037,21 @@ Z7_COMWF_B CZipContextMenu::QueryContextMenu(HMENU hMenu, UINT indexMenu,
       Set_UserString_in_LastCommand(s2);
       MyInsertMenu(popupMenu, subIndex++, currentCommandID++, s2, bitmap);
     }
+    // CompressToSeparate 7z
+    if (contextMenuFlags & NContextMenuFlags::kCompressTo7zSeparate)
+    {
+      CCommandMapItem cmi;
+      UString s3;
+      if (_dropMode)
+        cmi.Folder = _dropPath;
+      else
+        cmi.Folder = fs2us(folderPrefix);
+      cmi.ArcName = arcName_7z;
+      cmi.ArcType = "7z";
+      AddCommand(kCompressTo7zSeparate, s3, cmi);
+      MyFormatNew_ReducedName(s3, arcName_7z_Show);
+      MyInsertMenu(popupMenu, subIndex++, currentCommandID++, s3, bitmap);
+    }
 
     #ifdef EMAIL_SUPPORT
     // CompressTo7zEmail
@@ -1081,6 +1098,22 @@ Z7_COMWF_B CZipContextMenu::QueryContextMenu(HMENU hMenu, UINT indexMenu,
       MyFormatNew_ReducedName(s2, arcName_dt_zip_Show);
       Set_UserString_in_LastCommand(s2);
       MyInsertMenu(popupMenu, subIndex++, currentCommandID++, s2, bitmap);
+    }
+ 
+    // CompressToSeparate
+    if (contextMenuFlags & NContextMenuFlags::kCompressToZipSeparate)
+    {
+      CCommandMapItem cmi;
+      UString s3;
+      if (_dropMode)
+        cmi.Folder = _dropPath;
+      else
+        cmi.Folder = fs2us(folderPrefix);
+      cmi.ArcName = arcName_zip;
+      cmi.ArcType = "zip";
+      AddCommand(kCompressToZipSeparate, s3, cmi);
+      MyFormatNew_ReducedName(s3, arcName_zip_Show);
+      MyInsertMenu(popupMenu, subIndex++, currentCommandID++, s3, bitmap);
     }
 
     #ifdef EMAIL_SUPPORT
@@ -1471,6 +1504,48 @@ HRESULT CZipContextMenu::InvokeCommandCommon(const CCommandMapItem &cmi)
             _fileNames, email, showDialog,
             false // waitFinish
             );
+        break;
+      }
+      case kCompressTo7zSeparate:
+      {
+        for (UInt32 i = 0; i < _fileNames.Size(); i++) {
+          UString fileName = _fileNames[i];
+          UStringVector filePaths;
+          filePaths.Add(fileName);
+          
+          UString arcName = CreateArchiveName(
+              filePaths,
+              false, // isHash
+              NULL, // fi0
+              arcName);
+          const char *postfix = NULL;
+            postfix = ".7z";
+            arcName += postfix;
+          
+          CompressFiles(cmi.Folder, arcName, cmi.ArcType, false,
+            filePaths, false, false, false);
+        }
+        break;
+      }
+      case kCompressToZipSeparate:
+      {
+        for (UInt32 i = 0; i < _fileNames.Size(); i++) {
+          UString fileName = _fileNames[i];
+          UStringVector filePaths;
+          filePaths.Add(fileName);
+          
+          UString arcName = CreateArchiveName(
+              filePaths,
+              false, // isHash
+              NULL, // fi0
+              arcName);
+          const char *postfix = NULL;
+            postfix = ".zip";
+            arcName += postfix;
+          
+          CompressFiles(cmi.Folder, arcName, cmi.ArcType, false,
+            filePaths, false, false, false);
+        }
         break;
       }
 
