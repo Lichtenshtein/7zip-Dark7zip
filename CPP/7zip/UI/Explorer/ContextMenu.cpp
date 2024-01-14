@@ -275,6 +275,7 @@ static const CContextMenuCommand g_Commands[] =
   CMD_REC( kExtractHere, "ExtractHere", IDS_CONTEXT_EXTRACT_HERE),
   CMD_REC( kExtractTo,   "ExtractTo",   IDS_CONTEXT_EXTRACT_TO),
   CMD_REC( kExtractSmart,        "ExtractSmart",        IDS_CONTEXT_EXTRACT_SMART),
+  CMD_REC( kExtractToSingle,        "ExtractToSingle",        IDS_CONTEXT_EXTRACT_TO_SINGLE),
   CMD_REC( kTest,        "Test",        IDS_CONTEXT_TEST),
   CMD_REC( kCompress,           "Compress",           IDS_CONTEXT_COMPRESS),
   CMD_REC( kCompressEmail,      "CompressEmail",      IDS_CONTEXT_COMPRESS_EMAIL),
@@ -900,6 +901,23 @@ Z7_COMWF_B CZipContextMenu::QueryContextMenu(HMENU hMenu, UINT indexMenu,
             MyInsertMenu(popupMenu, subIndex++, currentCommandID++, mainString, bitmap);
           }
         }
+ 
+        if ((contextMenuFlags & NContextMenuFlags::kExtractToSingle) != 0)
+        {
+          // Extract To Single
+          CCommandMapItem cmi;
+          AddCommand(kExtractToSingle, mainString, cmi);
+          /* if archive contain only one folder */
+          if (true)
+            {
+             cmi.Folder = baseFolder;
+            }
+          else
+            {
+             cmi.Folder = baseFolder + specFolder;
+            }
+        MyInsertMenu(popupMenu, subIndex++, currentCommandID++, mainString, bitmap);
+       }
       }
 
       if ((contextMenuFlags & NContextMenuFlags::kTest) != 0)
@@ -1354,6 +1372,7 @@ HRESULT CZipContextMenu::InvokeCommandCommon(const CCommandMapItem &cmi)
       case kExtractHere:
       case kExtractTo:
       case kExtractSmart:
+      case kExtractToSingle:
       {
         if (_attribs.FirstDirIndex != -1)
         {
