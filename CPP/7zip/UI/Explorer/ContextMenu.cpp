@@ -274,6 +274,7 @@ static const CContextMenuCommand g_Commands[] =
   CMD_REC( kExtract,     "Extract",     IDS_CONTEXT_EXTRACT),
   CMD_REC( kExtractHere, "ExtractHere", IDS_CONTEXT_EXTRACT_HERE),
   CMD_REC( kExtractTo,   "ExtractTo",   IDS_CONTEXT_EXTRACT_TO),
+  CMD_REC( kExtractSmart,        "ExtractSmart",        IDS_CONTEXT_EXTRACT_SMART),
   CMD_REC( kTest,        "Test",        IDS_CONTEXT_TEST),
   CMD_REC( kCompress,           "Compress",           IDS_CONTEXT_COMPRESS),
   CMD_REC( kCompressEmail,      "CompressEmail",      IDS_CONTEXT_COMPRESS_EMAIL),
@@ -879,6 +880,26 @@ Z7_COMWF_B CZipContextMenu::QueryContextMenu(HMENU hMenu, UINT indexMenu,
           Set_UserString_in_LastCommand(s);
           MyInsertMenu(popupMenu, subIndex++, currentCommandID++, s, bitmap);
         }
+ 
+        if ((contextMenuFlags & NContextMenuFlags::kExtractSmart) != 0)
+        {
+          if (_fileNames.Size() == 1)
+          {
+            // Extract Here Smart
+            CCommandMapItem cmi;
+            cmi.Folder = baseFolder;
+            AddCommand(kExtractSmart, mainString, cmi);
+            MyInsertMenu(popupMenu, subIndex++, currentCommandID++, mainString, bitmap);
+          }
+          else
+          {
+            // Extract To Smart
+            CCommandMapItem cmi;
+            AddCommand(kExtractSmart, mainString, cmi);
+            cmi.Folder = baseFolder + specFolder;
+            MyInsertMenu(popupMenu, subIndex++, currentCommandID++, mainString, bitmap);
+          }
+        }
       }
 
       if ((contextMenuFlags & NContextMenuFlags::kTest) != 0)
@@ -1332,6 +1353,7 @@ HRESULT CZipContextMenu::InvokeCommandCommon(const CCommandMapItem &cmi)
       case kExtract:
       case kExtractHere:
       case kExtractTo:
+      case kExtractSmart:
       {
         if (_attribs.FirstDirIndex != -1)
         {
