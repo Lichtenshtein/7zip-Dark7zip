@@ -7,6 +7,8 @@
 
 #include "../../PropID.h"
 #include "App.h"
+#include "MyLoadMenu.h"
+#include "resource.h"
 
 using namespace NWindows;
 
@@ -307,6 +309,17 @@ bool CPanel::OnKeyDown(LPNMLVKEYDOWN keyDownInfo, LRESULT &result)
         return true;
       }
       return false;
+  
+  
+ //ctrl O is options dialog
+ case 'O':
+      if (ctrl)
+      {
+        OnMenuCommand(g_HWND, IDM_OPTIONS);
+        return true;
+      }
+      return false;
+ 
     case 'N':
       if (ctrl)
       {

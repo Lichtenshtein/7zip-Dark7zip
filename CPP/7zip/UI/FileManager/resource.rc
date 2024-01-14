@@ -151,7 +151,7 @@ BEGIN
   END
   POPUP "&Tools" MY_MENUITEM_ID(IDM_TOOLS)
   BEGIN
-    MENUITEM "&Options...",                 IDM_OPTIONS
+    MENUITEM "&Options...\t Ctrl+O",                 IDM_OPTIONS
     MY_MENUITEM_SEPARATOR
     POPUP "Name &Encoding"                  MY_MENUITEM_ID(IDM_NAME_ENCODING)
     BEGIN
