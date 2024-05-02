@@ -26,7 +26,7 @@ PROGPATH_STATIC = $(O)/$(PROG)s
 
 
 ifneq ($(CC), xlc)
-CFLAGS_WARN_WALL = -Werror -Wall -Wextra
+CFLAGS_WARN_WALL = -Wall -Wextra
 endif
 
 ifndef CFLAGS_OPT
