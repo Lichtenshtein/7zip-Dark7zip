@@ -11,6 +11,7 @@
 
 #define Get16(p) GetUi16(p)
 #define Get32(p) GetUi32(p)
+#define Get64(p) GetUi64(p)
 
 // #define NUM_SPEED_TESTS 1000
 
@@ -21,6 +22,7 @@ static const size_t kInputBufSize = 1 << 20;
 
 const Byte kSignature[kSignatureSize] = NSIS_SIGNATURE;
 static const UInt32 kMask_IsCompressed = (UInt32)1 << 31;
+static const UInt64 kMask_IsCompressed64 = ((UInt64)1 << 63);
 
 static const unsigned kNumCommandParams = 6;
 static const unsigned kCmdSize = 4 + kNumCommandParams * 4;
@@ -113,19 +115,20 @@ enum
   EW_FOPEN,             // FileOpen
   EW_FPUTS,             // FileWrite, FileWriteByte
   EW_FGETS,             // FileRead, FileReadByte
+  EW_FSEEK,             // FileSeek
 
   // Park
   // EW_FPUTWS,            // FileWriteUTF16LE, FileWriteWord
   // EW_FGETWS,            // FileReadUTF16LE, FileReadWord
   
-  EW_FSEEK,             // FileSeek
+
   EW_FINDCLOSE,         // FindClose
   EW_FINDNEXT,          // FindNext
   EW_FINDFIRST,         // FindFirst
   EW_WRITEUNINSTALLER,  // WriteUninstaller
   
   // Park : since 2.46.3 the log is enabled in main Park version
-  // EW_LOG,               // LogSet, LogText
+  EW_LOG,               // LogSet, LogText
 
   EW_SECTIONSET,        // Get*, Set*
   EW_INSTTYPESET,       // InstTypeSetText, InstTypeGetText, SetCurInstType, GetCurInstType
@@ -147,17 +150,12 @@ enum
   EW_FPUTWS,            // FileWriteUTF16LE, FileWriteWord
   EW_FGETWS,            // FileReadUTF16LE, FileReadWord
 
-  /*
   // since v3.06 the fllowing IDs codes was moved here:
   // Opcodes listed here are not actually used in exehead. No exehead opcodes should be present after these!
   EW_GETLABELADDR,      // --> EW_ASSIGNVAR
   EW_GETFUNCTIONADDR,   // --> EW_ASSIGNVAR
-  */
+ 
 
-  // The following IDs are not IDs in real order.
-  // We just need some IDs to translate eny extended layout to main layout.
-
-  EW_LOG,               // LogSet, LogText
 
   // Park
   EW_FINDPROC,          // FindProc
@@ -5765,8 +5763,13 @@ HRESULT CInArchive::Open2(const Byte *sig, size_t size)
   #ifdef NSIS_SCRIPT
   AfterHeaderSize = 0;
   #endif
-
-  UInt32 compressedHeaderSize = Get32(sig);
+  Int64 compressedHeaderSize = 0;
+  bool isLongOffset = (FirstHeader.Flags & NFlags::k_BI_LongOffset) != 0;
+  if (isLongOffset) {
+      compressedHeaderSize = Get64(sig);
+  }
+  else
+      compressedHeaderSize = Get32(sig);
   
 
   /*
@@ -5792,12 +5795,15 @@ HRESULT CInArchive::Open2(const Byte *sig, size_t size)
   }
   else if (IsLZMA(sig, DictionarySize, FilterFlag))
     Method = NMethodType::kLZMA;
-  else if (sig[3] == 0x80)
+  else if (sig[3] == 0x80 || sig[7] == 0x80)
   {
+    int offset = 4;
+    if (isLongOffset)
+        offset = 8;
     IsSolid = false;
-    if (IsLZMA(sig + 4, DictionarySize, FilterFlag) && sig[3] == 0x80)
+    if (IsLZMA(sig + offset, DictionarySize, FilterFlag))
       Method = NMethodType::kLZMA;
-    else if (IsBZip2(sig + 4))
+    else if (IsBZip2(sig + offset))
       Method = NMethodType::kBZip2;
     else
       Method = NMethodType::kDeflate;
@@ -5813,10 +5819,20 @@ HRESULT CInArchive::Open2(const Byte *sig, size_t size)
   }
   else
   {
-    _headerIsCompressed = ((compressedHeaderSize & kMask_IsCompressed) != 0);
-    compressedHeaderSize &= ~kMask_IsCompressed;
-    _nonSolidStartOffset = compressedHeaderSize;
-    RINOK(SeekTo(DataStreamOffset + 4))
+    if (isLongOffset)
+    {
+        _headerIsCompressed = ((compressedHeaderSize & kMask_IsCompressed64) != 0);
+        compressedHeaderSize &= ~kMask_IsCompressed64;
+        _nonSolidStartOffset = compressedHeaderSize;
+        RINOK(SeekTo(DataStreamOffset + 8))
+	}
+	else
+	{
+        _headerIsCompressed = ((compressedHeaderSize & kMask_IsCompressed) != 0);
+        compressedHeaderSize &= ~kMask_IsCompressed;
+        _nonSolidStartOffset = compressedHeaderSize;
+        RINOK(SeekTo(DataStreamOffset + 4))
+	}
   }
 
   if (FirstHeader.HeaderSize == 0)
@@ -5832,7 +5848,11 @@ HRESULT CInArchive::Open2(const Byte *sig, size_t size)
   Decoder.IsNsisDeflate = true; // we need some smart check that NSIS is not NSIS3 here.
   
   Decoder.InputStream = _stream;
-  Decoder.Buffer.Alloc(kInputBufSize);
+  size_t allocSize = kInputBufSize;
+  if (allocSize < FirstHeader.HeaderSize) {
+      allocSize = FirstHeader.HeaderSize;
+  }
+  Decoder.Buffer.Alloc(allocSize);
   Decoder.StreamPos = 0;
 
   if (_headerIsCompressed)
@@ -5845,8 +5865,9 @@ HRESULT CInArchive::Open2(const Byte *sig, size_t size)
       RINOK(Decoder.Read(buf, &processedSize))
       if (processedSize != 4)
         return S_FALSE;
-      if (Get32((const Byte *)buf) != FirstHeader.HeaderSize)
-        return S_FALSE;
+      UINT32 realSize = Get32((const Byte*)buf);
+      if (realSize != FirstHeader.HeaderSize)
+          return S_FALSE;
     }
     {
       size_t processedSize = FirstHeader.HeaderSize;
@@ -5953,10 +5974,14 @@ static bool IsArc_Pe(const Byte *p, size_t size)
 HRESULT CInArchive::Open(IInStream *inStream, const UInt64 *maxCheckStartPosition)
 {
   Clear();
-  
+  UInt64 fileSize = 0;
+  RINOK(InStream_GetSize_SeekToEnd(inStream, fileSize));
+
+  RINOK(InStream_SeekSet(inStream, 0));
+
   RINOK(InStream_GetPos(inStream, StartOffset))
   
-  const UInt32 kStartHeaderSize = 4 * 7;
+  UInt32 startHeaderSize = 4 * 7;
   const unsigned kStep = 512; // nsis start is aligned for 512
   Byte buf[kStep];
   UInt64 pos = StartOffset;
@@ -5967,7 +5992,7 @@ HRESULT CInArchive::Open(IInStream *inStream, const UInt64 *maxCheckStartPositio
   {
     bufSize = kStep;
     RINOK(ReadStream(inStream, buf, &bufSize))
-    if (bufSize < kStartHeaderSize)
+    if (bufSize < startHeaderSize)
       return S_FALSE;
     if (memcmp(buf + 4, kSignature, kSignatureSize) == 0)
       break;
@@ -6013,7 +6038,7 @@ HRESULT CInArchive::Open(IInStream *inStream, const UInt64 *maxCheckStartPositio
     bufSize = kStep;
     RINOK(InStream_SeekSet(inStream, pos))
     RINOK(ReadStream(inStream, buf, &bufSize))
-    if (bufSize < kStartHeaderSize)
+    if (bufSize < startHeaderSize)
       return S_FALSE;
   }
 
@@ -6030,18 +6055,33 @@ HRESULT CInArchive::Open(IInStream *inStream, const UInt64 *maxCheckStartPositio
     }
   }
 
-  DataStreamOffset = pos + kStartHeaderSize;
   FirstHeader.Flags = Get32(buf);
-  if ((FirstHeader.Flags & (~kFlagsMask)) != 0)
+
+  if ((FirstHeader.Flags & NFlags::k_BI_LongOffset) != 0) {
+      startHeaderSize = 36;
+  }
+  DataStreamOffset = pos + startHeaderSize;
+
+  // if fileSize big than 2GB, we should use kFlagsMask2G
+  if ((FirstHeader.Flags & NFlags::k_BI_LongOffset) != 0)
   {
-    // return E_NOTIMPL;
-    return S_FALSE;
+      if ((FirstHeader.Flags & (~kFlagsMask2G)) != 0)
+      {
+          return S_FALSE;
+      }
+  }
+  else
+  {
+      if ((FirstHeader.Flags & (~kFlagsMask)) != 0)
+      {
+          return S_FALSE;
+      }
   }
   IsInstaller = (FirstHeader.Flags & NFlags::kUninstall) == 0;
 
   FirstHeader.HeaderSize = Get32(buf + kSignatureSize + 4);
   FirstHeader.ArcSize = Get32(buf + kSignatureSize + 8);
-  if (FirstHeader.ArcSize <= kStartHeaderSize)
+  if (FirstHeader.ArcSize <= startHeaderSize)
     return S_FALSE;
 
   /*
@@ -6071,7 +6111,7 @@ HRESULT CInArchive::Open(IInStream *inStream, const UInt64 *maxCheckStartPositio
     _limitedStreamSpec->SetStream(inStream);
     _limitedStreamSpec->InitAndSeek(pos, FirstHeader.ArcSize);
     DataStreamOffset -= pos;
-    res = Open2(buf + kStartHeaderSize, bufSize - kStartHeaderSize);
+    res = Open2(buf + startHeaderSize, bufSize - startHeaderSize);
   }
   catch(...)
   {
