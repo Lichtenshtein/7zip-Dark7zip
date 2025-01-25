@@ -71,7 +71,7 @@ CFLAGS_WARN_LEVEL = -Wall
 !ENDIF
 
 # CFLAGS = $(CFLAGS) -nologo -c -Fo$O/ $(CFLAGS_WARN_LEVEL) -WX -EHsc -Gy -MT -MP -GR- -GL -Gw
-CFLAGS = $(CFLAGS) -nologo -c -Fo$O/ -WX -EHsc -Gy -GR- -GF -std:c++17
+CFLAGS = $(CFLAGS) -nologo -c -Fo$O/ -WX -EHsc -Gy -GR- -GF -GL -Gw -std:c++17
 
 !IF "$(CC)" == "clang-cl"
 
