@@ -59,7 +59,7 @@ void CPanelCallbackImp::SetFocusToPath(unsigned index)
 }
 
 
-void CPanelCallbackImp::OnCopy(bool move, bool copyToSame) { _app->OnCopy(move, copyToSame, _index); }
+void CPanelCallbackImp::OnCopy(bool move, bool copyToSame ,bool _auto) { _app->OnCopy(move, copyToSame, _index, _auto); }
 void CPanelCallbackImp::OnSetSameFolder() { _app->OnSetSameFolder(_index); }
 void CPanelCallbackImp::OnSetSubFolder()  { _app->OnSetSubFolder(_index); }
 void CPanelCallbackImp::PanelWasFocused() { _app->SetFocusedPanel(_index); _app->RefreshTitlePanel(_index); }
@@ -580,7 +580,7 @@ static bool IsFsPath(const FString &path)
 }
 */
 
-void CApp::OnCopy(bool move, bool copyToSame, unsigned srcPanelIndex)
+void CApp::OnCopy(bool move, bool copyToSame, unsigned srcPanelIndex, bool _auto)
 {
   const unsigned destPanelIndex = (NumPanels <= 1) ? srcPanelIndex : (1 - srcPanelIndex);
   CPanel &srcPanel = Panels[srcPanelIndex];
@@ -632,7 +632,7 @@ void CApp::OnCopy(bool move, bool copyToSame, unsigned srcPanelIndex)
   
   const bool useFullItemPaths = srcPanel.Is_IO_FS_Folder(); // maybe we need flat also here ??
 
-  {
+  if (!_auto) {
     CCopyDialog copyDialog;
 
     copyDialog.Strings = copyFolders;
