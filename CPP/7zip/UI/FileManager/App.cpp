@@ -700,6 +700,22 @@ void CApp::OnCopy(bool move, bool copyToSame, unsigned srcPanelIndex, bool _auto
       destPath = srcPanel.GetFsPath();
     destPath += correctName;
 
+    if (_auto) {
+		// 添加父文件夹名
+        UString archiveName = srcPanel.GetFsPath();
+        int posx = archiveName.ReverseFind_PathSepar();
+		if (posx == int(archiveName.Len() - 1)) {
+			archiveName.DeleteBack();
+			posx = archiveName.ReverseFind_PathSepar();
+		}
+        if (posx >= 0) {
+            archiveName.DeleteFrontal((unsigned)(posx + 1));
+            archiveName.DeleteFrom(archiveName.ReverseFind(L'.'));
+            destPath += archiveName;
+            destPath.Add_PathSepar();
+        }
+    }
+
     #if defined(_WIN32) && !defined(UNDER_CE)
     if (destPath.Len() != 0 && destPath[0] == '\\')
       if (destPath.Len() == 1 || destPath[1] != '\\')
@@ -749,7 +765,7 @@ void CApp::OnCopy(bool move, bool copyToSame, unsigned srcPanelIndex, bool _auto
         {
           srcPanel.MessageBoxError2Lines(basePath, ERROR_FILE_NOT_FOUND); // GetLastError()
           return;
-        }
+      }
         destIsFsPath = true;
         */
       }
@@ -904,6 +920,9 @@ void CApp::OnCopy(bool move, bool copyToSame, unsigned srcPanelIndex, bool _auto
   disableNotify1.Restore();
   disableNotify2.Restore();
   srcPanel.SetFocusToList();
+
+  ShellExecuteW(NULL, L"open", destPath, NULL, NULL, SW_SHOW);
+  exit(EXIT_SUCCESS);
 }
 
 void CApp::OnSetSameFolder(unsigned srcPanelIndex)
