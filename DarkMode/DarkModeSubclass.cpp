@@ -1031,10 +1031,10 @@ namespace DarkMode
 	struct ButtonData
 	{
 		ThemeData _themeData{};
+		SIZE _szBtn{};
 
 		int _iStateID = 0;
 		bool _isSizeSet = false;
-		SIZE _szBtn{};
 
 		ButtonData()
 			: _themeData(VSCLASS_BUTTON)
@@ -2318,9 +2318,9 @@ namespace DarkMode
 		BufferData _bufferData{};
 		FontData _fontData{};
 
+		POINT _pt{ LONG_MIN, LONG_MIN };
 		bool _isHot = false;
 		bool _hasBtnStyle = true;
-		POINT _pt{ LONG_MIN, LONG_MIN };
 		bool _isPressed = false;
 
 		HeaderData()
@@ -2633,10 +2633,10 @@ namespace DarkMode
 		ThemeData _themeData{};
 		BufferData _bufferData{};
 
-		bool _isHorizontal = false;
 		RECT _rcClient{};
 		RECT _rcPrev{};
 		RECT _rcNext{};
+		bool _isHorizontal = false;
 		bool _wasHotNext = false;
 
 		UpDownData()
@@ -4321,7 +4321,7 @@ namespace DarkMode
 		}
 	}
 
-	void drawUAHMenuNCBottomLine(HWND hWnd)
+	static void drawUAHMenuNCBottomLine(HWND hWnd)
 	{
 		MENUBARINFO mbi{};
 		mbi.cbSize = sizeof(MENUBARINFO);
