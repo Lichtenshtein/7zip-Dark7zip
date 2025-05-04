@@ -38,6 +38,7 @@ bool g_DisableUserQuestions;
 bool g_DisableUserQuestions;
 
 static CFSTR const kTempDirPrefix = FTEXT("7zS");
+static char const volatile kSemicolon = ';';
 
 #define MY_SHELL_EXECUTE
 
@@ -109,8 +110,8 @@ static struct CInstallIDInit
 {
   CInstallIDInit()
   {
-    kStartID[0] = ';';
-    kEndID[0] = ';';
+    kStartID[0] = kSemicolon;
+    kEndID[0] = kSemicolon;
   }
 } g_CInstallIDInit;
 
