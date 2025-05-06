@@ -1,5 +1,7 @@
 // Windows/FileIO.h
 
+#include <fcntl.h>
+
 #ifndef ZIP7_INC_WINDOWS_FILE_IO_H
 #define ZIP7_INC_WINDOWS_FILE_IO_H
 
@@ -380,6 +382,9 @@ public:
   off_t seekToCur() const throw();
   // bool SeekToBegin() throw();
   int my_fstat(struct stat *st) const  { return fstat(_handle, st); }
+  int my_statx(struct statx *stx) const {
+    return statx(_handle, "", AT_EMPTY_PATH | AT_STATX_SYNC_AS_STAT, STATX_BASIC_STATS, stx);
+  }
   /*
   int my_ioctl_BLKGETSIZE64(unsigned long long *val);
   int GetDeviceSize_InBytes(UInt64 &size);
