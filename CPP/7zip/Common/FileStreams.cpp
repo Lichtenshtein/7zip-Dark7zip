@@ -11,6 +11,9 @@
 #include <grp.h>
 #include <pwd.h>
 
+#include <iostream>   // TO BE DELETED
+#include <stdio.h>    // TO BE DELETED
+
 /*
 inclusion of <sys/sysmacros.h> by <sys/types.h> is deprecated since glibc 2.25.
 Since glibc 2.3.3, macros have been aliases for three GNU-specific
@@ -589,22 +592,35 @@ Z7_COM7F_IMF(CInFileStream::ReloadProps())
 Z7_COM7F_IMF(CInFileStream::GetProps(UInt64 *size, FILETIME *cTime, FILETIME *aTime, FILETIME *mTime, UInt32 *attrib))
 {
   // printf("\nCInFileStream::GetProps VirtPos = %8d\n", (int)VirtPos);
-  if (!_info_WasLoaded)
-  {
-    RINOK(ReloadProps())
-  }
-  const struct stat &st = _info;
-  /*
-  struct stat st;
-  if (File.my_fstat(&st) != 0)
-    return GetLastError_HRESULT();
-  */
+  // if (!_info_WasLoaded)
+  // {
+  //   RINOK(ReloadProps())
+  // }
+  // const struct stat &st = _info;
   
-  if (size) *size = (UInt64)st.st_size;
-  if (cTime) FiTime_To_FILETIME (ST_CTIME(st), *cTime);
-  if (aTime) FiTime_To_FILETIME (ST_ATIME(st), *aTime);
-  if (mTime) FiTime_To_FILETIME (ST_MTIME(st), *mTime);
-  if (attrib) *attrib = NWindows::NFile::NFind::Get_WinAttribPosix_From_PosixMode(st.st_mode);
+  // struct stat st;
+  // if (File.my_fstat(&st) != 0)
+  //   return GetLastError_HRESULT();
+
+  struct statx stx;
+  if (File.my_statx(&stx) != 0)
+    return GetLastError_HRESULT();
+
+  if (size) *size = (UInt64)stx.stx_size;
+  if (cTime) {
+    struct timespec ts = { stx.stx_btime.tv_sec, stx.stx_btime.tv_nsec };
+    FiTime_To_FILETIME(ts, *cTime);
+  }
+  // std::cout << "\nTest\n";
+  if (aTime) {
+    struct timespec ts = { stx.stx_atime.tv_sec, stx.stx_atime.tv_nsec };
+    FiTime_To_FILETIME(ts, *aTime);
+  }
+  if (mTime) {
+    struct timespec ts = { stx.stx_mtime.tv_sec, stx.stx_mtime.tv_nsec };
+    FiTime_To_FILETIME(ts, *mTime);
+  }
+  if (attrib) *attrib = NWindows::NFile::NFind::Get_WinAttribPosix_From_PosixMode(stx.stx_mode);
 
   return S_OK;
 }

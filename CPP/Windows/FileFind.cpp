@@ -171,13 +171,13 @@ bool CFileInfoBase::SetAs_StdInFile()
 
   mode = S_IFIFO | 0777; // 0755 : 0775 : 0664 : 0644 :
 #if 1
-  struct stat st;
-  if (fstat(0, &st) == 0)
+  struct statx stx;
+  if (statx(0, "", AT_EMPTY_PATH | AT_STATX_SYNC_AS_STAT, STATX_BASIC_STATS, &stx) == 0)
   {
-    SetFrom_stat(st);
-    if (!S_ISREG(st.st_mode)
+    SetFrom_stat(stx);
+    if (!S_ISREG(stx.stx_mode)
         // S_ISFIFO(st->st_mode)
-        || st.st_size == 0)
+        || stx.stx_size == 0)
     {
       Size = (UInt64)(Int64)-1;
       // mode = S_IFIFO | 0777;
@@ -1126,17 +1126,19 @@ UInt32 Get_WinAttrib_From_stat(const struct stat &st)
 }
 */
 
-void CFileInfoBase::SetFrom_stat(const struct stat &st)
+#include <sys/sysmacros.h>
+
+void CFileInfoBase::SetFrom_stat(const struct statx &stx)
 {
   // IsDevice = false;
 
-  if (S_ISDIR(st.st_mode))
+  if (S_ISDIR(stx.stx_mode))
   {
     Size = 0;
   }
   else
   {
-    Size = (UInt64)st.st_size; // for a symbolic link, size = size of filename
+    Size = (UInt64)stx.stx_size; // for a symbolic link, size = size of filename
   }
 
   // Attrib = Get_WinAttribPosix_From_PosixMode(st.st_mode);
@@ -1144,41 +1146,50 @@ void CFileInfoBase::SetFrom_stat(const struct stat &st)
   // NTime::UnixTimeToFileTime(st.st_ctime, CTime);
   // NTime::UnixTimeToFileTime(st.st_mtime, MTime);
   // NTime::UnixTimeToFileTime(st.st_atime, ATime);
-  #ifdef __APPLE__
-  // #ifdef _DARWIN_FEATURE_64_BIT_INODE
-  /*
-    here we can use birthtime instead of st_ctimespec.
-    but we use st_ctimespec for compatibility with previous versions and p7zip.
-    st_birthtimespec in OSX
-    st_birthtim : at FreeBSD, NetBSD
-  */
-  // timespec_To_FILETIME(st.st_birthtimespec, CTime);
+  // #ifdef __APPLE__
+  // // #ifdef _DARWIN_FEATURE_64_BIT_INODE
+  // /*
+  //   here we can use birthtime instead of st_ctimespec.
+  //   but we use st_ctimespec for compatibility with previous versions and p7zip.
+  //   st_birthtimespec in OSX
+  //   st_birthtim : at FreeBSD, NetBSD
+  // */
+  // // timespec_To_FILETIME(st.st_birthtimespec, CTime);
+  // // #else
+  // // timespec_To_FILETIME(st.st_ctimespec, CTime);
+  // // #endif
+  // // timespec_To_FILETIME(st.st_mtimespec, MTime);
+  // // timespec_To_FILETIME(st.st_atimespec, ATime);
+  // CTime = st.st_ctimespec;
+  // MTime = st.st_mtimespec;
+  // ATime = st.st_atimespec;
+  //
   // #else
-  // timespec_To_FILETIME(st.st_ctimespec, CTime);
+  // // timespec_To_FILETIME(st.st_ctim, CTime, &CTime_ns100);
+  // // timespec_To_FILETIME(st.st_mtim, MTime, &MTime_ns100);
+  // // timespec_To_FILETIME(st.st_atim, ATime, &ATime_ns100);
+  // CTime = st.st_ctim;
+  // MTime = st.st_mtim;
+  // ATime = st.st_atim;
+  //
   // #endif
-  // timespec_To_FILETIME(st.st_mtimespec, MTime);
-  // timespec_To_FILETIME(st.st_atimespec, ATime);
-  CTime = st.st_ctimespec;
-  MTime = st.st_mtimespec;
-  ATime = st.st_atimespec;
 
-  #else
-  // timespec_To_FILETIME(st.st_ctim, CTime, &CTime_ns100);
-  // timespec_To_FILETIME(st.st_mtim, MTime, &MTime_ns100);
-  // timespec_To_FILETIME(st.st_atim, ATime, &ATime_ns100);
-  CTime = st.st_ctim;
-  MTime = st.st_mtim;
-  ATime = st.st_atim;
+  CTime.tv_sec = stx.stx_btime.tv_sec;
+  CTime.tv_nsec = stx.stx_btime.tv_nsec;
 
-  #endif
+  MTime.tv_sec = stx.stx_mtime.tv_sec;
+  MTime.tv_nsec = stx.stx_mtime.tv_nsec;
 
-  dev = st.st_dev;
-  ino = st.st_ino;
-  mode = st.st_mode;
-  nlink = st.st_nlink;
-  uid = st.st_uid;
-  gid = st.st_gid;
-  rdev = st.st_rdev;
+  ATime.tv_sec = stx.stx_atime.tv_sec;
+  ATime.tv_nsec = stx.stx_atime.tv_nsec;
+
+  dev = makedev(stx.stx_dev_major, stx.stx_dev_minor);
+  ino = stx.stx_ino;
+  mode = stx.stx_mode;
+  nlink = stx.stx_nlink;
+  uid = stx.stx_uid;
+  gid = stx.stx_gid;
+  rdev = makedev(stx.stx_rdev_major, stx.stx_rdev_minor);
 
   /*
   printf("\n sizeof timespec = %d", (int)sizeof(timespec));
@@ -1233,11 +1244,15 @@ int Uid_To_Uname(uid_t uid, AString &name)
 
 bool CFileInfo::Find_DontFill_Name(CFSTR path, bool followLink)
 {
-  struct stat st;
-  if (MY_lstat(path, &st, followLink) != 0)
+  struct statx stx;
+  
+  int flags = followLink ? 0 : AT_SYMLINK_NOFOLLOW;
+
+  if (statx(AT_FDCWD, path, flags | AT_STATX_SYNC_AS_STAT, STATX_BASIC_STATS, &stx) != 0)
     return false;
   // printf("\nFind_DontFill_Name : name=%s\n", path);
-  SetFrom_stat(st);
+
+  SetFrom_stat(stx);
   return true;
 }
 
@@ -1426,9 +1441,10 @@ bool CEnumerator::Next(CDirEntry &fileInfo, bool &found)
 bool CEnumerator::Fill_FileInfo(const CDirEntry &de, CFileInfo &fileInfo, bool followLink) const
 {
   // printf("\nCEnumerator::Fill_FileInfo()\n");
-  struct stat st;
+  struct statx stx;
   // probably it's OK to use fstatat() even if it changes file position dirfd(_dir)
-  int res = fstatat(dirfd(_dir), de.Name, &st, followLink ? 0 : AT_SYMLINK_NOFOLLOW);
+  int flags = followLink ? 0 : AT_SYMLINK_NOFOLLOW;
+  int res = statx(dirfd(_dir), de.Name, flags | AT_STATX_SYNC_AS_STAT, STATX_BASIC_STATS, &stx);
   // if fstatat() is not supported, we can use stat() / lstat()
   
   /*
@@ -1439,7 +1455,7 @@ bool CEnumerator::Fill_FileInfo(const CDirEntry &de, CFileInfo &fileInfo, bool f
   if (res != 0)
     return false;
   // printf("\nname=%s\n", de.Name.Ptr());
-  fileInfo.SetFrom_stat(st);
+  fileInfo.SetFrom_stat(stx);
   fileInfo.Name = de.Name;
   return true;
 }
