@@ -24,6 +24,9 @@
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
+#ifndef VC_EXTRALEAN
+#define VC_EXTRALEAN
+#endif
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
@@ -125,8 +128,8 @@ static std::wstring getIniPath(const std::wstring& iniFilename)
 
 static bool fileExists(const std::wstring& filePath)
 {
-	DWORD dwAttrib = ::GetFileAttributes(filePath.c_str());
-	return (dwAttrib != INVALID_FILE_ATTRIBUTES && !(dwAttrib & FILE_ATTRIBUTE_DIRECTORY));
+	const DWORD dwAttrib = ::GetFileAttributes(filePath.c_str());
+	return (dwAttrib != INVALID_FILE_ATTRIBUTES && ((dwAttrib & FILE_ATTRIBUTE_DIRECTORY) != FILE_ATTRIBUTE_DIRECTORY));
 }
 
 static bool setClrFromIni(const std::wstring& sectionName, const std::wstring& keyName, const std::wstring& iniFilePath, COLORREF* clr)
@@ -136,7 +139,7 @@ static bool setClrFromIni(const std::wstring& sectionName, const std::wstring& k
 
 	::GetPrivateProfileString(sectionName.c_str(), keyName.c_str(), L"", buffer, maxStringLength, iniFilePath.c_str());
 
-	size_t length = wcslen(buffer);
+	const size_t length = wcslen(buffer);
 	if (length != maxStringLength - 1)
 	{
 		return false;
@@ -144,7 +147,7 @@ static bool setClrFromIni(const std::wstring& sectionName, const std::wstring& k
 
 	for (size_t i = 0; i < length; ++i)
 	{
-		if (!iswxdigit(buffer[i]))
+		if (iswxdigit(buffer[i]) == 0)
 		{
 			return false;
 		}
@@ -835,7 +838,7 @@ namespace DarkMode
 	}
 
 #if !defined(_DARKMODELIB_NO_INI_CONFIG)
-	static std::wstring g_iniName = L"";
+	static std::wstring g_iniName;
 
 	static void initOptions(const std::wstring& iniName = L"")
 	{
@@ -1064,7 +1067,7 @@ namespace DarkMode
 		::EnableDarkScrollBarForWindowAndChildren(hWnd);
 	}
 
-	void paintRoundRect(HDC hdc, const RECT rect, const HPEN hpen, const HBRUSH hBrush, int width, int height)
+	void paintRoundRect(HDC hdc, const RECT& rect, HPEN hpen, HBRUSH hBrush, int width, int height)
 	{
 		auto holdBrush = ::SelectObject(hdc, hBrush);
 		auto holdPen = ::SelectObject(hdc, hpen);
@@ -1072,7 +1075,7 @@ namespace DarkMode
 		::SelectObject(hdc, holdBrush);
 		::SelectObject(hdc, holdPen);
 	}
-	void paintRoundFrameRect(HDC hdc, const RECT rect, const HPEN hpen, int width, int height)
+	void paintRoundFrameRect(HDC hdc, const RECT& rect, HPEN hpen, int width, int height)
 	{
 		DarkMode::paintRoundRect(hdc, rect, hpen, static_cast<HBRUSH>(::GetStockObject(NULL_BRUSH)), width, height);
 	}
@@ -1097,7 +1100,7 @@ namespace DarkMode
 
 		bool ensureTheme(HWND hWnd)
 		{
-			if (!_hTheme && _themeClass)
+			if (_hTheme == nullptr && _themeClass != nullptr)
 			{
 				_hTheme = ::OpenThemeData(hWnd, _themeClass);
 			}
@@ -1106,7 +1109,7 @@ namespace DarkMode
 
 		void closeTheme()
 		{
-			if (_hTheme)
+			if (_hTheme != nullptr)
 			{
 				::CloseThemeData(_hTheme);
 				_hTheme = nullptr;
@@ -1147,7 +1150,7 @@ namespace DarkMode
 
 		void releaseBuffer()
 		{
-			if (_hMemDC)
+			if (_hMemDC != nullptr)
 			{
 				::SelectObject(_hMemDC, _hOldBmp);
 				::DeleteObject(_hMemBmp);
@@ -1241,7 +1244,7 @@ namespace DarkMode
 
 	struct ButtonData
 	{
-		ThemeData _themeData{};
+		ThemeData _themeData;
 		SIZE _szBtn{};
 
 		int _iStateID = 0;
@@ -1307,15 +1310,27 @@ namespace DarkMode
 
 		hOldFont = static_cast<HFONT>(::SelectObject(hdc, hFont));
 
-		DWORD dtFlags = DT_LEFT; // DT_LEFT is 0
-		dtFlags |= (nStyle & BS_MULTILINE) ? DT_WORDBREAK : DT_SINGLELINE;
-		dtFlags |= ((nStyle & BS_CENTER) == BS_CENTER) ? DT_CENTER : (nStyle & BS_RIGHT) ? DT_RIGHT : 0;
-		dtFlags |= ((nStyle & BS_VCENTER) == BS_VCENTER) ? DT_VCENTER : (nStyle & BS_BOTTOM) ? DT_BOTTOM : 0;
-		dtFlags |= (uiState & UISF_HIDEACCEL) ? DT_HIDEPREFIX : 0;
+		const bool isMultiline = (nStyle & BS_MULTILINE) == BS_MULTILINE;
+		const bool isTop = (nStyle & BS_TOP) == BS_TOP;
+		const bool isBottom = (nStyle & BS_BOTTOM) == BS_BOTTOM;
+		const bool isCenter = (nStyle & BS_CENTER) == BS_CENTER;
+		const bool isRight = (nStyle & BS_RIGHT) == BS_RIGHT;
+		const bool isVCenter = (nStyle & BS_VCENTER) == BS_VCENTER;
 
-		if (!(nStyle & BS_MULTILINE) && !(nStyle & BS_BOTTOM) && !(nStyle & BS_TOP))
+		DWORD dtFlags = DT_LEFT; // DT_LEFT is 0
+		dtFlags |= isMultiline ? DT_WORDBREAK : DT_SINGLELINE;
+		dtFlags |= isCenter ? DT_CENTER : (isRight ? DT_RIGHT : 0);
+		dtFlags |= isVCenter ? DT_VCENTER : (isBottom ? DT_BOTTOM : 0);
+
+		if (!isMultiline && !isBottom && !isTop)
 		{
 			dtFlags |= DT_VCENTER;
+		}
+
+		const bool hidePrefix = (uiState & UISF_HIDEACCEL) == UISF_HIDEACCEL;
+		if (hidePrefix)
+		{
+			dtFlags |= DT_HIDEPREFIX;
 		}
 
 		::GetClientRect(hWnd, &rcClient);
@@ -1358,7 +1373,8 @@ namespace DarkMode
 			::DrawFocusRect(hdc, &rcFocus);
 		}
 
-		if (hCreatedFont) ::DeleteObject(hCreatedFont);
+		if (hCreatedFont != nullptr)
+			::DeleteObject(hCreatedFont);
 		::SelectObject(hdc, hOldFont);
 	}
 
@@ -1425,13 +1441,13 @@ namespace DarkMode
 		HDC hdcFrom = nullptr;
 		HDC hdcTo = nullptr;
 		HANIMATIONBUFFER hbpAnimation = ::BeginBufferedAnimation(hWnd, hdc, &rcClient, BPBF_COMPATIBLEBITMAP, nullptr, &animParams, &hdcFrom, &hdcTo);
-		if (hbpAnimation)
+		if (hbpAnimation != nullptr)
 		{
-			if (hdcFrom)
+			if (hdcFrom != nullptr)
 			{
 				DarkMode::renderButton(hWnd, hdcFrom, hTheme, iPartID, buttonData._iStateID);
 			}
-			if (hdcTo)
+			if (hdcTo != nullptr)
 			{
 				DarkMode::renderButton(hWnd, hdcTo, hTheme, iPartID, iStateID);
 			}
@@ -1487,14 +1503,14 @@ namespace DarkMode
 				{
 					PAINTSTRUCT ps{};
 					HDC hdc = reinterpret_cast<HDC>(wParam);
-					if (!hdc)
+					if (hdc == nullptr)
 					{
 						hdc = ::BeginPaint(hWnd, &ps);
 					}
 
 					DarkMode::paintButton(hWnd, hdc, *pButtonData);
 
-					if (ps.hdc)
+					if (ps.hdc != nullptr)
 					{
 						::EndPaint(hWnd, &ps);
 					}
@@ -1528,9 +1544,9 @@ namespace DarkMode
 				if (DarkMode::isEnabled())
 				{
 					// skip the button's normal wndproc so it won't redraw out of wm_paint
-					LRESULT lr = ::DefWindowProc(hWnd, uMsg, wParam, lParam);
+					LRESULT retVal = ::DefWindowProc(hWnd, uMsg, wParam, lParam);
 					::InvalidateRect(hWnd, nullptr, FALSE);
-					return lr;
+					return retVal;
 				}
 				break;
 			}
@@ -1562,8 +1578,8 @@ namespace DarkMode
 		const auto& hTheme = buttonData._themeData._hTheme;
 
 		const bool isDisabled = ::IsWindowEnabled(hWnd) == FALSE;
-		int iPartID = BP_GROUPBOX;
-		int iStateID = isDisabled ? GBS_DISABLED : GBS_NORMAL;
+		const int iPartID = BP_GROUPBOX;
+		const int iStateID = isDisabled ? GBS_DISABLED : GBS_NORMAL;
 
 		RECT rcClient{};
 		::GetClientRect(hWnd, &rcClient);
@@ -1583,7 +1599,7 @@ namespace DarkMode
 			hFont = hCreatedFont;
 		}
 
-		if (!hFont)
+		if (hFont == nullptr)
 		{
 			hFont = reinterpret_cast<HFONT>(::SendMessage(hWnd, WM_GETFONT, 0, 0));
 		}
@@ -1601,7 +1617,7 @@ namespace DarkMode
 			SIZE textSize{};
 			::GetTextExtentPoint32(hdc, szText, static_cast<int>(wcslen(szText)), &textSize);
 
-			int centerPosX = isCenter ? ((rcClient.right - rcClient.left - textSize.cx) / 2) : 7;
+			const int centerPosX = isCenter ? ((rcClient.right - rcClient.left - textSize.cx) / 2) : 7;
 
 			rcBackground.top += textSize.cy / 2;
 			rcText.left += centerPosX;
@@ -1647,7 +1663,7 @@ namespace DarkMode
 			::DrawThemeTextEx(hTheme, hdc, BP_GROUPBOX, iStateID, szText, -1, dtFlags | DT_SINGLELINE, &rcText, &dtto);
 		}
 
-		if (hCreatedFont)
+		if (hCreatedFont != nullptr)
 			::DeleteObject(hCreatedFont);
 		::SelectObject(hdc, hOldFont);
 	}
@@ -1691,14 +1707,14 @@ namespace DarkMode
 				{
 					PAINTSTRUCT ps{};
 					HDC hdc = reinterpret_cast<HDC>(wParam);
-					if (!hdc)
+					if (hdc == nullptr)
 					{
 						hdc = ::BeginPaint(hWnd, &ps);
 					}
 
 					DarkMode::paintGroupbox(hWnd, hdc, *pButtonData);
 
-					if (ps.hdc)
+					if (ps.hdc != nullptr)
 					{
 						::EndPaint(hWnd, &ps);
 					}
@@ -1802,8 +1818,8 @@ namespace DarkMode
 
 	struct UpDownData
 	{
-		ThemeData _themeData{};
-		BufferData _bufferData{};
+		ThemeData _themeData;
+		BufferData _bufferData;
 
 		RECT _rcClient{};
 		RECT _rcPrev{};
@@ -1845,7 +1861,7 @@ namespace DarkMode
 			}
 			else
 			{
-				const LONG offset = 2;
+				constexpr LONG offset = 2;
 
 				RECT rcArrowTop{
 					_rcClient.left + offset, _rcClient.top,
@@ -1895,14 +1911,14 @@ namespace DarkMode
 		::GetCursorPos(&ptCursor);
 		::ScreenToClient(hWnd, &ptCursor);
 
-		const bool isHotPrev = ::PtInRect(&upDownData._rcPrev, ptCursor);
-		const bool isHotNext = ::PtInRect(&upDownData._rcNext, ptCursor);
+		const bool isHotPrev = ::PtInRect(&upDownData._rcPrev, ptCursor) == TRUE;
+		const bool isHotNext = ::PtInRect(&upDownData._rcNext, ptCursor) == TRUE;
 
 		upDownData._wasHotNext = isHotNext;
 
 		if (hasTheme)
 		{
-			auto stateID = isDisabled ? PBS_DISABLED : PBS_NORMAL;
+			const auto stateID = isDisabled ? PBS_DISABLED : PBS_NORMAL;
 			::DrawThemeBackground(hTheme, hdc, BP_PUSHBUTTON, isHotPrev ? PBS_HOT : stateID, &upDownData._rcPrev, nullptr);
 			::DrawThemeBackground(hTheme, hdc, BP_PUSHBUTTON, isHotNext ? PBS_HOT : stateID, &upDownData._rcNext, nullptr);
 		}
@@ -1913,14 +1929,14 @@ namespace DarkMode
 			::FillRect(hdc, &upDownData._rcNext, isHotNext ? DarkMode::getHotBackgroundBrush() : hBrush);
 		}
 
-		constexpr auto arrowTextFlags = DT_NOPREFIX | DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOCLIP;
-		COLORREF clrText = isDisabled ? DarkMode::getDisabledTextColor() : DarkMode::getDarkerTextColor();
+		constexpr UINT dtFlags = DT_NOPREFIX | DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOCLIP;
+		const COLORREF clrText = isDisabled ? DarkMode::getDisabledTextColor() : DarkMode::getDarkerTextColor();
 
 		::SetTextColor(hdc, isHotPrev ? DarkMode::getTextColor() : clrText);
-		::DrawText(hdc, upDownData._isHorizontal ? L"<" : L"˄", -1, &upDownData._rcPrev, arrowTextFlags);
+		::DrawText(hdc, upDownData._isHorizontal ? L"<" : L"˄", -1, &upDownData._rcPrev, dtFlags);
 
 		::SetTextColor(hdc, isHotNext ? DarkMode::getTextColor() : clrText);
-		::DrawText(hdc, upDownData._isHorizontal ? L">" : L"˅", -1, &upDownData._rcNext, arrowTextFlags);
+		::DrawText(hdc, upDownData._isHorizontal ? L">" : L"˅", -1, &upDownData._rcNext, dtFlags);
 
 		if (!hasTheme)
 		{
@@ -2049,7 +2065,7 @@ namespace DarkMode
 				::GetCursorPos(&ptCursor);
 				::ScreenToClient(hWnd, &ptCursor);
 
-				const bool isHotPrev = ::PtInRect(&pUpDownData->_rcPrev, ptCursor);
+				const bool isHotPrev = ::PtInRect(&pUpDownData->_rcPrev, ptCursor) == TRUE;
 
 				if ((isHotPrev && pUpDownData->_wasHotNext))
 				{
@@ -2099,9 +2115,9 @@ namespace DarkMode
 		}
 	}
 
-	static void paintTab(HWND hWnd, HDC hdc, RECT& rc)
+	static void paintTab(HWND hWnd, HDC hdc, const RECT& rect)
 	{
-		::FillRect(hdc, &rc, DarkMode::getDlgBackgroundBrush());
+		::FillRect(hdc, &rect, DarkMode::getDlgBackgroundBrush());
 
 		auto holdPen = static_cast<HPEN>(::SelectObject(hdc, DarkMode::getEdgePen()));
 
@@ -2119,9 +2135,9 @@ namespace DarkMode
 		::GetCursorPos(&ptCursor);
 		::ScreenToClient(hWnd, &ptCursor);
 
-		int nTabs = TabCtrl_GetItemCount(hWnd);
+		const int nTabs = TabCtrl_GetItemCount(hWnd);
 
-		int nSelTab = TabCtrl_GetCurSel(hWnd);
+		const int iSelTab = TabCtrl_GetCurSel(hWnd);
 		for (int i = 0; i < nTabs; ++i)
 		{
 			RECT rcItem{};
@@ -2129,10 +2145,10 @@ namespace DarkMode
 			RECT rcFrame{ rcItem };
 
 			RECT rcIntersect{};
-			if (::IntersectRect(&rcIntersect, &rc, &rcItem))
+			if (::IntersectRect(&rcIntersect, &rect, &rcItem))
 			{
-				const bool bHot = ::PtInRect(&rcItem, ptCursor);
-				const bool isSelectedTab = (i == nSelTab);
+				const bool bHot = ::PtInRect(&rcItem, ptCursor) == TRUE;
+				const bool isSelectedTab = (i == iSelTab);
 
 				::SetBkMode(hdc, TRANSPARENT);
 
@@ -2165,7 +2181,8 @@ namespace DarkMode
 					// would be better, than getCtrlBackgroundBrush(),
 					// however default getBackgroundBrush() has same color
 					// as getDlgBackgroundBrush()
-					::FillRect(hdc, &rcItem, isSelectedTab ? DarkMode::getDlgBackgroundBrush() : bHot ? DarkMode::getHotBackgroundBrush() : DarkMode::getCtrlBackgroundBrush());
+					HBRUSH hBrush = isSelectedTab ? DarkMode::getDlgBackgroundBrush() : (bHot ? DarkMode::getHotBackgroundBrush() : DarkMode::getCtrlBackgroundBrush());
+					::FillRect(hdc, &rcItem, hBrush);
 					::SetTextColor(hdc, (bHot || isSelectedTab) ? DarkMode::getTextColor() : DarkMode::getDarkerTextColor());
 				}
 
@@ -2189,9 +2206,9 @@ namespace DarkMode
 					int cx = 0;
 					int cy = 0;
 					auto hImagelist = TabCtrl_GetImageList(hWnd);
-					int offset = 2;
+					constexpr int offset = 2;
 					::ImageList_GetIconSize(hImagelist, &cx, &cy);
-					::ImageList_Draw(hImagelist, tci.iImage, hdc, rcText.left + offset, rcText.top + ((rcText.bottom - rcText.top) - cy) / 2, ILD_NORMAL);
+					::ImageList_Draw(hImagelist, tci.iImage, hdc, rcText.left + offset, rcText.top + (((rcText.bottom - rcText.top) - cy) / 2), ILD_NORMAL);
 					rcText.left += cx;
 				}
 
@@ -2205,7 +2222,7 @@ namespace DarkMode
 
 		::SelectObject(hdc, hOldFont);
 		::SelectClipRgn(hdc, holdClip);
-		if (holdClip)
+		if (holdClip != nullptr)
 		{
 			::DeleteObject(holdClip);
 			holdClip = nullptr;
@@ -2461,7 +2478,7 @@ namespace DarkMode
 				::GetCursorPos(&ptCursor);
 				::ScreenToClient(hWnd, &ptCursor);
 
-				const bool isHot = ::PtInRect(&rcClient, ptCursor);
+				const bool isHot = ::PtInRect(&rcClient, ptCursor) == TRUE;
 				const bool hasFocus = ::GetFocus() == hWnd;
 
 				HPEN hEnabledPen = ((pBorderMetricsData->_isHot && isHot) || hasFocus ? DarkMode::getHotEdgePen() : DarkMode::getEdgePen());
@@ -2597,8 +2614,8 @@ namespace DarkMode
 
 	struct ComboboxData
 	{
-		ThemeData _themeData{};
-		BufferData _bufferData{};
+		ThemeData _themeData;
+		BufferData _bufferData;
 
 		LONG_PTR _cbStyle = CBS_SIMPLE;
 
@@ -2654,8 +2671,8 @@ namespace DarkMode
 			auto index = static_cast<int>(::SendMessage(hWnd, CB_GETCURSEL, 0, 0));
 			if (index != CB_ERR)
 			{
-				auto bufferLen = static_cast<size_t>(::SendMessage(hWnd, CB_GETLBTEXTLEN, static_cast<WPARAM>(index), 0));
-				wchar_t* buffer = new wchar_t[(bufferLen + 1)];
+				const auto bufferLen = static_cast<size_t>(::SendMessage(hWnd, CB_GETLBTEXTLEN, static_cast<WPARAM>(index), 0));
+				auto buffer = new wchar_t[(bufferLen + 1)];
 				::SendMessage(hWnd, CB_GETLBTEXT, static_cast<WPARAM>(index), reinterpret_cast<LPARAM>(buffer));
 
 				RECT rcText{ cbi.rcItem };
@@ -2706,7 +2723,7 @@ namespace DarkMode
 			{
 				const auto clrText = isDisabled ? DarkMode::getDisabledTextColor() : (isHot ? DarkMode::getTextColor() : DarkMode::getDarkerTextColor());
 				::SetTextColor(hdc, clrText);
-				wchar_t arrow[] = L"˅";
+				const wchar_t arrow[] = L"˅";
 				::DrawText(hdc, arrow, -1, &rcArrow, DT_NOPREFIX | DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOCLIP);
 			}
 		}
@@ -2843,9 +2860,9 @@ namespace DarkMode
 					break;
 				}
 
-				LRESULT lr = ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
+				LRESULT retVal = ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
 				::RedrawWindow(hWnd, nullptr, nullptr, RDW_INVALIDATE);
-				return lr;
+				return retVal;
 			}
 
 			case WM_DPICHANGED:
@@ -3038,9 +3055,9 @@ namespace DarkMode
 				if (hasGridlines)
 				{
 					DarkMode::hookSysColor();
-					LRESULT lr = ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
+					LRESULT retVal = ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
 					DarkMode::unhookSysColor();
-					return lr;
+					return retVal;
 				}
 				break;
 			}
@@ -3124,9 +3141,9 @@ namespace DarkMode
 
 	struct HeaderData
 	{
-		ThemeData _themeData{};
-		BufferData _bufferData{};
-		FontData _fontData{};
+		ThemeData _themeData;
+		BufferData _bufferData;
+		FontData _fontData;
 
 		POINT _pt{ LONG_MIN, LONG_MIN };
 		bool _isHot = false;
@@ -3134,8 +3151,7 @@ namespace DarkMode
 		bool _isPressed = false;
 
 		HeaderData()
-			: _themeData(VSCLASS_HEADER),
-			_hasBtnStyle(true)
+			: _themeData(VSCLASS_HEADER)
 		{}
 
 		explicit HeaderData(bool hasBtnStyle)
@@ -3195,7 +3211,7 @@ namespace DarkMode
 		for (int i = 0; i < count; i++)
 		{
 			Header_GetItemRect(hWnd, i, &rcItem);
-			const bool isOnItem = ::PtInRect(&rcItem, headerData._pt);
+			const bool isOnItem = ::PtInRect(&rcItem, headerData._pt) == TRUE;
 
 			if (headerData._hasBtnStyle && isOnItem)
 			{
@@ -3223,7 +3239,7 @@ namespace DarkMode
 				&& ((hdi.fmt & HDF_SORTUP) == HDF_SORTUP
 					|| (hdi.fmt & HDF_SORTDOWN) == HDF_SORTDOWN))
 			{
-				int iStateID = ((hdi.fmt & HDF_SORTUP) == HDF_SORTUP) ? HSAS_SORTEDUP : HSAS_SORTEDDOWN;
+				const int iStateID = ((hdi.fmt & HDF_SORTUP) == HDF_SORTUP) ? HSAS_SORTEDUP : HSAS_SORTEDDOWN;
 				RECT rcArrow{ rcItem };
 				SIZE szArrow{};
 				if (SUCCEEDED(::GetThemePartSize(hTheme, hdc, HP_HEADERSORTARROW, iStateID, nullptr, TS_DRAW, &szArrow)))
@@ -3414,7 +3430,7 @@ namespace DarkMode
 				if (!pHeaderData->_hasBtnStyle)
 					break;
 
-				LRESULT result = ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
+				LRESULT retVal = ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
 
 				pHeaderData->_isHot = false;
 				pHeaderData->_pt.x = LONG_MIN;
@@ -3422,7 +3438,7 @@ namespace DarkMode
 
 				::InvalidateRect(hWnd, nullptr, TRUE);
 
-				return result;
+				return retVal;
 			}
 		}
 		return ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
@@ -3441,9 +3457,9 @@ namespace DarkMode
 
 	struct StatusBarData
 	{
-		ThemeData _themeData{};
-		BufferData _bufferData{};
-		FontData _fontData{};
+		ThemeData _themeData;
+		BufferData _bufferData;
+		FontData _fontData;
 
 		StatusBarData()
 			: _themeData(VSCLASS_STATUS)
@@ -3494,7 +3510,7 @@ namespace DarkMode
 			}
 
 			const int lastDiv = hasSizeGrip ? 1 : 0;
-			if (i < nParts - lastDiv && !(nParts < 2 && hasSizeGrip))
+			if ((i < nParts - lastDiv) && (nParts >= 2 || !hasSizeGrip))
 			{
 				POINT edges[]{
 					{rcPart.right - borders.between, rcPart.top + 1},
@@ -3702,8 +3718,8 @@ namespace DarkMode
 
 	struct ProgressBarData
 	{
-		BufferData _bufferData{};
-		ThemeData _themeData{};
+		BufferData _bufferData;
+		ThemeData _themeData;
 
 		int _iStateID = PBFS_PARTIAL; // PBFS_PARTIAL for cyan color
 
@@ -3723,7 +3739,7 @@ namespace DarkMode
 		const int currPos = pos - iMin;
 		if (currPos != 0)
 		{
-			int totalWidth = rcEmpty->right - rcEmpty->left;
+			const int totalWidth = rcEmpty->right - rcEmpty->left;
 			rcFilled->left = rcEmpty->left;
 			rcFilled->top = rcEmpty->top;
 			rcFilled->bottom = rcEmpty->bottom;
@@ -3751,7 +3767,7 @@ namespace DarkMode
 		::FillRect(hdc, &rcClient, DarkMode::getCtrlBackgroundBrush());
 	}
 
-	const UINT_PTR g_progressBarSubclassID = static_cast<UINT_PTR>(DarkMode::SubclassID::progress);
+	constexpr UINT_PTR g_progressBarSubclassID = static_cast<UINT_PTR>(DarkMode::SubclassID::progress);
 
 	static LRESULT CALLBACK ProgressBarSubclass(
 		HWND hWnd,
@@ -4285,7 +4301,7 @@ namespace DarkMode
 		{
 			case CDDS_PREPAINT:
 			{
-				LRESULT lr = CDRF_DODEFAULT;
+				LRESULT retVal = CDRF_DODEFAULT;
 				if (DarkMode::isEnabled())
 				{
 					if (DarkMode::isWindows11())
@@ -4294,10 +4310,10 @@ namespace DarkMode
 					}
 
 					::FillRect(lptbcd->nmcd.hdc, &lptbcd->nmcd.rc, DarkMode::getDlgBackgroundBrush());
-					lr |= CDRF_NOTIFYITEMDRAW | CDRF_NOTIFYPOSTPAINT;
+					retVal |= CDRF_NOTIFYITEMDRAW | CDRF_NOTIFYPOSTPAINT;
 				}
 
-				return lr;
+				return retVal;
 			}
 
 			case CDDS_ITEMPREPAINT:
@@ -4368,18 +4384,18 @@ namespace DarkMode
 					lptbcd->nmcd.uItemState &= ~CDIS_CHECKED;
 				}
 
-				LRESULT lr = TBCDRF_USECDCOLORS;
+				LRESULT retVal = TBCDRF_USECDCOLORS;
 				if ((lptbcd->nmcd.uItemState & CDIS_SELECTED) == CDIS_SELECTED)
 				{
-					lr |= TBCDRF_NOBACKGROUND;
+					retVal |= TBCDRF_NOBACKGROUND;
 				}
 
 				if (isDropDown)
 				{
-					lr |= CDRF_NOTIFYPOSTPAINT;
+					retVal |= CDRF_NOTIFYPOSTPAINT;
 				}
 
-				return lr;
+				return retVal;
 			}
 
 			case CDDS_ITEMPOSTPAINT:
@@ -4401,10 +4417,8 @@ namespace DarkMode
 				rcArrow.left += 1;
 				rcArrow.bottom -= 3;
 
-				COLORREF clrArrow = DarkMode::getTextColor();
-
 				::SetBkMode(lptbcd->nmcd.hdc, TRANSPARENT);
-				::SetTextColor(lptbcd->nmcd.hdc, clrArrow);
+				::SetTextColor(lptbcd->nmcd.hdc, DarkMode::getTextColor());
 				::DrawText(lptbcd->nmcd.hdc, L"⏷", -1, &rcArrow, DT_NOPREFIX | DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOCLIP);
 				::SelectObject(lptbcd->nmcd.hdc, holdFont);
 
@@ -4537,7 +4551,7 @@ namespace DarkMode
 
 			case CDDS_ITEMPREPAINT:
 			{
-				LRESULT lr = CDRF_DODEFAULT;
+				LRESULT retVal = CDRF_DODEFAULT;
 
 				if (DarkMode::isEnabled())
 				{
@@ -4547,7 +4561,7 @@ namespace DarkMode
 						lptvcd->clrTextBk = DarkMode::getCtrlBackgroundColor();
 						::FillRect(lptvcd->nmcd.hdc, &lptvcd->nmcd.rc, DarkMode::getCtrlBackgroundBrush());
 
-						lr |= CDRF_NEWFONT | CDRF_NOTIFYPOSTPAINT;
+						retVal |= CDRF_NEWFONT | CDRF_NOTIFYPOSTPAINT;
 					}
 					else if ((lptvcd->nmcd.uItemState & CDIS_HOT) == CDIS_HOT)
 					{
@@ -4557,13 +4571,13 @@ namespace DarkMode
 						if (DarkMode::isWindows10() || g_treeViewStyle == TreeViewStyle::light)
 						{
 							::FillRect(lptvcd->nmcd.hdc, &lptvcd->nmcd.rc, DarkMode::getHotBackgroundBrush());
-							lr |= CDRF_NOTIFYPOSTPAINT;
+							retVal |= CDRF_NOTIFYPOSTPAINT;
 						}
-						lr |= CDRF_NEWFONT;
+						retVal |= CDRF_NEWFONT;
 					}
 				}
 
-				return lr;
+				return retVal;
 			}
 
 			case CDDS_ITEMPOSTPAINT:
@@ -4595,7 +4609,7 @@ namespace DarkMode
 
 	static LRESULT darkTrackBarNotifyCustomDraw(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	{
-		LPNMCUSTOMDRAW lpnmcd = reinterpret_cast<LPNMCUSTOMDRAW>(lParam);
+		auto lpnmcd = reinterpret_cast<LPNMCUSTOMDRAW>(lParam);
 
 		switch (lpnmcd->dwDrawStage)
 		{
@@ -4664,7 +4678,7 @@ namespace DarkMode
 				rbBand.fMask = RBBIM_STYLE | RBBIM_CHEVRONLOCATION | RBBIM_CHEVRONSTATE;
 				::SendMessage(lpnmcd->hdr.hwndFrom, RB_GETBANDINFO, 0, reinterpret_cast<LPARAM>(&rbBand));
 
-				LRESULT lr = CDRF_DODEFAULT;
+				LRESULT retVal = CDRF_DODEFAULT;
 
 				if ((rbBand.fStyle & RBBS_USECHEVRON) == RBBS_USECHEVRON
 					&& (rbBand.rcChevronLocation.right - rbBand.rcChevronLocation.left) > 0)
@@ -4693,9 +4707,9 @@ namespace DarkMode
 					constexpr auto dtFlags = DT_NOPREFIX | DT_CENTER | DT_TOP | DT_SINGLELINE | DT_NOCLIP;
 					::DrawText(lpnmcd->hdc, L"»", -1, &rbBand.rcChevronLocation, dtFlags);
 
-					lr = CDRF_SKIPDEFAULT;
+					retVal = CDRF_SKIPDEFAULT;
 				}
-				return lr;
+				return retVal;
 			}
 
 			default:
@@ -4790,7 +4804,7 @@ namespace DarkMode
 	{
 		MENUBARINFO mbi{};
 		mbi.cbSize = sizeof(MENUBARINFO);
-		if (!::GetMenuBarInfo(hWnd, OBJID_MENU, 0, &mbi))
+		if (::GetMenuBarInfo(hWnd, OBJID_MENU, 0, &mbi) == FALSE)
 		{
 			return;
 		}
@@ -4845,25 +4859,22 @@ namespace DarkMode
 			case WM_UAHDRAWMENU:
 			{
 				auto pUDM = reinterpret_cast<UAHMENU*>(lParam);
-				RECT rc{};
 
 				// get the menubar rect
-				{
-					MENUBARINFO mbi{};
-					mbi.cbSize = sizeof(MENUBARINFO);
-					::GetMenuBarInfo(hWnd, OBJID_MENU, 0, &mbi);
+				MENUBARINFO mbi{};
+				mbi.cbSize = sizeof(MENUBARINFO);
+				::GetMenuBarInfo(hWnd, OBJID_MENU, 0, &mbi);
 
-					RECT rcWindow{};
-					::GetWindowRect(hWnd, &rcWindow);
+				RECT rcWindow{};
+				::GetWindowRect(hWnd, &rcWindow);
 
-					// the rcBar is offset by the window rect
-					rc = mbi.rcBar;
-					::OffsetRect(&rc, -rcWindow.left, -rcWindow.top);
+				// the rcBar is offset by the window rect
+				RECT rcBar{ mbi.rcBar };
+				::OffsetRect(&rcBar, -rcWindow.left, -rcWindow.top);
 
-					rc.top -= 1;
-				}
+				rcBar.top -= 1;
 
-				::FillRect(pUDM->hdc, &rc, DarkMode::getDlgBackgroundBrush());
+				::FillRect(pUDM->hdc, &rcBar, DarkMode::getDlgBackgroundBrush());
 
 				return 0;
 			}
@@ -4978,7 +4989,7 @@ namespace DarkMode
 					}
 				}
 
-				::DrawThemeTextEx(hTheme, pUDMI->um.hdc, MENU_BARITEM, iTextStateID, menuString, mii.cch, dwFlags, &pUDMI->dis.rcItem, &dttopts);
+				::DrawThemeTextEx(hTheme, pUDMI->um.hdc, MENU_BARITEM, iTextStateID, menuString, static_cast<int>(mii.cch), dwFlags, &pUDMI->dis.rcItem, &dttopts);
 
 				return 0;
 			}
@@ -4999,9 +5010,9 @@ namespace DarkMode
 			case WM_NCACTIVATE:
 			case WM_NCPAINT:
 			{
-				LRESULT result = ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
+				LRESULT retVal = ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
 				DarkMode::drawUAHMenuNCBottomLine(hWnd);
-				return result;
+				return retVal;
 			}
 		}
 		return ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
@@ -5243,31 +5254,32 @@ namespace DarkMode
 			return std::pow(((colorChannel + 0.055) / 1.055), 2.4);
 			};
 
-		double r = linearValue(static_cast<double>(GetRValue(clr)));
-		double g = linearValue(static_cast<double>(GetGValue(clr)));
-		double b = linearValue(static_cast<double>(GetBValue(clr)));
+		const double r = linearValue(static_cast<double>(GetRValue(clr)));
+		const double g = linearValue(static_cast<double>(GetGValue(clr)));
+		const double b = linearValue(static_cast<double>(GetBValue(clr)));
 
-		double luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+		const double luminance = (0.2126 * r) + (0.7152 * g) + (0.0722 * b);
 
-		double lightness = (luminance <= 216.0 / 24389.0) ? (luminance * 24389.0 / 27.0) : (std::pow(luminance, (1.0 / 3.0)) * 116.0 - 16.0);
+		const double lightness = (luminance <= 216.0 / 24389.0) ? (luminance * 24389.0 / 27.0) : ((std::pow(luminance, (1.0 / 3.0)) * 116.0) - 16.0);
 		return lightness;
 	}
 
 	void calculateTreeViewStyle()
 	{
-		COLORREF bgColor = DarkMode::getViewBackgroundColor();
+		constexpr double middle = 50.0;
+		const COLORREF bgColor = DarkMode::getViewBackgroundColor();
 
-		if (g_treeViewBg != bgColor || g_lightnessTreeView == 50.0)
+		if (g_treeViewBg != bgColor || g_lightnessTreeView == middle)
 		{
 			g_lightnessTreeView = calculatePerceivedLightness(bgColor);
 			g_treeViewBg = bgColor;
 		}
 
-		if (g_lightnessTreeView < (50.0 - g_middleGrayRange))
+		if (g_lightnessTreeView < (middle - g_middleGrayRange))
 		{
 			g_treeViewStyle = TreeViewStyle::dark;
 		}
-		else if (g_lightnessTreeView > (50.0 + g_middleGrayRange))
+		else if (g_lightnessTreeView > (middle + g_middleGrayRange))
 		{
 			g_treeViewStyle = TreeViewStyle::light;
 		}
