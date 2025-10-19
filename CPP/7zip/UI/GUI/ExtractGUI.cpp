@@ -248,6 +248,7 @@ HRESULT ExtractGUI(
       dialog.PathMode = options.PathMode;
       dialog.PathMode_Force = options.PathMode_Force;
       dialog.ElimDup = options.ElimDup;
+      dialog.DeleteArchive = options.DeleteArchive;
 
       if (archivePathsFull.Size() == 1)
         dialog.ArcPath = archivePathsFull[0];
@@ -267,7 +268,8 @@ HRESULT ExtractGUI(
       options.OverwriteMode = dialog.OverwriteMode;
       options.PathMode = dialog.PathMode;
       options.ElimDup = dialog.ElimDup;
-      
+      options.DeleteArchive = dialog.DeleteArchive;
+
       #ifndef Z7_SFX
       OpnTrgFold = dialog.OpnTrgFold.Val;
       // options.NtOptions.AltStreams = dialog.AltStreams;

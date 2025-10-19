@@ -99,6 +99,7 @@ static LPCTSTR const kOpnTrgFold = TEXT("OpnTrgFold");
 static LPCTSTR const kPathHistory = TEXT("PathHistory");
 static LPCTSTR const kSplitDest = TEXT("SplitDest");
 static LPCTSTR const kElimDup = TEXT("ElimDup");
+static LPCTSTR const kDeleteArchive = TEXT("DeleteArchive");
 // static LPCTSTR const kAltStreams = TEXT("AltStreams");
 static LPCTSTR const kNtSecur = TEXT("Security");
 static LPCTSTR const kMemLimit = TEXT("MemLimit");
@@ -117,6 +118,7 @@ void CInfo::Save() const
 
   Key_Set_BoolPair(key, kSplitDest, SplitDest);
   Key_Set_BoolPair(key, kElimDup, ElimDup);
+  Key_Set_BoolPair(key, kDeleteArchive, DeleteArchive);
   // Key_Set_BoolPair(key, kAltStreams, AltStreams);
   Key_Set_BoolPair(key, kNtSecur, NtSecurity);
   Key_Set_BoolPair(key, kShowPassword, ShowPassword);
@@ -177,6 +179,7 @@ void CInfo::Load()
   Key_Get_BoolPair_true(key, kSplitDest, SplitDest);
 
   Key_Get_BoolPair(key, kElimDup, ElimDup);
+  Key_Get_BoolPair(key, kDeleteArchive, DeleteArchive);
   // Key_Get_BoolPair(key, kAltStreams, AltStreams);
   Key_Get_BoolPair(key, kNtSecur, NtSecurity);
   Key_Get_BoolPair(key, kShowPassword, ShowPassword);

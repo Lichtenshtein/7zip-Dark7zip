@@ -31,6 +31,7 @@ namespace NExtract
     
     CBoolPair SplitDest;
     CBoolPair ElimDup;
+    CBoolPair DeleteArchive;
     // CBoolPair AltStreams;
     CBoolPair NtSecurity;
     CBoolPair ShowPassword;
