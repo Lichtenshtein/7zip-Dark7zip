@@ -57,6 +57,9 @@ static const CContextMenuItem kMenuItems[] =
   { IDS_CONTEXT_EXTRACT_TO, kExtractTo },
   { IDS_CONTEXT_EXTRACT_SMART, kExtractSmart },
   { IDS_CONTEXT_EXTRACT_TO_SINGLE, kExtractToSingle },
+  { IDS_CONTEXT_EXTRACT_DELETE, kExtractDelete },
+  { IDS_CONTEXT_EXTRACT_HERE_DELETE, kExtractHereDelete },
+  { IDS_CONTEXT_EXTRACT_TO_DELETE, kExtractToDelete },
 
   { IDS_CONTEXT_TEST, kTest },
 
@@ -260,6 +263,9 @@ bool CMenuPage::OnInit()
     switch (menuItem.ControlID)
     {
       case IDS_CONTEXT_EXTRACT_TO:
+      case IDS_CONTEXT_EXTRACT_SMART:
+      case IDS_CONTEXT_EXTRACT_TO_SINGLE::
+      case IDS_CONTEXT_EXTRACT_TO_DELETE:
       {
         s = MyFormatNew(s, LangString(IDS_CONTEXT_FOLDER));
         break;

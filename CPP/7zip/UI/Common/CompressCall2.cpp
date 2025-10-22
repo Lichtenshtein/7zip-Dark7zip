@@ -213,13 +213,15 @@ static HRESULT ExtractGroupCommand(const UStringVector &arcPaths,
 }
 
 void ExtractArchives(const UStringVector &arcPaths, const UString &outFolder,
-    bool showDialog, bool elimDup, UInt32 writeZone)
+    bool showDialog, bool elimDup, bool deleteArchive, UInt32 writeZone)
 {
   CExtractOptions eo;
   eo.OutputDir = us2fs(outFolder);
   eo.TestMode = false;
   eo.ElimDup.Val = elimDup;
   eo.ElimDup.Def = elimDup;
+  eo.DeleteArchive.Val = deleteArchive;
+  eo.DeleteArchive.Def = deleteArchive;
   if (writeZone != (UInt32)(Int32)-1)
     eo.ZoneMode = (NExtract::NZoneIdMode::EEnum)writeZone;
   ExtractGroupCommand(arcPaths, showDialog, eo);

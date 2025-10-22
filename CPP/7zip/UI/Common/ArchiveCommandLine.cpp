@@ -1583,6 +1583,12 @@ void CArcCmdLineParser::Parse2(CArcCmdLineOptions &options)
         nt.OpenShareForWrite = true;
     }
 
+    if (parser[NKey::kDeleteAfterCompressing].ThereIs)
+    {
+      eo.DeleteArchive.Def = true;
+      eo.DeleteArchive.Val = true;
+    }
+
     if (parser[NKey::kZoneFile].ThereIs)
     {
       eo.ZoneMode = NExtract::NZoneIdMode::kAll;

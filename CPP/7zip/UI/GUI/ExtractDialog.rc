@@ -40,7 +40,7 @@ BEGIN
 
   CONTROL   "Eliminate duplication of root folder", IDX_EXTRACT_ELIM_DUP, MY_CHECKBOX,
             m, m + 84, g1xs, 10
-  CONTROL   "Delete archive after extraction", IDX_EXTRACT_DELETE_ARCHIVE, MY_CHECKBOX,
+  CONTROL   "Delete archive file after successful extraction", IDX_EXTRACT_DELETE_ARCHIVE, MY_CHECKBOX,
             m, m + 104, g1xs, 10
 
   LTEXT     "Overwrite mode:", IDT_EXTRACT_OVERWRITE_MODE, m, m + 124, g1xs, 8

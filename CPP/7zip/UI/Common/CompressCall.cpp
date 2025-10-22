@@ -313,7 +313,7 @@ HRESULT CompressFiles(
   MY_TRY_FINISH
 }
 
-static void ExtractGroupCommand(const UStringVector &arcPaths, UString &params, bool isHash)
+static void ExtractGroupCommand(const UStringVector &arcPaths, UString &params, bool isHash, bool deleteArchive)
 {
   AddLagePagesSwitch(params);
   params += (isHash ? kHashIncludeSwitches : kArcIncludeSwitches);
@@ -326,7 +326,8 @@ static void ExtractGroupCommand(const UStringVector &arcPaths, UString &params, 
     ErrorMessageHRESULT(result);
 }
 
-void ExtractArchives(const UStringVector &arcPaths, const UString &outFolder, bool showDialog, bool elimDup, UInt32 writeZone)
+void ExtractArchives(const UStringVector &arcPaths, const UString &outFolder,
+    bool showDialog, bool elimDup, bool deleteArchive, UInt32 writeZone)
 {
   MY_TRY_BEGIN
   UString params ('x');
@@ -337,6 +338,8 @@ void ExtractArchives(const UStringVector &arcPaths, const UString &outFolder, bo
   }
   if (elimDup)
     params += " -spe";
+  if (deleteArchive)
+    params += " -sdel";
   if (writeZone != (UInt32)(Int32)-1)
   {
     params += " -snz";
@@ -344,7 +347,7 @@ void ExtractArchives(const UStringVector &arcPaths, const UString &outFolder, bo
   }
   if (showDialog)
     params += kShowDialogSwitch;
-  ExtractGroupCommand(arcPaths, params, false);
+  ExtractGroupCommand(arcPaths, params, false, deleteArchive);
   MY_TRY_FINISH_VOID
 }
 
@@ -358,7 +361,7 @@ void TestArchives(const UStringVector &arcPaths, bool hashMode)
     params += kArchiveTypeSwitch;
     params += "hash";
   }
-  ExtractGroupCommand(arcPaths, params, false);
+  ExtractGroupCommand(arcPaths, params, false, false);
   MY_TRY_FINISH_VOID
 }
 
@@ -399,7 +402,7 @@ void CalcChecksum(const UStringVector &paths,
     }
     */
   }
-  ExtractGroupCommand(paths, params, true);
+  ExtractGroupCommand(paths, params, true, false);
   MY_TRY_FINISH_VOID
 }
 
