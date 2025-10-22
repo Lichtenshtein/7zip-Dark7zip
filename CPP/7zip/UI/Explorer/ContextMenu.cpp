@@ -276,6 +276,9 @@ static const CContextMenuCommand g_Commands[] =
   CMD_REC( kExtractTo,   "ExtractTo",   IDS_CONTEXT_EXTRACT_TO),
   CMD_REC( kExtractSmart,        "ExtractSmart",        IDS_CONTEXT_EXTRACT_SMART),
   CMD_REC( kExtractToSingle,        "ExtractToSingle",        IDS_CONTEXT_EXTRACT_TO_SINGLE),
+  CMD_REC( kExtractDelete,     "ExtractDelete",     IDS_CONTEXT_EXTRACT_DELETE),
+  CMD_REC( kExtractHereDelete, "ExtractHereDelete", IDS_CONTEXT_EXTRACT_HERE_DELETE),
+  CMD_REC( kExtractToDelete,   "ExtractToDelete",   IDS_CONTEXT_EXTRACT_TO_DELETE),
   CMD_REC( kTest,        "Test",        IDS_CONTEXT_TEST),
   CMD_REC( kCompress,           "Compress",           IDS_CONTEXT_COMPRESS),
   CMD_REC( kCompressEmail,      "CompressEmail",      IDS_CONTEXT_COMPRESS_EMAIL),
@@ -920,6 +923,36 @@ Z7_COMWF_B CZipContextMenu::QueryContextMenu(HMENU hMenu, UINT indexMenu,
             }
         MyInsertMenu(popupMenu, subIndex++, currentCommandID++, mainString, bitmap);
        }
+
+        if ((contextMenuFlags & NContextMenuFlags::kExtractDelete) != 0)
+        {
+          // Extract and delete archive
+          CCommandMapItem cmi;
+          cmi.Folder = baseFolder + specFolder;
+          AddCommand(kExtractDelete, mainString, cmi);
+          MyInsertMenu(popupMenu, subIndex++, currentCommandID++, mainString, bitmap);
+        }
+
+        if ((contextMenuFlags & NContextMenuFlags::kExtractHereDelete) != 0)
+        {
+          // Extract Here and delete archive
+          CCommandMapItem cmi;
+          cmi.Folder = baseFolder;
+          AddCommand(kExtractHereDelete, mainString, cmi);
+          MyInsertMenu(popupMenu, subIndex++, currentCommandID++, mainString, bitmap);
+        }
+
+        if ((contextMenuFlags & NContextMenuFlags::kExtractToDelete) != 0)
+        {
+          // Extract To and delete archive
+          CCommandMapItem cmi;
+          UString s;
+          cmi.Folder = baseFolder + specFolder;
+          AddCommand(kExtractToDelete, s, cmi);
+          MyFormatNew_ReducedName(s, specFolder);
+          Set_UserString_in_LastCommand(s);
+          MyInsertMenu(popupMenu, subIndex++, currentCommandID++, s, bitmap);
+        }
       }
 
       if ((contextMenuFlags & NContextMenuFlags::kTest) != 0)
@@ -1403,34 +1436,11 @@ HRESULT CZipContextMenu::InvokeCommandCommon(const CCommandMapItem &cmi)
       }
       case kExtract:
       case kExtractHere:
+      case kExtractDelete:
+      case kExtractHereDelete:
+      case kExtractToDelete:
       case kExtractSmart:
-      {
-        if (_attribs.FirstDirIndex != -1)
-        {
-          ShowErrorMessageRes(IDS_SELECT_FILES);
-          break;
-        }
-        ExtractArchives(_fileNames, cmi.Folder,
-            (cmdID == kExtract), // showDialog
-            (cmdID == kExtractTo) && _elimDup.Val, // elimDup
-            _writeZone
-            );
-        break;
-      }
       case kExtractToSingle:
-      {
-        if (_attribs.FirstDirIndex != -1)
-        {
-          ShowErrorMessageRes(IDS_SELECT_FILES);
-          break;
-        }
-        ExtractArchives(_fileNames, cmi.Folder,
-            (cmdID == kExtract), // showDialog
-            (cmdID == kExtractTo) && _elimDup.Val, // elimDup
-            _writeZone
-            );
-        break;
-      }
       case kExtractTo:
       {
         if (_attribs.FirstDirIndex != -1)
@@ -1439,8 +1449,11 @@ HRESULT CZipContextMenu::InvokeCommandCommon(const CCommandMapItem &cmi)
           break;
         }
         ExtractArchives(_fileNames, cmi.Folder,
-            (cmdID == kExtract), // showDialog
-            (cmdID == kExtractTo) && _elimDup.Val, // elimDup
+            (cmdID == kExtract || cmdID == kExtractToSingle || cmdID == kExtractSmart || cmdID == kExtractToDelete), // showDialog
+            (cmdID == kExtractTo || cmdID == kExtractToSingle || cmdID == kExtractSmart || cmdID == kExtractToDelete) && _elimDup.Val, // elimDup
+            (cmdID == kExtractToSingle),
+            (cmdID == kExtractSmart),
+            (cmdID == kExtractDelete || cmdID == kExtractHereDelete || cmdID == kExtractToDelete),
             _writeZone
             );
         break;
