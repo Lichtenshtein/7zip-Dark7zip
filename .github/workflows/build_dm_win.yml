@@ -1,9 +1,9 @@
 name: Build 7z-zstd Dark x64 binaries
 on:
-#  push:
-#    branches:
-#      - main
-#      - 7z-zstd
+  push:
+    branches:
+      - main
+      - 7z-zstd
   workflow_dispatch:
 
 jobs:
