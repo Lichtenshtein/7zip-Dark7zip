@@ -27,11 +27,12 @@ O=o
 
 !IF "$(PLATFORM)" == "x64"
 MY_ML = ml64 -WX
-#-Dx64
 !ELSEIF "$(PLATFORM)" == "arm64"
 MY_ML = armasm64
 !ELSEIF "$(PLATFORM)" == "arm"
 MY_ML = armasm -WX
+!ELSEIF "$(PLATFORM)" == "arm64"
+MY_ML = armasm
 !ELSE
 MY_ML = ml -WX
 # -DABI_CDECL
@@ -47,7 +48,7 @@ LFLAGS = $(LFLAGS) /ENTRY:mainACRTStartup
 !ENDIF
 !ELSE
 !IFDEF OLD_COMPILER
-LFLAGS = $(LFLAGS)
+LFLAGS = $(LFLAGS) -OPT:NOWIN98
 !ENDIF
 !IF "$(PLATFORM)" != "arm" && "$(PLATFORM)" != "arm64"
 CFLAGS = $(CFLAGS) -Gr
@@ -69,7 +70,8 @@ CFLAGS_WARN_LEVEL = -W4
 CFLAGS_WARN_LEVEL = -Wall
 !ENDIF
 
-CFLAGS = $(CFLAGS) -nologo -c -Fo$O/ $(CFLAGS_WARN_LEVEL) -EHsc -Gy -GR- -GF -GL -Gw -std:c++20 -Z7
+# CFLAGS = $(CFLAGS) -nologo -c -Fo$O/ $(CFLAGS_WARN_LEVEL) -WX -EHsc -Gy -MT -MP -GR- -GL -Gw
+CFLAGS = $(CFLAGS) -nologo -c -Fo$O/ -W4 -WX -EHsc -Gy -MT -MP -GR- -GL -Gw -std:c++20 -Z7
 
 !IF "$(CC)" == "clang-cl"
 
@@ -137,12 +139,8 @@ CFLAGS = $(CFLAGS) -D_ARM_WINAPI_PARTITION_DESKTOP_SDK_AVAILABLE
 !ENDIF
 !ENDIF
 
-!IF "$(PLATFORM)" == "x64"
 CFLAGS_O1 = $(CFLAGS) -O1
-!ELSE
-CFLAGS_O1 = $(CFLAGS) -O1
-!ENDIF
-CFLAGS_O2 = $(CFLAGS) -O2
+CFLAGS_O2 = $(CFLAGS) -O2 /Ob3
 
 LFLAGS = $(LFLAGS) -nologo -OPT:REF -OPT:ICF -INCREMENTAL:NO
 
@@ -152,24 +150,12 @@ LFLAGS = $(LFLAGS) /LTCG /LARGEADDRESSAWARE /DEPENDENTLOADFLAG:0x800
 
 !IFDEF DEF_FILE
 LFLAGS = $(LFLAGS) -DLL -DEF:$(DEF_FILE)
-!ELSE
-!IF defined(MY_FIXED) && "$(PLATFORM)" != "arm" && "$(PLATFORM)" != "arm64"
-LFLAGS = $(LFLAGS) /FIXED
-!ELSE
-LFLAGS = $(LFLAGS) /FIXED:NO
-!ENDIF
-# /BASE:0x400000
 !ENDIF
 
 !IF "$(PLATFORM)" == "arm64"
 # we can get better compression ratio with ARM64 filter if we change alignment to 4096
 # LFLAGS = $(LFLAGS) /FILEALIGN:4096
 !ENDIF
-
-
-
-# !IF "$(PLATFORM)" == "x64"
-
 !IFDEF SUB_SYS_VER
 
 MY_SUB_SYS_VER=6.00
@@ -198,7 +184,7 @@ COMPL_O1   = $(CC) $(CFLAGS_O1) $**
 COMPL_O2   = $(CC) $(CFLAGS_O2) $**
 COMPL_PCH  = $(CC) $(CFLAGS_O1) -Yc"StdAfx.h" -Fp$O/a.pch $**
 COMPL      = $(CC) $(CFLAGS_O1) -Yu"StdAfx.h" -Fp$O/a.pch $**
-COMPLB     = $(CC) $(CFLAGS_O1) -Yu"StdAfx.h" -Fp$O/a.pch $<
+COMPLB    = $(CC) $(CFLAGS_O1) -Yu"StdAfx.h" -Fp$O/a.pch $<
 COMPLB_O2  = $(CC) $(CFLAGS_O2) $<
 # COMPLB_O2  = $(CC) $(CFLAGS_O2) -Yu"StdAfx.h" -Fp$O/a.pch $<
 
@@ -213,7 +199,7 @@ CCOMPLB     = $(CC) $(CFLAGS_C_ALL) $<
 !IF "$(CC)" == "clang-cl"
 COMPL  = $(COMPL) -FI StdAfx.h
 COMPLB = $(COMPLB) -FI StdAfx.h
-CCOMPL_USE  = $(CCOMPL_USE) -FI Precomp.h
+CCOMPL_USE = $(CCOMPL_USE) -FI Precomp.h
 CCOMPLB_USE = $(CCOMPLB_USE) -FI Precomp.h
 !ENDIF
 

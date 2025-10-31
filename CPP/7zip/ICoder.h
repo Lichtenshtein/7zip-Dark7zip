@@ -139,35 +139,32 @@ namespace NCoderPropID
     kNumThreadGroups,   // VT_UI4
     kThreadGroup,       // VT_UI4
     kAffinityInGroup,   // VT_UI8
-    /*
-    // kHash3Bits,          // VT_UI4
-    // kHash2Bits,          // VT_UI4
-    // kChainBits,         // VT_UI4
-    kChainSize,         // VT_UI4
-    kNativeLevel,       // VT_UI4
-    kFast,              // VT_UI4
+    /* zstd props */
+    kStrategy,          // VT_UI4 1=ZSTD_fast, 2=ZSTD_dfast, 3=ZSTD_greedy, 4=ZSTD_lazy, 5=ZSTD_lazy2, 6=ZSTD_btlazy2, 7=ZSTD_btopt, 8=ZSTD_btultra
+    kFast,              // VT_UI4 The minimum fast is 1 and the maximum is 64 (default: unused)
+    kLong,              // VT_UI4 The minimum long is 10 (1KiB) and the maximum is 30 (1GiB) on x32 and 31 (2GiB) on x64
+    kWindowLog,         // VT_UI4 The minimum long is 10 (1KiB) and the maximum is 30 (1GiB) on x32 and 31 (2GiB) on x64
+    kHashLog,           // VT_UI4 The minimum hlog is 6 (64 B) and the maximum is 26 (128 MiB).
+    kChainLog,          // VT_UI4 The minimum clog is 6 (64 B) and the maximum is 28 (256 MiB)
+    kSearchLog,         // VT_UI4 The minimum slog is 1 and the maximum is 26
     kMinMatch,          // VT_UI4 The minimum slen is 3 and the maximum is 7.
+    kTargetLen,         // VT_UI4 The minimum tlen is 0 and the maximum is 999.
     kOverlapLog,        // VT_UI4 The minimum ovlog is 0 and the maximum is 9.  (default: 6)
-    kRowMatchFinder,    // VT_BOOL
-    kLdmEnable,         // VT_BOOL
-    // kLdmWindowSizeLog,  // VT_UI4
-    kLdmWindowSize,     // VT_UI4
     kLdmHashLog,        // VT_UI4 The minimum ldmhlog is 6 and the maximum is 26 (default: 20).
-    kLdmMinMatchLength, // VT_UI4 The minimum ldmslen is 4 and the maximum is 4096 (default: 64).
+    kLdmSearchLength,   // VT_UI4 The minimum ldmslen is 4 and the maximum is 4096 (default: 64).
     kLdmBucketSizeLog,  // VT_UI4 The minimum ldmblog is 0 and the maximum is 8 (default: 3).
     kLdmHashRateLog,    // VT_UI4 The default value is wlog - ldmhlog.
-    kWriteUnpackSizeFlag, // VT_BOOL
-    kUsePledged,        // VT_BOOL
-    kUseSizeHintPledgedForSmall, // VT_BOOL
-    kUseSizeHintForEach, // VT_BOOL
-    kUseSizeHintGlobal, // VT_BOOL
-    kParamSelectMode,   // VT_UI4
-    // kSearchLog,         // VT_UI4 The minimum slog is 1 and the maximum is 26
-    // kTargetLen,         // VT_UI4 The minimum tlen is 0 and the maximum is 999.
-    */
+    kAdvMax,            // VT_BOOL 1=ZSTD --max (advanced max compression)
     k_NUM_DEFINED
   };
 }
+
+/* artificial level used to specify max possible level (for ZSTD advanced max compression, equivalent of --max) */
+#define Z7_ZSTD_ULTIMATE_LEV  255
+
+#if !defined (Z7_ZSTD_ADVMAX_ALLOWED) && INTPTR_MAX == INT64_MAX // allowed for 64-bit only
+#define Z7_ZSTD_ADVMAX_ALLOWED 1
+#endif
 
 #define Z7_IFACEM_ICompressSetCoderPropertiesOpt(x) \
   x(SetCoderPropertiesOpt(const PROPID *propIDs, const PROPVARIANT *props, UInt32 numProps))
@@ -350,7 +347,7 @@ Z7_IFACE_CONSTR_CODER(ICompressOutSubStreams, 0x3B)
        (size % alignment_size == 0),
      if it's not last call of Filter() for current stream.
 
-  returns: (outSize):
+     returns: (outSize):
        if (outSize == 0) : Filter have not converted anything.
            So the caller can stop processing, if data stream was finished.
        if (outSize <= size) : Filter have converted outSize bytes

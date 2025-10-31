@@ -17,6 +17,10 @@
 #include "../../Archive/Common/ItemNameUtils.h"
 #include "../../Archive/IArchive.h"
 
+#ifdef WANT_OPTIONAL_LOWERCASE
+#include "../FileManager/RegistryUtils.h"
+#endif
+
 #include "EnumDirItems.h"
 #include "HashCalc.h"
 
@@ -557,7 +561,7 @@ HRESULT HashCalc(
         if (res != S_FALSE && res != S_OK)
           return res;
         continue;
-      }
+    }
 #endif
     }
     else
@@ -702,8 +706,17 @@ void HashHexToString(char *dest, const Byte *data, size_t size)
     {
       const size_t b = *data++;
       dest -= 2;
-      dest[0] = GET_HEX_CHAR_UPPER(b >> 4);
-      dest[1] = GET_HEX_CHAR_UPPER(b & 15);
+#ifdef WANT_OPTIONAL_LOWERCASE
+      if (!WantLowercaseHashes()) {
+#endif
+        dest[0] = GET_HEX_CHAR_UPPER(b >> 4);
+        dest[1] = GET_HEX_CHAR_UPPER(b & 15);
+#ifdef WANT_OPTIONAL_LOWERCASE
+      } else {
+        dest[0] = GET_HEX_CHAR_LOWER(b >> 4);
+        dest[1] = GET_HEX_CHAR_LOWER(b & 15);
+      }
+#endif
     }
     while (dest != dest_start);
   }
@@ -1509,10 +1522,9 @@ static void AddDefaultMethod(UStringVector &methods,
   }
   
   const char *m = NULL;
-  if (name)
+  if (name) {
     m = name;
-  else
-  {
+  } else {
          if (size == 64) m = "sha512";
     else if (size == 48) m = "sha384";
     else if (size == 32) m = "sha256";

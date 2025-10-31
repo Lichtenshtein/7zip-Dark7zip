@@ -378,6 +378,7 @@ void CExtractDialog::OnOK()
   s.Trim();
   NName::NormalizeDirPathPrefix(s);
   
+  DirPath = s; // s remains path without subpath (to store it to history below)
   #ifndef Z7_SFX
   
   const bool splitDest = IsButtonCheckedBool(IDX_EXTRACT_NAME_ENABLE);
@@ -386,8 +387,8 @@ void CExtractDialog::OnOK()
     UString pathName;
     _pathName.GetText(pathName);
     pathName.Trim();
-    s += pathName;
-    NName::NormalizeDirPathPrefix(s);
+    DirPath += pathName;
+    NName::NormalizeDirPathPrefix(DirPath);
   }
   if (splitDest != _info.SplitDest.Val)
   {
@@ -397,8 +398,6 @@ void CExtractDialog::OnOK()
 
   #endif
 
-  DirPath = s;
-  
   #ifndef Z7_NO_REGISTRY
   _info.Paths.Clear();
   #ifndef Z7_SFX

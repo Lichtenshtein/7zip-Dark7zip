@@ -165,7 +165,7 @@ SOURCE=..\..\Archive\Icons\split.ico
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\Archive\Icons\squashfs.ico
+SOURCE=..\..\Archive\Icons\sqfs.ico
 # End Source File
 # Begin Source File
 
@@ -2388,26 +2388,6 @@ SOURCE=..\..\..\..\C\Xxh64.c
 # Begin Source File
 
 SOURCE=..\..\..\..\C\Xxh64.h
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\..\..\C\ZstdDec.c
-
-!IF  "$(CFG)" == "7z - Win32 Release"
-
-# ADD CPP /O2
-# SUBTRACT CPP /YX /Yc /Yu
-
-!ELSEIF  "$(CFG)" == "7z - Win32 Debug"
-
-# SUBTRACT CPP /YX /Yc /Yu
-
-!ENDIF 
-
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\..\..\C\ZstdDec.h
 # End Source File
 # End Group
 # Begin Group "Archive"

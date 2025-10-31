@@ -367,7 +367,6 @@ C_OBJS = \
   $O/XzIn.o \
   $O/XzCrc64.o \
   $O/XzCrc64Opt.o \
-  $O/ZstdDec.o \
 
 ARC_OBJS = \
   $(LZMA_DEC_OPT_OBJS) \

@@ -90,25 +90,25 @@ struct CMultiOutStream_Bunch
     {
       CMultiOutStream_Rec &rec = Items[i];
       if (rec.Ref)
-      {
+  {
         const HRESULT hres2 = rec.Spec->Destruct();
         if (hres == S_OK)
           hres = hres2;
+  }
       }
-    }
     Items.Clear();
     return hres;
-  }
+    }
 
   void DisableDeletion()
-  {
+    {
     FOR_VECTOR (i, Items)
     {
       CMultiOutStream_Rec &rec = Items[i];
       if (rec.Ref)
         rec.Spec->NeedDelete = false;
     }
-  }
+    }
 };
 
 
@@ -427,7 +427,7 @@ static HRESULT Compress(
 
     UInt32 value;
     RINOK(outArchive->GetFileTimeType(&value))
-
+    
     // we support any future fileType here.
     fileTimeType = (NFileTimeType::EEnum)value;
     
@@ -883,7 +883,7 @@ static HRESULT Compress(
         // updateCallbackSpec->StreamCallback_ArcMTime.Write_To_FiTime(ft);
         // we must normalize with precision from archive;
         if (!ft_Defined || Compare_FiTime(&ft, &updateCallbackSpec->LatestMTime) < 0)
-          ft = updateCallbackSpec->LatestMTime;
+        ft = updateCallbackSpec->LatestMTime;
         ft_Defined = true;
       }
       /*
@@ -1387,7 +1387,7 @@ HRESULT UpdateArchive(
       dirItems.ScanAltStreams = options.AltStreams.Val;
       dirItems.ExcludeDirItems = censor.ExcludeDirItems;
       dirItems.ExcludeFileItems = censor.ExcludeFileItems;
-      
+
       dirItems.ShareForWrite = options.OpenShareForWrite;
 
      #ifndef _WIN32
@@ -1845,7 +1845,7 @@ Z7_DIAGNOSTIC_IGNORE_CAST_FUNCTION
       
       sendMail((LHANDLE)0, 0, &m, MAPI_DIALOG, 0);
     }
-   }
+  }
   }
   
   #endif

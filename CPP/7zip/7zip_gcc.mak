@@ -1259,8 +1259,6 @@ $O/XzEnc.o: ../../../../C/XzEnc.c
 	$(CC) $(CFLAGS) $<
 $O/XzIn.o: ../../../../C/XzIn.c
 	$(CC) $(CFLAGS) $<
-$O/ZstdDec.o: ../../../../C/ZstdDec.c
-	$(CC) $(CFLAGS) $<
 
 
 ifdef USE_ASM

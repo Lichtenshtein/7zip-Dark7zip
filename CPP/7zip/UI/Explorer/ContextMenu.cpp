@@ -197,7 +197,7 @@ IShellExtInit::Initialize()
       pidl of target folder: for nondefault drag-and-drop menu extensions
   pidlFolder == NULL in (win10): for context menu
 */
-    
+  
 Z7_COMWF_B CZipContextMenu::Initialize(LPCITEMIDLIST pidlFolder, LPDATAOBJECT dataObject, HKEY /* hkeyProgID */)
 {
   COM_TRY_BEGIN
@@ -212,7 +212,7 @@ Z7_COMWF_B CZipContextMenu::Initialize(LPCITEMIDLIST pidlFolder, LPDATAOBJECT da
   if (pidlFolder)
   {
     ODS("==== CZipContextMenu::Initialize (pidlFolder != 0)")
-   #ifndef UNDER_CE
+    #ifndef UNDER_CE
     if (NShell::GetPathFromIDList(pidlFolder, _dropPath))
     {
       ODS("==== CZipContextMenu::Initialize path from (pidl):")
@@ -226,7 +226,7 @@ Z7_COMWF_B CZipContextMenu::Initialize(LPCITEMIDLIST pidlFolder, LPDATAOBJECT da
       _dropMode = !_dropPath.IsEmpty();
     }
     else
-   #endif
+    #endif
       _dropPath.Empty();
   }
 
@@ -253,9 +253,9 @@ Z7_COMWF_B CZipContextMenu::Initialize(LPCITEMIDLIST pidlFolder, LPDATAOBJECT da
 /////////////////////////////
 // IContextMenu
 
-static LPCSTR const kMainVerb = "SevenZip";
-static LPCSTR const kOpenCascadedVerb = "SevenZip.OpenWithType.";
-static LPCSTR const kCheckSumCascadedVerb = "SevenZip.Checksum";
+static LPCSTR const kMainVerb = "SevenZipZS";
+static LPCSTR const kOpenCascadedVerb = "SevenZipZS.OpenWithType.";
+static LPCSTR const kCheckSumCascadedVerb = "SevenZipZS.Checksum";
 
 
 struct CContextMenuCommand
@@ -294,18 +294,24 @@ struct CHashCommand
 
 static const CHashCommand g_HashCommands[] =
 {
-  { CZipContextMenu::kHash_CRC32,  "CRC-32",  "CRC32" },
-  { CZipContextMenu::kHash_CRC64,  "CRC-64",  "CRC64" },
-  { CZipContextMenu::kHash_XXH64,  "XXH64",   "XXH64" },
-  { CZipContextMenu::kHash_MD5,    "MD5",     "MD5" },
-  { CZipContextMenu::kHash_SHA1,   "SHA-1",   "SHA1" },
-  { CZipContextMenu::kHash_SHA256, "SHA-256", "SHA256" },
-  { CZipContextMenu::kHash_SHA384, "SHA-384", "SHA384" },
-  { CZipContextMenu::kHash_SHA512, "SHA-512", "SHA512" },
+  { CZipContextMenu::kHash_CRC32,    "CRC-32",   "CRC32" },
+  { CZipContextMenu::kHash_CRC64,    "CRC-64",   "CRC64" },
+  { CZipContextMenu::kHash_XXH32,    "XXH-32",   "XXH32" },
+  { CZipContextMenu::kHash_XXH64,    "XXH-64",   "XXH64" },
+  { CZipContextMenu::kHash_MD2,      "MD2",      "MD2" },
+  { CZipContextMenu::kHash_MD4,      "MD4",      "MD4" },
+  { CZipContextMenu::kHash_MD5,      "MD5",      "MD5" },
+  { CZipContextMenu::kHash_SHA1,     "SHA-1",    "SHA1" },
+  { CZipContextMenu::kHash_SHA256,   "SHA2-256", "SHA256" },
+  { CZipContextMenu::kHash_SHA384,   "SHA2-384", "SHA384" },
+  { CZipContextMenu::kHash_SHA512,   "SHA2-512", "SHA512" },
+  { CZipContextMenu::kHash_BLAKE2sp, "BLAKE2sp", "BLAKE2sp" },
+  { CZipContextMenu::kHash_BLAKE3,   "BLAKE3",   "BLAKE3" },
   { CZipContextMenu::kHash_SHA3_256, "SHA3-256", "SHA3-256" },
-  { CZipContextMenu::kHash_BLAKE2SP, "BLAKE2sp", "BLAKE2sp" },
-  { CZipContextMenu::kHash_All,    "*",       "*" },
-  { CZipContextMenu::kHash_Generate_SHA256, "SHA-256 -> file.sha256", "SHA256" },
+  { CZipContextMenu::kHash_SHA3_384, "SHA3-384", "SHA3-384" },
+  { CZipContextMenu::kHash_SHA3_512, "SHA3-512", "SHA3-512" },
+  { CZipContextMenu::kHash_All,      "*",        "*" },
+  { CZipContextMenu::kHash_Generate_SHA256, "SHA2-256 -> file.sha256", "SHA256" },
   { CZipContextMenu::kHash_TestArc, "Checksum : Test", "Hash" }
 };
 
@@ -433,8 +439,13 @@ static const char * const kArcExts[] =
     "7z"
   , "bz2"
   , "gz"
+  , "lz"
+  , "liz"
+  , "lz4"
+  , "lz5"
   , "rar"
   , "zip"
+  , "zst"
 };
 
 static bool IsItArcExt(const UString &ext)
@@ -484,7 +495,8 @@ static UString GetQuotedReducedString(const UString &s)
   UString s2 = s;
   ReduceString(s2);
   s2.Replace(L"&", L"&&");
-  return GetQuotedString(s2);
+  s2.InsertAtFront(L'"'); s2 += L'"'; // quote without GetQuotedString (because it escapes now)
+  return s2;
 }
 
 static void MyFormatNew_ReducedName(UString &s, const UString &name)
@@ -942,7 +954,7 @@ Z7_COMWF_B CZipContextMenu::QueryContextMenu(HMENU hMenu, UINT indexMenu,
     std::tm lt;
     localtime_s(&lt, &t);
     char buffer[16] = { 0 };
-    std::strftime(buffer, sizeof(buffer), "_%Y%m%d%H%M%S", &lt);
+    std::strftime(buffer, sizeof(buffer), "_%Y%-m%-d%_H%-M%-S", &lt);
     UString dt(buffer);
     UString arcName_dt_zip = arcName + dt;
     arcName_dt_zip += ".zip";
@@ -1065,7 +1077,7 @@ Z7_COMWF_B CZipContextMenu::QueryContextMenu(HMENU hMenu, UINT indexMenu,
     CMenu menu;
     menu.Attach(hMenu);
     menuDestroyer.Disable();
-    MyAddSubMenu(_commandMap, kMainVerb, menu, indexMenu++, currentCommandID++, (UString)"7-Zip",
+    MyAddSubMenu(_commandMap, kMainVerb, menu, indexMenu++, currentCommandID++, (UString)"7-Zip ZS",
         popupMenu, // popupMenu.Detach(),
         bitmap);
   }
@@ -1088,7 +1100,7 @@ Z7_COMWF_B CZipContextMenu::QueryContextMenu(HMENU hMenu, UINT indexMenu,
   {
     CMenu subMenu;
     // CMenuDestroyer menuDestroyer_CRC;
-
+    
     UINT subIndex_CRC = 0;
     
     if (!hMenu || subMenu.CreatePopup())
@@ -1111,7 +1123,7 @@ Z7_COMWF_B CZipContextMenu::QueryContextMenu(HMENU hMenu, UINT indexMenu,
           menu.Attach(hMenu);
           // menuDestroyer_CRC.Disable();
         }
-        MyAddSubMenu(_commandMap, kCheckSumCascadedVerb, menu, indexInParent++, currentCommandID++, (UString)"CRC SHA", subMenu,
+        MyAddSubMenu(_commandMap, kCheckSumCascadedVerb, menu, indexInParent++, currentCommandID++, (UString)"7-Zip ZS Hash", subMenu,
           /* insertHashMenuTo7zipMenu ? NULL : */ bitmap);
         _commandMap.Back().CtxCommandType = CtxCommandType_CrcRoot;
         if (!insertHashMenuTo7zipMenu)
@@ -1163,7 +1175,7 @@ Z7_COMWF_B CZipContextMenu::QueryContextMenu(HMENU hMenu, UINT indexMenu,
           showName += ".sha256";
           cmi.Folder = fs2us(folderPrefix);
           cmi.ArcName = name;
-          s = "SHA-256 -> ";
+          s = "SHA2-256 -> ";
           s += showName;
         }
         else if (hc.CommandInternalID == kHash_TestArc)
@@ -1394,17 +1406,23 @@ HRESULT CZipContextMenu::InvokeCommandCommon(const CCommandMapItem &cmi)
             );
         break;
       }
-      
+
       case kHash_CRC32:
       case kHash_CRC64:
+      case kHash_XXH32:
       case kHash_XXH64:
+      case kHash_MD2:
+      case kHash_MD4:
       case kHash_MD5:
       case kHash_SHA1:
       case kHash_SHA256:
       case kHash_SHA384:
       case kHash_SHA512:
+      case kHash_BLAKE2sp:
+      case kHash_BLAKE3:
       case kHash_SHA3_256:
-      case kHash_BLAKE2SP:
+      case kHash_SHA3_384:
+      case kHash_SHA3_512:
       case kHash_All:
       case kHash_Generate_SHA256:
       case kHash_TestArc:
@@ -1496,7 +1514,7 @@ Z7_COMWF_B CZipContextMenu::GetCommandString(
   {
     if (/* cmdOffset < 0 || */ (unsigned)cmdOffset >= _commandMap.Size())
       return S_FALSE;
-    return S_OK;
+      return S_OK;
   }
 
   if (/* cmdOffset < 0 || */ (unsigned)cmdOffset >= _commandMap.Size())
@@ -1510,11 +1528,11 @@ Z7_COMWF_B CZipContextMenu::GetCommandString(
   if ((uType | GCS_UNICODE) == GCS_VERBW ||
       (uType | GCS_UNICODE) == GCS_HELPTEXTW)
   {
-    const CCommandMapItem &cmi = _commandMap[(unsigned)cmdOffset];
+  const CCommandMapItem &cmi = _commandMap[(unsigned)cmdOffset];
     MyCopyString_isUnicode(pszName, cchMax, cmi.Verb, (uType & GCS_UNICODE) != 0);
     return S_OK;
   }
- 
+  
   return E_INVALIDARG;
   
   COM_TRY_END
@@ -1623,10 +1641,10 @@ void CZipExplorerCommand::LoadItems(IShellItemArray *psiItemArray)
   SubCommands.Clear();
   _fileNames.Clear();
   {
-    UStringVector paths;
+  UStringVector paths;
     if (LoadPaths(psiItemArray, paths) != S_OK)
       return;
-    _fileNames = paths;
+  _fileNames = paths;
   }
   const HRESULT res = QueryContextMenu(
       NULL, // hMenu,

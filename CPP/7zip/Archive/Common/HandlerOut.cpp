@@ -81,19 +81,18 @@ bool ParseSizeString(const wchar_t *s, const PROPVARIANT &prop, UInt64 percentsB
 }
 
 
-bool CCommonMethodProps::SetCommonProperty(const UString &name, const PROPVARIANT &value, HRESULT &hres)
+int CCommonMethodProps::SetCommonProperty(const UString &name, const PROPVARIANT &value, HRESULT &hres)
 {
   hres = S_OK;
 
   if (name.IsPrefixedBy_Ascii_NoCase("mt"))
   {
     #ifndef Z7_ST
-    _numThreads = _numProcessors;
-    _numThreads_WasForced = false;
-    hres = ParseMtProp2(name.Ptr(2), value, _numThreads, _numThreads_WasForced);
-    // "mt" means "_numThreads_WasForced = false" here
+    hres = ParseMtProp(name.Ptr(2), value, _numProcessors, _numThreads);
+    // parameter "mt" specified, so it means "_numThreads_WasForced = true"
+    _numThreads_WasForced = true;
     #endif
-    return true;
+    return -1; /* OK, but no return - could be also set by handler itself later */
   }
   
   if (name.IsPrefixedBy_Ascii_NoCase("memuse"))
@@ -104,10 +103,10 @@ bool CCommonMethodProps::SetCommonProperty(const UString &name, const PROPVARIAN
     _memUsage_Decompress = v;
     _memUsage_Compress = v;
     _memUsage_WasSet = true;
-    return true;
+    return 1;
   }
 
-  return false;
+  return 0;
 }
 
 
@@ -188,6 +187,16 @@ HRESULT CMultiMethodProps::SetProperty(const wchar_t *nameSpec, const PROPVARIAN
     _level = 9;
     return ParsePropToUInt32(name, value, _level);
   }
+  if (name == L"max")
+  {
+    bool _max;
+    const HRESULT res = PROPVARIANT_to_bool(value, _max);
+    if (res == S_OK && _max) {
+      // adjust level (zstd --max), set it to the highest level too (e. g. setting of options.MaxFilter for BCJ2 etc)
+      _level = Z7_ZSTD_ULTIMATE_LEV;
+    }
+    return res;
+  }
 
   if (name.IsPrefixedBy_Ascii_NoCase("yx"))
   {
@@ -207,7 +216,9 @@ HRESULT CMultiMethodProps::SetProperty(const wchar_t *nameSpec, const PROPVARIAN
 
   {
     HRESULT hres;
-    if (SetCommonProperty(name, value, hres))
+    /* don't return by -1, since many handlers set common properties (e. g. kNumThreads)
+       with SetCoderProperties, so add it also as prop by its ID from name below */
+    if (SetCommonProperty(name, value, hres) > 0)
       return hres;
   }
   
@@ -262,11 +273,10 @@ HRESULT CSingleMethodProps::SetProperty(const wchar_t *name2, const PROPVARIANT 
   }
   {
     HRESULT hres;
-    if (SetCommonProperty(name, value, hres))
-    {
-      // processed = true;
-      return S_OK;
-    }
+    /* don't return by -1, since many handlers set common properties (e. g. kNumThreads)
+       with SetCoderProperties, so add it also as prop by its ID from name below */
+    if (SetCommonProperty(name, value, hres) > 0)
+      return hres;
   }
   RINOK(ParseMethodFromPROPVARIANT(name, value))
   return S_OK;

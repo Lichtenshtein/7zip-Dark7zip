@@ -2,6 +2,7 @@
 
 #include "StdAfx.h"
 
+#include "../../Windows/System.h"
 #include "../../Common/StringToInt.h"
 
 #include "MethodProps.h"
@@ -107,29 +108,26 @@ HRESULT ParsePropToUInt32(const UString &name, const PROPVARIANT &prop, UInt32 &
 
 
 
-HRESULT ParseMtProp2(const UString &name, const PROPVARIANT &prop, UInt32 &numThreads, bool &force)
+HRESULT ParseMtProp(const UString &name, const PROPVARIANT &prop, UInt32 numCPUs, UInt32 &numThreads)
 {
-  force = false;
   UString s;
+  numThreads = numCPUs < INT_MAX ? numCPUs : NWindows::NSystem::GetNumberOfProcessors();
   if (name.IsEmpty())
   {
     if (prop.vt == VT_UI4)
     {
       numThreads = prop.ulVal;
-      force = true;
+      if (numThreads > numCPUs) numThreads = numCPUs;
       return S_OK;
     }
     bool val;
     HRESULT res = PROPVARIANT_to_bool(prop, val);
     if (res == S_OK)
     {
-      if (!val)
-      {
-        numThreads = 1;
-        force = true;
+      // -mmt=off, -mmt-
+      if (!val) {
+        numThreads = 0; /* 0 - single threaded, to differentiate from 1 by encoder like brotli-mt with single CPU */
       }
-      // force = true; for debug
-      // "(VT_BOOL = VARIANT_TRUE)" set "force = false" and doesn't change numThreads
       return S_OK;
     }
     if (prop.vt != VT_BSTR)
@@ -147,45 +145,74 @@ HRESULT ParseMtProp2(const UString &name, const PROPVARIANT &prop, UInt32 &numTh
 
   s.MakeLower_Ascii();
   const wchar_t *start = s;
-  UInt32 v = numThreads;
-
+  if (*start == '=') start++;
+  if (*start == 'o') {
+    if (wcscmp(start, L"on") == 0) {
+      numThreads = numCPUs; // force on
+      return S_OK;
+    } else if (wcscmp(start, L"off") == 0) {
+      numThreads = 0; // force off
+      return S_OK;
+    }
+  }
   /* we force up, if threads number specified
      only `d` will force it down */
-  bool force_loc = true;
-  for (;;)
+  int numTh = (int)numThreads;
+  while (*start)
   {
-    const wchar_t c = *start;
-    if (!c)
-      break;
-    if (c == 'd')
-    {
-      force_loc = false;  // force down
-      start++;
-      continue;
-    }
-    if (c == 'u')
-    {
-      force_loc = true;   // force up
-      start++;
-      continue;
-    }
+    int forceUD = 0;
     bool isPercent = false;
-    if (c == 'p')
-    {
-      isPercent = true;
-      start++;
+    switch (*start) {
+      case '-':
+        if (!*(start+1)) {
+          numThreads = 0; // force off
+          return S_OK;
+        }
+        // otherwise force down
+      case 'd':
+        forceUD = -1;  // force down
+        start++;
+        if (*start == 'p') goto percent;
+        break;
+      case '+':
+        if (!*(start+1)) {
+          numThreads = numCPUs; // force on
+          return S_OK;
+        }
+        // otherwise force up
+      case 'u':
+        forceUD = +1;   // force up
+        start++;
+        if (*start == 'p') goto percent;
+        break;
+      case 'p':
+      percent:
+        isPercent = true;
+        start++;
+        break;
     }
     const wchar_t *end;
+    UInt32 v;
     v = ConvertStringToUInt32(start, &end);
-    if (end == start)
-      return E_INVALIDARG;
-    if (isPercent)
+    if (end == start) {
+      if (!forceUD) {
+        return E_INVALIDARG;
+      }
+      v = 1; // d or u not followed by number (simply -1 or +1)
+    }
+    if (isPercent) {
       v = numThreads * v / 100;
+    }
+    if (forceUD) {
+      numTh += forceUD * v;
+    } else {
+      numTh = v;
+    }
     start = end;
   }
-
-  numThreads = v;
-  force = force_loc;
+  if (numTh <= 0) numTh = 1;
+  if (numTh > (int)numCPUs) numTh = (int)numCPUs;
+  numThreads = numTh;
   return S_OK;
 }
 
@@ -390,7 +417,8 @@ unsigned CMethodProps::GetLevel() const
   if (Props[(unsigned)i].Value.vt != VT_UI4)
     return 9;
   UInt32 level = Props[(unsigned)i].Value.ulVal;
-  return level > 9 ? 9 : (unsigned)level;
+  // return level > 9 ? 9 : (unsigned)level;
+  return level;
 }
 
 struct CNameToPropID
@@ -428,52 +456,32 @@ static const CNameToPropID g_NameToPropID[] =
   { VT_UI8, "memuse" },
   { VT_UI8, "aff" },
   { VT_UI4, "offset" },
-  { VT_UI4, "zhb" }
-  /*
-  , { VT_UI4, "tgn" }, // kNumThreadGroups
-  , { VT_UI4, "tgi" }, // kThreadGroup
-  , { VT_UI8, "tga" }, // kAffinityInGroup
-  */
-  /*
-  ,
-  // { VT_UI4, "zhc" },
-  // { VT_UI4, "zhd" },
-  // { VT_UI4, "zcb" },
-  { VT_UI4, "dc" },
-  { VT_UI4, "zx" },
-  { VT_UI4, "zf" },
-  { VT_UI4, "zmml" },
-  { VT_UI4, "zov" },
-  { VT_BOOL, "zmfr" },
-  { VT_BOOL, "zle" }, // long enable
-  // { VT_UI4, "zldb" },
-  { VT_UI4, "zld" },
-  { VT_UI4, "zlhb" },
-  { VT_UI4, "zlmml" },
-  { VT_UI4, "zlbb" },
-  { VT_UI4, "zlhrb" },
-  { VT_BOOL, "zwus" },
-  { VT_BOOL, "zshp" },
-  { VT_BOOL, "zshs" },
-  { VT_BOOL, "zshe" },
-  { VT_BOOL, "zshg" },
-  { VT_UI4, "zpsm" }
-  */
-  // { VT_UI4, "mcb" }, // mc log version
-  // { VT_UI4, "ztlen" },  // fb ?
+  { VT_UI4, "zhb" },
+  { VT_UI4, "tgn" }, // kNumThreadGroups
+  { VT_UI4, "tgi" }, // kThreadGroup
+  { VT_UI8, "tga" }, // kAffinityInGroup
+  // zstd props
+  { VT_UI4, "strat" },
+  { VT_UI4, "fast" },
+  { VT_UI4, "long" },
+  { VT_UI4, "wlog" },
+  { VT_UI4, "hlog" },
+  { VT_UI4, "clog" },
+  { VT_UI4, "slog" },
+  { VT_UI4, "slen" },
+  { VT_UI4, "tlen" },
+  { VT_UI4, "ovlog" },
+  { VT_UI4, "ldmhlog" },
+  { VT_UI4, "ldmslen" },
+  { VT_UI4, "ldmblog" },
+  { VT_UI4, "ldmhevery" },
+  { VT_BOOL, "max" }
 };
 
-/*
-#if defined(static_assert) || (defined(__cplusplus) && __cplusplus >= 200410L) || (defined(_MSC_VER) && _MSC_VER >= 1600)
-
-#if (defined(__cplusplus) && __cplusplus < 201103L) \
-    && defined(__clang__) && __clang_major__ >= 4
-#pragma GCC diagnostic ignored "-Wc11-extensions"
-#endif
+#if defined(static_assert) || (defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 201112L)) || (_MSC_VER >= 1900)
   static_assert(Z7_ARRAY_SIZE(g_NameToPropID) == NCoderPropID::k_NUM_DEFINED,
     "g_NameToPropID doesn't match NCoderPropID enum");
 #endif
-*/
 
 static int FindPropIdExact(const UString &name)
 {
@@ -483,17 +491,29 @@ static int FindPropIdExact(const UString &name)
   return -1;
 }
 
-static bool ConvertProperty(const PROPVARIANT &srcProp, VARTYPE varType, NCOM::CPropVariant &destProp)
+static bool ConvertProperty(const UString &name, const PROPVARIANT &srcProp, VARTYPE varType, CProp &destProp)
 {
+  if (varType != srcProp.vt) {
+    // try to convert property from other source type:
+    switch (destProp.Id) {
+      case NCoderPropID::kNumThreads: // on, off or {N}
+        UInt32 val;
+        if (ParseMtProp(name.Ptr(2), srcProp, INT_MAX, val) != S_OK)
+          return false;
+        destProp.Value.ulVal = val;
+        return true;
+      break;
+    }
+  }
   if (varType == srcProp.vt)
   {
-    destProp = srcProp;
+    destProp.Value = srcProp;
     return true;
   }
 
   if (varType == VT_UI8 && srcProp.vt == VT_UI4)
   {
-    destProp = (UInt64)srcProp.ulVal;
+    destProp.Value = (UInt64)srcProp.ulVal;
     return true;
   }
 
@@ -502,12 +522,12 @@ static bool ConvertProperty(const PROPVARIANT &srcProp, VARTYPE varType, NCOM::C
     bool res;
     if (PROPVARIANT_to_bool(srcProp, res) != S_OK)
       return false;
-    destProp = res;
+    destProp.Value = res;
     return true;
   }
   if (srcProp.vt == VT_EMPTY)
   {
-    destProp = srcProp;
+    destProp.Value = srcProp;
     return true;
   }
   return false;
@@ -624,11 +644,24 @@ HRESULT CMethodProps::SetParam(const UString &name, const UString &value)
       else
         propValue = value;
     }
-    if (!ConvertProperty(propValue, nameToPropID.VarType, prop.Value))
+    if (!ConvertProperty(name, propValue, nameToPropID.VarType, prop))
       return E_INVALIDARG;
+    if (prop.Id == NCoderPropID::kAdvMax && prop.Value.boolVal) {
+      setMaxCompression();
+    }
   }
   Props.Add(prop);
   return S_OK;
+}
+
+void CMethodProps::setMaxCompression()
+{
+  // adjust level (zstd --max), set it to the highest level too (e. g. setting of options.MaxFilter for BCJ2 etc)
+  CProp prop;
+  prop.Id = (unsigned)NCoderPropID::kLevel;
+  prop.Value.vt = VT_UI4;
+  prop.Value.ulVal = Z7_ZSTD_ULTIMATE_LEV;
+  Props.Add(prop);
 }
 
 HRESULT CMethodProps::ParseParamsFromString(const UString &srcString)
@@ -639,6 +672,14 @@ HRESULT CMethodProps::ParseParamsFromString(const UString &srcString)
   {
     const UString &param = params[i];
     UString name, value;
+    if (param.IsPrefixedBy_Ascii_NoCase("mt")) { // special handler for mt (to parse correct -mmt-, -mmtd2, -mmtp50u2, etc)
+      UInt32 val;
+      CProp prop;
+      prop.Value.vt = VT_EMPTY;
+      RINOK(ParseMtProp(param.Ptr(2), prop.Value, INT_MAX, val))
+      AddProp32(NCoderPropID::kNumThreads, val);
+      continue;
+    }
     SplitParam(param, name, value);
     RINOK(SetParam(name, value))
   }
@@ -651,6 +692,12 @@ HRESULT CMethodProps::ParseParamsFromPROPVARIANT(const UString &realName, const 
   {
     // [empty]=method
     return E_INVALIDARG;
+  }
+  if (realName.IsPrefixedBy_Ascii_NoCase("mt")) { // special handler for mt (to parse correct -mmt-, -mmtd2, -mmtp50u2, etc)
+    UInt32 val;
+    RINOK(ParseMtProp(realName.Ptr(2), value, INT_MAX, val))
+    AddProp32(NCoderPropID::kNumThreads, val);
+    return S_OK;
   }
   if (value.vt == VT_EMPTY)
   {
@@ -674,8 +721,11 @@ HRESULT CMethodProps::ParseParamsFromPROPVARIANT(const UString &realName, const 
   }
   else
   {
-    if (!ConvertProperty(value, nameToPropID.VarType, prop.Value))
+    if (!ConvertProperty(realName, value, nameToPropID.VarType, prop))
       return E_INVALIDARG;
+    if (prop.Id == NCoderPropID::kAdvMax && prop.Value.boolVal) {
+      setMaxCompression();
+    }
   }
   Props.Add(prop);
   return S_OK;
@@ -754,8 +804,14 @@ HRESULT COneMethodInfo::ParseMethodFromString(const UString &s)
 
 HRESULT COneMethodInfo::ParseMethodFromPROPVARIANT(const UString &realName, const PROPVARIANT &value)
 {
-  if (!realName.IsEmpty() && !StringsAreEqualNoCase_Ascii(realName, "m"))
+  if (!realName.IsEmpty() && !StringsAreEqualNoCase_Ascii(realName, "m")) {
+    if (value.vt == VT_BSTR && StringsAreEqualNoCase_Ascii(realName, "memuse")) {
+      // not implemented here (see one of the ParseSizeString variants), 
+      // but don't throw error - just return without to restrict mem-usage (handler may do that).
+      return S_OK;
+    }
     return ParseParamsFromPROPVARIANT(realName, value);
+  }
   // -m{N}=method
   if (value.vt != VT_BSTR)
     return E_INVALIDARG;

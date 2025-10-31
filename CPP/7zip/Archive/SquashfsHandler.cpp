@@ -5,7 +5,7 @@
 #include "../../../C/Alloc.h"
 #include "../../../C/LzmaDec.h"
 #include "../../../C/Xz.h"
-#include "../../../C/ZstdDec.h"
+#include "../../../C/lz4/lz4.h"
 #include "../../../C/CpuArch.h"
 
 #include "../../Common/ComTry.h"
@@ -27,6 +27,7 @@
 #include "../Compress/CopyCoder.h"
 #include "../Compress/ZlibDecoder.h"
 // #include "../Compress/LzmaDecoder.h"
+#include "../Compress/ZstdDecoder.h"
 
 namespace NArchive {
 namespace NSquashfs {
@@ -67,7 +68,7 @@ static const UInt32 kSignature32_B2 = 0x73687371;
 #define kMethod_LZMA 2
 #define kMethod_LZO  3
 #define kMethod_XZ   4
-// #define kMethod_LZ4  5
+#define kMethod_LZ4  5
 #define kMethod_ZSTD 6
 
 static const char * const k_Methods[] =
@@ -876,8 +877,10 @@ Z7_CLASS_IMP_CHandler_IInArchive_1(
   // CMyComPtr2<ICompressCoder, NCompress::NLzma::CDecoder> _lzmaDecoder;
   CMyComPtr2<ICompressCoder, NCompress::NZlib::CDecoder> _zlibDecoder;
   
+  NCompress::NZSTD::CDecoder *_zstdDecoderSpec;
+  CMyComPtr<ICompressCoder> _zstdDecoder;
+
   CXzUnpacker _xz;
-  CZstdDecHandle _zstd;
 
   CByteBuffer _inputBuffer;
 
@@ -911,16 +914,13 @@ public:
   ~CHandler()
   {
     XzUnpacker_Free(&_xz);
-    if (_zstd)
-      ZstdDec_Destroy(_zstd);
   }
 
   HRESULT ReadBlock(UInt64 blockIndex, Byte *dest, size_t blockSize);
 };
 
 
-CHandler::CHandler():
-    _zstd(NULL)
+CHandler::CHandler()
 {
   XzUnpacker_Construct(&_xz, &g_Alloc);
 }
@@ -1114,6 +1114,21 @@ static HRESULT LzoDecode(Byte *dest, SizeT *destLen, const Byte *src, SizeT *src
   }
 }
 
+static HRESULT Lz4Decode(Byte *dest, SizeT *destLen, const Byte *src, SizeT *srcLen)
+{
+  const char *Src = (const char *)src;
+  char *Dst = (char *)dest;
+  int compressedSize = (int)*srcLen;
+  int dstCapacity = (int)*destLen;
+  // int LZ4_decompress_safe (const char* src, char* dst, int compressedSize, int dstCapacity);
+  int rv = LZ4_decompress_safe(Src, Dst, compressedSize, dstCapacity);
+  if (rv == 0)
+    return S_FALSE;
+
+  *destLen = rv;
+  return S_OK;
+}
+
 HRESULT CHandler::Decompress(ISequentialOutStream *outStream, Byte *outBuf, bool *outBufWasWritten, UInt32 *outBufWasWrittenSize, UInt32 inSize, UInt32 outSizeMax)
 {
   if (outBuf)
@@ -1150,7 +1165,18 @@ HRESULT CHandler::Decompress(ISequentialOutStream *outStream, Byte *outBuf, bool
     if (inSize != _zlibDecoder->GetInputProcessedSize())
       return S_FALSE;
   }
-  /*
+  else if (method == kMethod_ZSTD)
+  {
+    if (!_zstdDecoder)
+    {
+      _zstdDecoderSpec = new NCompress::NZSTD::CDecoder();
+      _zstdDecoder = _zstdDecoderSpec;
+    }
+    RINOK(_zstdDecoder->Code(_limitedInStream, outStream, NULL, NULL, NULL));
+    if (inSize != _zstdDecoderSpec->GetInputProcessedSize())
+      return S_FALSE;
+  }
+   /*
   else if (method == kMethod_LZMA)
   {
     _lzmaDecoder.Create_if_Empty();
@@ -1200,6 +1226,10 @@ HRESULT CHandler::Decompress(ISequentialOutStream *outStream, Byte *outBuf, bool
     {
       RINOK(LzoDecode(dest, &destLen, _inputBuffer, &srcLen))
     }
+    else if (method == kMethod_LZ4)
+    {
+      RINOK(Lz4Decode(dest, &destLen, _inputBuffer, &srcLen));
+    }
     else if (method == kMethod_LZMA)
     {
       Byte props[5];
@@ -1236,63 +1266,6 @@ HRESULT CHandler::Decompress(ISequentialOutStream *outStream, Byte *outBuf, bool
       if (status != LZMA_STATUS_FINISHED_WITH_MARK
           && status != LZMA_STATUS_MAYBE_FINISHED_WITHOUT_MARK)
         return S_FALSE;
-    }
-    else if (method == kMethod_ZSTD)
-    {
-      const Byte *src = _inputBuffer;
-
-      if (!_zstd)
-      {
-        _zstd = ZstdDec_Create(&g_AlignedAlloc, &g_AlignedAlloc);
-        if (!_zstd)
-          return E_OUTOFMEMORY;
-      }
-
-      CZstdDecState state;
-      ZstdDecState_Clear(&state);
-
-      state.inBuf = src;
-      state.inLim = srcLen; //  + 1; for debug
-      // state.outStep = outSizeMax;
-      
-      state.outBuf_fromCaller = dest;
-      state.outBufSize_fromCaller = outSizeMax;
-      // state.mustBeFinished = True;
-
-      ZstdDec_Init(_zstd);
-      SRes sres;
-      for (;;)
-      {
-        sres = ZstdDec_Decode(_zstd, &state);
-        if (sres != SZ_OK)
-          break;
-        if (state.inLim == state.inPos
-            && (state.status == ZSTD_STATUS_NEEDS_MORE_INPUT ||
-                state.status == ZSTD_STATUS_FINISHED_FRAME))
-          break;
-        // sres = sres;
-        // break; // for debug
-      }
-
-      CZstdDecResInfo info;
-      // ZstdDecInfo_Clear(&stat);
-      // stat->InSize = state.inPos;
-      ZstdDec_GetResInfo(_zstd, &state, sres, &info);
-      sres = info.decode_SRes;
-      if (sres == SZ_OK)
-      {
-        if (state.status != ZSTD_STATUS_FINISHED_FRAME
-            // ||stat.UnexpededEnd
-            || info.extraSize != 0
-            || state.inLim != state.inPos)
-          sres = SZ_ERROR_DATA;
-      }
-      if (sres != SZ_OK)
-        return SResToHRESULT(sres);
-      if (state.winPos > outSizeMax)
-        return E_FAIL;
-      // memcpy(dest, state.dic, state.dicPos);
-      destLen = state.winPos;
     }
     else
     {
@@ -1598,6 +1571,7 @@ HRESULT CHandler::Open2(IInStream *inStream)
       case kMethod_LZMA:
       case kMethod_LZO:
       case kMethod_XZ:
+      case kMethod_LZ4:
       case kMethod_ZSTD:
         break;
       default:
@@ -2361,7 +2335,7 @@ static const Byte k_Signature[] = {
     4, 'q', 's', 'h', 's' };
 
 REGISTER_ARC_I(
-  "SquashFS", "squashfs", NULL, 0xD2,
+  "SquashFS", "sfs squashfs", NULL, 0xD2,
   k_Signature,
   0,
   NArcInfoFlags::kMultiSignature,

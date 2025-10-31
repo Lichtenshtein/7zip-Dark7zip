@@ -9,7 +9,6 @@
 
     - CPP/7zip/Compress/Rar* files: the "GNU LGPL" with "unRAR license restriction"
     - CPP/7zip/Compress/LzfseDecoder.cpp: the "BSD 3-clause License"
-    - C/ZstdDec.c: the "BSD 3-clause License"
     - C/Xxh64.c: the "BSD 2-clause License"
     - Some files are "public domain" files, if "public domain" status is stated in source file.
     - the "GNU LGPL" for all other files. If there is no license information in 
@@ -51,10 +50,9 @@ BSD 3-clause License in 7-Zip code
        That code was derived from the code in the "LZFSE compression library" developed by Apple Inc,
        that also uses the "BSD 3-clause License".
     2) ZSTD data decompression.
-         C/ZstdDec.c
-       that code was developed using original zstd decoder code as reference code.
+         C/zstd/*
        The original zstd decoder code was developed by Facebook Inc,
-       that also uses the "BSD 3-clause License".
+       that uses the "BSD 3-clause License".
 
   Copyright (c) 2015-2016, Apple Inc. All rights reserved.
   Copyright (c) Facebook, Inc. All rights reserved.

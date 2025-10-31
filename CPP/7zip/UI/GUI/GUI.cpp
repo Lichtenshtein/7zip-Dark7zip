@@ -100,7 +100,7 @@ DECLARE_AND_SET_CLIENT_VERSION_VAR
 static void ErrorMessage(LPCWSTR message)
 {
   if (!g_DisableUserQuestions)
-    MessageBoxW(NULL, message, L"7-Zip", MB_ICONERROR | MB_OK);
+    MessageBoxW(NULL, message, L"7-Zip ZS", MB_ICONERROR | MB_OK);
 }
 
 static void ErrorMessage(const char *s)
@@ -146,7 +146,7 @@ static int Main2()
   #endif
   if (commandStrings.Size() == 0)
   {
-    MessageBoxW(NULL, L"Specify command", L"7-Zip", 0);
+    MessageBoxW(NULL, L"Specify command", L"7-Zip ZS", 0);
     return 0;
   }
 
@@ -172,7 +172,7 @@ static int Main2()
     if (!s.IsEmpty())
     {
       if (!g_DisableUserQuestions)
-        MessageBoxW(NULL, s, L"7-Zip", MB_ICONERROR);
+      MessageBoxW(NULL, s, L"7-Zip", MB_ICONERROR);
     }
   
   }

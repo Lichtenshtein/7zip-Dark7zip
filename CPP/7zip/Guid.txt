@@ -181,6 +181,10 @@ Handler GUIDs:
   0C xz
   0D ppmd
   0E zstd
+  0F lz4
+  10 lz5
+  11 liz
+  12 Lzip
 
   BF LVM
   C0 AVB

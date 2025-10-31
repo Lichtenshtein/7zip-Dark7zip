@@ -11,6 +11,8 @@
 #include "../../../Windows/Registry.h"
 #include "../../../Windows/Synchronization.h"
 
+#include "../FileManager/RegistryUtils.h"
+
 // #include "../Explorer/ContextMenuFlags.h"
 #include "ZipRegistry.h"
 
@@ -20,7 +22,7 @@ using namespace NRegistry;
 static NSynchronization::CCriticalSection g_CS;
 #define CS_LOCK NSynchronization::CCriticalSectionLock lock(g_CS);
 
-static LPCTSTR const kCuPrefix = TEXT("Software") TEXT(STRING_PATH_SEPARATOR) TEXT("7-Zip") TEXT(STRING_PATH_SEPARATOR);
+static LPCTSTR const kCuPrefix = TEXT("Software") TEXT(STRING_PATH_SEPARATOR) TEXT("7-Zip-Zstandard") TEXT(STRING_PATH_SEPARATOR);
 
 static CSysString GetKeyPath(LPCTSTR path) { return kCuPrefix + (CSysString)path; }
 
@@ -106,6 +108,7 @@ void CInfo::Save() const
   CS_LOCK
   CKey key;
   CreateMainKey(key, kKeyName);
+  UStringVector Empty;
 
   if (PathMode_Force)
     key.SetValue(kExtractMode, (UInt32)PathMode);
@@ -120,7 +123,10 @@ void CInfo::Save() const
   Key_Set_BoolPair(key, kShowPassword, ShowPassword);
 
   key.RecurseDeleteKey(kPathHistory);
-  key.SetValue_Strings(kPathHistory, Paths);
+  if (WantPathHistory())
+    key.SetValue_Strings(kPathHistory, Paths);
+  else
+    key.SetValue_Strings(kPathHistory, Empty);
 }
 
 void Save_ShowPassword(bool showPassword)
@@ -257,6 +263,7 @@ static LPCWSTR const kMemUse = L"MemUse"
 
 void CInfo::Save() const
 {
+  UStringVector Empty;
   CS_LOCK
 
   CKey key;
@@ -274,7 +281,11 @@ void CInfo::Save() const
   key.SetValue(kShowPassword, ShowPassword);
   key.SetValue(kEncryptHeaders, EncryptHeaders);
   key.RecurseDeleteKey(kArcHistory);
-  key.SetValue_Strings(kArcHistory, ArcPaths);
+
+  if (WantArcHistory())
+    key.SetValue_Strings(kArcHistory, ArcPaths);
+  else
+    key.SetValue_Strings(kArcHistory, Empty);
 
   key.RecurseDeleteKey(kOptionsKeyName);
   {

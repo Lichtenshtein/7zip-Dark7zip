@@ -332,7 +332,6 @@ C_OBJS = \
   $O/XzIn.o \
   $O/XzCrc64.o \
   $O/XzCrc64Opt.o \
-  $O/ZstdDec.o \
 
 
 OBJS = \

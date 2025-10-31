@@ -160,6 +160,10 @@ public:
   FString VolName;
   FString VolExt;
   UString ArcFileName; // without path prefix
+  FString VolPrefix;
+  FString VolPostfix;
+  bool VolNumberAfterExt;
+  UInt32 DigitCount;
 
   const UStringVector *NewNames;
   const UString *Comment;
