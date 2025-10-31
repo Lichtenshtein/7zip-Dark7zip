@@ -20,18 +20,18 @@ jobs:
 
     strategy:
       matrix:
-#        arch: [ amd64, amd64_x86, amd64_arm64 ]
-        arch: [ amd64 ]
+        arch: [ amd64, amd64_x86, amd64_arm64 ]
+#        arch: [ amd64 ]
         include:
-#          - arch: amd64_x86
-#            subsys: "5.01"
-#            platform: "x86"
+          - arch: amd64_x86
+            subsys: "5.01"
+            platform: "x86"
           - arch: amd64
             subsys: "5.02"
-#            platform: "x64"
-#          - arch: amd64_arm64
-#            subsys: "6.02"
-#            platform: "arm64"
+            platform: "x64"
+          - arch: amd64_arm64
+            subsys: "6.02"
+            platform: "arm64"
     steps:
       - uses: actions/checkout@v3
 
