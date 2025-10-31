@@ -10,14 +10,15 @@ jobs:
     runs-on: windows-latest
     strategy:
       matrix:
-        arch: [ x64, x64_x86, x64_arm64 ]
+        arch: [ x64 ]
+#        arch: [ x64, x64_x86, x64_arm64 ]
         include:
           - arch: x64
             platform: x64
-          - arch: x64_x86
-            platform: x86
-          - arch: x64_arm64
-            platform: arm64
+#          - arch: x64_x86
+#            platform: x86
+#          - arch: x64_arm64
+#            platform: arm64
 
     steps:
       - name: Checkout repo
