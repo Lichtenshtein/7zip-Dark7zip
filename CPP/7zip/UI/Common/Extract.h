@@ -17,6 +17,7 @@
 struct CExtractOptionsBase
 {
   CBoolPair ElimDup;
+  CBoolPair DeleteArchive;
 
   bool ExcludeDirItems;
   bool ExcludeFileItems;

@@ -47,7 +47,7 @@ LFLAGS = $(LFLAGS) /ENTRY:mainACRTStartup
 !ENDIF
 !ELSE
 !IFDEF OLD_COMPILER
-LFLAGS = $(LFLAGS) -OPT:NOWIN98
+LFLAGS = $(LFLAGS)
 !ENDIF
 !IF "$(PLATFORM)" != "arm" && "$(PLATFORM)" != "arm64"
 CFLAGS = $(CFLAGS) -Gr
@@ -69,7 +69,7 @@ CFLAGS_WARN_LEVEL = -W4
 CFLAGS_WARN_LEVEL = -Wall
 !ENDIF
 
-CFLAGS = $(CFLAGS) -nologo -c -Fo$O/ $(CFLAGS_WARN_LEVEL) -WX -EHsc -Gy -GR- -GF -GL -Gw -std:c++20
+CFLAGS = $(CFLAGS) -nologo -c -Fo$O/ $(CFLAGS_WARN_LEVEL) -EHsc -Gy -GR- -GF -GL -Gw -std:c++20 -Z7
 
 !IF "$(CC)" == "clang-cl"
 

@@ -2355,7 +2355,7 @@ CLzmaEncHandle LzmaEnc_Create(ISzAllocPtr alloc)
   p = ISzAlloc_Alloc(alloc, sizeof(CLzmaEnc));
   if (p)
     LzmaEnc_Construct((CLzmaEnc *)p);
-  return p;
+  return static_cast<CLzmaEncHandle>(p);
 }
 
 static void LzmaEnc_FreeLits(CLzmaEnc *p, ISzAllocPtr alloc)

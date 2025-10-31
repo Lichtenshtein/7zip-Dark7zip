@@ -79,6 +79,7 @@ static const UInt32 kLangIDs[] =
   IDT_EXTRACT_OVERWRITE_MODE,
   // IDX_EXTRACT_ALT_STREAMS,
   IDX_EXTRACT_NT_SECUR,
+  IDX_EXTRACT_DELETE_ARCHIVE,
   IDX_EXTRACT_ELIM_DUP,
   IDG_PASSWORD,
   IDX_PASSWORD_SHOW
@@ -162,12 +163,15 @@ bool CExtractDialog::OnInit()
   #endif
 
   #ifdef Z7_NO_REGISTRY
-  
+
   PathMode = NExtract::NPathMode::kFullPaths;
   OverwriteMode = NExtract::NOverwriteMode::kAsk;
-  
+
+  CheckButton(IDX_EXTRACT_ELIM_DUP, ElimDup.Val);
+  CheckButton(IDX_EXTRACT_DELETE_ARCHIVE, DeleteArchive.Val);
+
   #else
-  
+
   _info.Load();
 
   if (_info.PathMode == NExtract::NPathMode::kCurPaths)
@@ -180,8 +184,9 @@ bool CExtractDialog::OnInit()
 
   // CheckButton_TwoBools(IDX_EXTRACT_ALT_STREAMS, AltStreams, _info.AltStreams);
   CheckButton_TwoBools(IDX_EXTRACT_NT_SECUR,    NtSecurity, _info.NtSecurity);
+  CheckButton_TwoBools(IDX_EXTRACT_DELETE_ARCHIVE, DeleteArchive, _info.DeleteArchive);
   CheckButton_TwoBools(IDX_EXTRACT_ELIM_DUP,    ElimDup,    _info.ElimDup);
-  
+
   CheckButton(IDX_PASSWORD_SHOW, _info.ShowPassword.Val);
   UpdatePasswordControl();
 
@@ -317,6 +322,7 @@ void CExtractDialog::OnOK()
 
   // GetButton_Bools(IDX_EXTRACT_ALT_STREAMS, AltStreams, _info.AltStreams);
   GetButton_Bools(IDX_EXTRACT_NT_SECUR,    NtSecurity, _info.NtSecurity);
+  GetButton_Bools(IDX_EXTRACT_DELETE_ARCHIVE, DeleteArchive, _info.DeleteArchive);
   GetButton_Bools(IDX_EXTRACT_ELIM_DUP,    ElimDup,    _info.ElimDup);
 
   bool showPassword = IsShowPasswordChecked();
@@ -343,8 +349,9 @@ void CExtractDialog::OnOK()
 
 
   #else
-  
+
   ElimDup.Val = IsButtonCheckedBool(IDX_EXTRACT_ELIM_DUP);
+  DeleteArchive.Val = IsButtonCheckedBool(IDX_EXTRACT_DELETE_ARCHIVE);
 
   #endif
   

@@ -209,7 +209,11 @@ static int APIENTRY WinMain2()
   result = ExtractGUI(codecs,
       CObjectVector<COpenType>(), CIntVector(),
       v1, v2,
-      wildcardCensor, eo, (assumeYes ? false: true), messageWasDisplayed, ecs);
+      wildcardCensor, eo,
+#ifndef Z7_SFX
+	  NULL,
+#endif
+	  (assumeYes ? false: true), messageWasDisplayed, ecs);
 
   if (result == S_OK)
   {

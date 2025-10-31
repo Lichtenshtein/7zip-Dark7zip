@@ -2,7 +2,7 @@
 #include "../../GuiCommon.rc"
 
 #define xc 336
-#define yc 168
+#define yc 180
 
 #undef g1xs
 #undef g2x
@@ -40,9 +40,11 @@ BEGIN
 
   CONTROL   "Eliminate duplication of root folder", IDX_EXTRACT_ELIM_DUP, MY_CHECKBOX,
             m, m + 84, g1xs, 10
+  CONTROL   "Delete archive after extraction", IDX_EXTRACT_DELETE_ARCHIVE, MY_CHECKBOX,
+            m, m + 104, g1xs, 10
 
-  LTEXT     "Overwrite mode:", IDT_EXTRACT_OVERWRITE_MODE, m, m + 104, g1xs, 8
-  COMBOBOX  IDC_EXTRACT_OVERWRITE_MODE, m, m + 116, g1xs, 140, MY_COMBO
+  LTEXT     "Overwrite mode:", IDT_EXTRACT_OVERWRITE_MODE, m, m + 124, g1xs, 8
+  COMBOBOX  IDC_EXTRACT_OVERWRITE_MODE, m, m + 136, g1xs, 140, MY_COMBO
 
 
   GROUPBOX  "Password", IDG_PASSWORD, g2x, m + 36, g2xs, GROUP_Y_SIZE

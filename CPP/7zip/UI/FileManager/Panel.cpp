@@ -149,6 +149,17 @@ LRESULT CPanel::OnMessage(UINT message, WPARAM wParam, LPARAM lParam)
       if (OnContextMenu(HANDLE(wParam), GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)))
         return 0;
       break;
+    case WM_APPCOMMAND:
+      switch(GET_APPCOMMAND_LPARAM(lParam))
+      {
+        case APPCOMMAND_BROWSER_BACKWARD:
+          MoveBackward();
+          return 0;
+        case APPCOMMAND_BROWSER_FORWARD:
+          MoveForward();
+          return 0;
+      }
+      break;
     /*
     case WM_DROPFILES:
       CompressDropFiles(HDROP(wParam));
@@ -160,7 +171,27 @@ LRESULT CPanel::OnMessage(UINT message, WPARAM wParam, LPARAM lParam)
 
 LRESULT CMyListView::OnMessage(UINT message, WPARAM wParam, LPARAM lParam)
 {
-  if (message == WM_CHAR)
+  if (message == WM_XBUTTONUP) {
+    UINT button = GET_XBUTTON_WPARAM(wParam);
+    if (button == XBUTTON1 || button == XBUTTON2) {
+      bool forward = button == XBUTTON2;
+      // MessageBoxW(_window, L"XBUTTON2", L"7-Zip", MB_ICONERROR);
+      CPathState state = g_App.AppState.PathStack.getNavPath(forward);
+      if (!state.path.IsEmpty()) {
+        // MessageBoxW(_window, result.selectFile, L"7-Zip", MB_ICONERROR);
+        g_App.GetFocusedPanel().BindAndRefreshAndSelect(state.path, state.selectFile);
+        g_App.AppState.PathStack.checkNavResult(forward, g_App.GetFocusedPanel()._currentFolderPrefix);
+        // HRESULT result =
+        // if (result != S_OK) {
+        //   // g_App.AppState.PathStack.popForwardPath();
+        //   g_App.AppState.PathStack.writeToFile(UString("failed"));
+        // }
+        //  else {
+        //   MessageBoxW(_window, L"failed", L"7-Zip", MB_ICONERROR);
+        // }
+      }
+    }
+  } else if (message == WM_CHAR)
   {
     UINT scanCode = (UINT)((lParam >> 16) & 0xFF);
     bool extended = ((lParam & 0x1000000) != 0);
@@ -444,7 +475,9 @@ bool CPanel::OnCreate(CREATESTRUCT * /* createStruct */)
   const TBBUTTON tbb[] =
   {
     // {0, 0, TBSTATE_ENABLED, BTNS_SEP, 0L, 0},
-    {VIEW_PARENTFOLDER, kParentFolderID, TBSTATE_ENABLED, BTNS_BUTTON, { 0, 0 }, 0, 0 },
+    {NAVIBAR_BACK, kMoveBackwardID, TBSTATE_ENABLED, TBSTATE_INDETERMINATE, { 0, 0 }, 0, 0 },
+    {NAVIBAR_FORWARD, kMoveForwardID, TBSTATE_ENABLED, TBSTATE_INDETERMINATE, { 0, 0 }, 0, 0 },
+    {NAVIBAR_UP, kParentFolderID, TBSTATE_ENABLED, BTNS_BUTTON, { 0, 0 }, 0, 0 },
     // {0, 0, TBSTATE_ENABLED, BTNS_SEP, 0L, 0},
     // {VIEW_NEWFOLDER, kCreateFolderID, TBSTATE_ENABLED, BTNS_BUTTON, 0L, 0},
   };
@@ -485,12 +518,22 @@ bool CPanel::OnCreate(CREATESTRUCT * /* createStruct */)
       ;
   }
 
+  _headerImageList.Create(24, 24, ILC_MASK | ILC_COLOR32, 0, 0);
+  HBITMAP b = ::LoadBitmap(g_hInstance, MAKEINTRESOURCE(IDB_NAVIBAR));
+  if (b)
+  {
+    _headerImageList.AddMasked(b, RGB(255, 0, 255));
+    ::DeleteObject(b);
+  }
+
   _headerToolBar.Attach(::CreateToolbarEx ((*this), toolbarStyle,
-      _baseID + 2, 11,
-      (HINSTANCE)HINST_COMMCTRL,
-      IDB_VIEW_SMALL_COLOR,
+      _baseID + 2, NAVIBAR_COUNT,
+      NULL,
+      IDB_NAVIBAR,
       (LPCTBBUTTON)&tbb, Z7_ARRAY_SIZE(tbb),
-      0, 0, 0, 0, sizeof (TBBUTTON)));
+      24, 24, 24, 24, sizeof (TBBUTTON)));
+
+  _headerToolBar.SetImageList(0, _headerImageList);
 
   #ifndef UNDER_CE
   // Load ComboBoxEx class
@@ -726,6 +769,18 @@ bool CPanel::OnNotify(UINT /* controlID */, LPNMHDR header, LRESULT &result)
 
 bool CPanel::OnCommand(unsigned code, unsigned itemID, LPARAM lParam, LRESULT &result)
 {
+  if (itemID == kMoveBackwardID)
+  {
+    MoveBackward();
+    result = 0;
+    return true;
+  }
+  if (itemID == kMoveForwardID)
+  {
+    MoveForward();
+    result = 0;
+    return true;
+  }
   if (itemID == kParentFolderID)
   {
     OpenParentFolder();
@@ -1005,11 +1060,11 @@ void CPanel::GetFilePaths(const CRecordVector<UInt32> &operatedIndices, UStringV
 }
 
 
-void CPanel::ExtractArchives()
+void CPanel::ExtractArchives(bool _auto)
 {
   if (!_parentFolders.IsEmpty())
   {
-    _panelCallback->OnCopy(false, false);
+    _panelCallback->OnCopy(false, false, _auto);
     return;
   }
   CRecordVector<UInt32> indices;

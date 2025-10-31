@@ -18,7 +18,7 @@
 /* If NSIS_SCRIPT is defined, it will decompile NSIS script to [NSIS].nsi file.
    The code is much larger in that case. */
  
-// #define NSIS_SCRIPT
+#define NSIS_SCRIPT
 
 namespace NArchive {
 namespace NNsis {
@@ -30,6 +30,7 @@ extern const Byte kSignature[kSignatureSize];
 #define NSIS_SIGNATURE { 0xEF, 0xBE, 0xAD, 0xDE, 'N', 'u', 'l', 'l', 's', 'o', 'f', 't', 'I', 'n', 's', 't' }
 
 const UInt32 kFlagsMask = 0xF;
+const UInt32 kFlagsMask2G = 0x1FF;
 namespace NFlags
 {
   const UInt32 kUninstall = 1;
@@ -187,7 +188,7 @@ private:
   UInt64 _fileSize;
   
   bool _headerIsCompressed;
-  UInt32 _nonSolidStartOffset;
+  UInt64 _nonSolidStartOffset;
 
   #ifdef NSIS_SCRIPT
   

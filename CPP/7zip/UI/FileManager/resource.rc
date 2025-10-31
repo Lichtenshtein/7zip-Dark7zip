@@ -105,6 +105,12 @@ BEGIN
     MENUITEM "Size\tCtrl+F6",               IDM_VIEW_ARANGE_BY_SIZE
     MENUITEM "Unsorted\tCtrl+F7",           IDM_VIEW_ARANGE_NO_SORT
     MY_MENUITEM_SEPARATOR
+    // consider to create a dedicated "GoTo" menu... or remove
+    MENUITEM "Back\tAlt+Left",              IDM_OPEN_BACK_FOLDER
+    MENUITEM "Forward\tAlt+Right",          IDM_OPEN_FORWARD_FOLDER
+    MENUITEM "Up One Level\tBackspace",     IDM_OPEN_PARENT_FOLDER
+    MENUITEM "Open Root Folder\t\\",        IDM_OPEN_ROOT_FOLDER
+    MY_MENUITEM_SEPARATOR
     MENUITEM "Flat View",                   IDM_VIEW_FLAT_VIEW
     MENUITEM "&2 Panels\tF9",               IDM_VIEW_TWO_PANELS
 
@@ -121,8 +127,6 @@ BEGIN
       MENUITEM "Large Buttons",             IDM_VIEW_TOOLBARS_LARGE_BUTTONS
       MENUITEM "Show Buttons Text",         IDM_VIEW_TOOLBARS_SHOW_BUTTONS_TEXT
     END
-    MENUITEM "Open Root Folder\t\\",        IDM_OPEN_ROOT_FOLDER
-    MENUITEM "Up One Level\tBackspace",     IDM_OPEN_PARENT_FOLDER
     MENUITEM "Folders History...\tAlt+F12", IDM_FOLDERS_HISTORY
     MENUITEM "&Refresh\tCtrl+R",            IDM_VIEW_REFRESH
     MENUITEM "Auto Refresh",                IDM_VIEW_AUTO_REFRESH
@@ -142,6 +146,31 @@ BEGIN
   POPUP "&Tools" MY_MENUITEM_ID(IDM_TOOLS)
   BEGIN
     MENUITEM "&Options...",                 IDM_OPTIONS
+    MY_MENUITEM_SEPARATOR
+    POPUP "Name &Encoding"                  MY_MENUITEM_ID(IDM_NAME_ENCODING)
+    BEGIN
+      MENUITEM "&Default",                                        IDM_NAME_ENCODING_DEFAULT, MY_MFS_CHECKED
+      MENUITEM "65001 (UTF-8)",                                   IDM_NAME_ENCODING_65001
+      MENUITEM "1252 (ANSI - Latin I)",                           IDM_NAME_ENCODING_1252
+      MENUITEM "437 (OEM - United States)",                       IDM_NAME_ENCODING_437
+      MY_MENUITEM_SEPARATOR
+      MENUITEM "850 (OEM - Multilingual Latin I)",                IDM_NAME_ENCODING_850
+      MENUITEM "852 (OEM - Latin II)",                            IDM_NAME_ENCODING_852
+      MENUITEM "866 (OEM - Russian)",                             IDM_NAME_ENCODING_866
+      MENUITEM "874 (ANSI/OEM - Thai)",                           IDM_NAME_ENCODING_874
+      MENUITEM "932 (ANSI/OEM - Japanese Shift-JIS)",             IDM_NAME_ENCODING_932
+      MENUITEM "936 (ANSI/OEM - Simplified Chinese GBK)",         IDM_NAME_ENCODING_936
+      MENUITEM "949 (ANSI/OEM - Korean)",                         IDM_NAME_ENCODING_949
+      MENUITEM "950 (ANSI/OEM - Traditional Chinese Big5)",       IDM_NAME_ENCODING_950
+      MENUITEM "1250 (ANSI - Central Europe)",                    IDM_NAME_ENCODING_1250
+      MENUITEM "1251 (ANSI - Cyrillic)",                          IDM_NAME_ENCODING_1251
+      MENUITEM "1253 (ANSI - Greek)",                             IDM_NAME_ENCODING_1253
+      MENUITEM "1254 (ANSI - Turkish)",                           IDM_NAME_ENCODING_1254
+      MENUITEM "1255 (ANSI - Hebrew)",                            IDM_NAME_ENCODING_1255
+      MENUITEM "1256 (ANSI - Arabic)",                            IDM_NAME_ENCODING_1256
+      MENUITEM "1257 (ANSI - Baltic)",                            IDM_NAME_ENCODING_1257
+      MENUITEM "1258 (ANSI/OEM - Viet Nam)",                      IDM_NAME_ENCODING_1258
+    END
     MY_MENUITEM_SEPARATOR
     MENUITEM "&Benchmark",                  IDM_BENCHMARK
   #ifdef UNDER_CE
@@ -163,9 +192,7 @@ END
 
 IDI_ICON  ICON  "../../UI/FileManager/FM.ico"
 
-#ifndef UNDER_CE
-1  24  MOVEABLE PURE   "../../UI/FileManager/7zFM.exe.manifest"
-#endif
+
 
 IDB_ADD        BITMAP  "../../UI/FileManager/Add.bmp"
 IDB_EXTRACT    BITMAP  "../../UI/FileManager/Extract.bmp"
@@ -181,6 +208,7 @@ IDB_COPY2      BITMAP  "../../UI/FileManager/Copy2.bmp"
 IDB_MOVE2      BITMAP  "../../UI/FileManager/Move2.bmp"
 IDB_DELETE2    BITMAP  "../../UI/FileManager/Delete2.bmp"
 IDB_INFO2      BITMAP  "../../UI/FileManager/Info2.bmp"
+IDB_NAVIBAR    BITMAP  "../../UI/FileManager/Navibar.bmp"
 
 
 STRINGTABLE
@@ -254,6 +282,7 @@ BEGIN
   IDS_BUTTON_MOVE    "Move"
   IDS_BUTTON_DELETE  "Delete"
   IDS_BUTTON_INFO    "Info"
+  IDS_AUTOEXTRACT    "AutoExtract"
 
   IDS_SPLITTING            "Splitting..."
   IDS_SPLIT_CONFIRM_TITLE  "Confirm Splitting"
