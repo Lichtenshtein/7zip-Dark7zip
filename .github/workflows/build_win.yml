@@ -1,9 +1,9 @@
 name: Build Windows binaries
 on:
-  pull_request:
-    branches:
+#  pull_request:
+#    branches:
 #      - main
-      - Dark7z-zstd
+#      - Dark7z-zstd
 #  push:
 #    branches:
 #      - main
