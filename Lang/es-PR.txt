@@ -1,0 +1,533 @@
+﻿;!@Lang2@!UTF-8!
+; 25.01 : 2025-09-06 : Michelpuri (CurePopuri/PopuriO2)
+;
+;
+;
+;
+;
+;
+;
+;
+;
+;
+0
+7-Zip
+Spanish
+Puerto Rico
+401
+Aceptar
+Cancelar
+
+
+
+&Sí
+&No
+&Cerrar
+Ayuda
+
+&Continuar
+440
+Sí &a todo
+No a t&odo
+Detener
+Reiniciar
+Se&gundo plano
+P&rimer plano
+&Pausa
+Pausado
+¿Seguro que quieres de cancelar el proceso actual?
+500
+&Archivo
+&Editar
+&Ver
+F&avoritos
+Herramien&tas
+Ay&uda
+540
+&Abrir
+Abr&ir dentro
+Abrir f&uera
+&Ver
+&Editar
+Reno&mbrar
+&Copiar a...
+&Mover a...
+&Borrar
+Di&vidir archivo...
+Com&binar archivos...
+P&ropiedades
+Come&ntario
+Suma de verificación
+Diferencia
+Crear Carpeta
+Crear Archivo
+&Salir
+Vincular
+Flujos &alternativos
+600
+Seleccionar &todo
+Deseleccionar todo
+&Invertir selección
+Seleccionar...
+Deseleccionar...
+Seleccionar por tipo
+Deseleccionar por tipo
+700
+Iconos g&randes
+&Iconos pequeños
+&Lista
+&Detalles
+730
+Desordenado
+Vista plana
+&2 paneles
+&Barras de herramientas
+Abrir carpeta raíz
+Subir un nivel
+Historia de carpetas...
+Actualiza&r
+Actualizar automáticamente
+750
+Barra de herramientas archivo
+Barra de herramientas estándar
+Botones Grandes
+Mostrar texto en los botones
+800
+&Añadir carpeta a favoritos como
+Añadir a favoritos
+900
+&Opciones...
+&Rendimiento
+910
+Eliminar temporales de archivos...
+960
+&Contenido...
+&Acerca de 7-Zip...
+1003
+Ruta
+Nombre
+Extensión
+Carpeta
+Tamaño
+Tamaño comprimido
+Atributos
+Fecha Creado
+Fecha Accedido
+Fecha Modificado
+Compacto
+Comentado
+Cifrado
+Dividir antes
+Dividir después
+Diccionario
+
+Tipo
+Anti
+Método
+SO origen
+Sistema de archivos
+Usuario
+Grupo
+Bloque
+Comentario
+Posición
+Prefijo de ruta
+Carpetas
+Archivos
+Versión
+Volumen
+Multivolumen
+Desplazamiento
+Vínculos
+Bloques
+Volúmenes
+
+64-bit
+Big-endian
+CPU
+Tamaño físico
+Tamaño de las cabeceras
+Verificación de suma
+Características
+Dirección virtual
+ID
+Nombre corto
+Aplicación de creación
+Tamaño de sector
+Modo
+Enlace simbólico
+Error
+Espacio total
+Espacio libre
+Tamaño de clúster
+Etiqueta
+Nombre local
+Proveedor
+Seguridad NT
+Flujo alternativo
+Auxiliar
+Borrado
+Es el árbol
+
+
+Tipo de error
+Errores
+Errores
+Advertencias
+Advertencia
+Flujos
+Flujos alternativos
+Tamaño de flujos alternativos
+Tamaño virtual
+Tamaño descomprimido
+Tamaño físico total
+Índice de volumen
+Subtipo
+Comentario breve
+Página de Código
+
+
+
+Tamaño Final
+Tamaño de esbozo incrustado
+Vínculo
+Vínculo duro
+Nodo inteligente
+
+Solo lectura
+
+Copiar enlace
+
+
+Metadatos cambiados
+2100
+Opciones
+Idioma
+Seleccione un idioma:
+Editor
+&Editor:
+&Diferencia:
+2200
+Sistema
+Asociar 7-Zip con:
+Todos los usuarios
+2301
+Integrar 7-Zip en el menú contextual
+Menú contextual en cascada
+Elementos en el menú contextual:
+Iconos en el menú contextual
+2320
+<Carpeta>
+<Archivo>
+Abrir comprimido
+Extraer Archivos...
+Añadir al archivo...
+Comprobar archivo
+Extraer aquí
+Extraer en {0}
+Añadir a {0}
+Comprimir y enviar por correo...
+Comprimir a {0} y enviar por correo
+2400
+Carpetas
+Carpeta de &Trabajo
+Carpeta temporal del &Sistema
+Carpeta A&ctual
+Carpeta E&specificada:
+Usar solo para dispositivos extraíbles
+Especificar una localización para archivar ficheros temporales.
+2500
+Propiedades
+Mostrar el elemento ".."
+Mostrar iconos propios
+Mostrar menú del sistema
+&Seleccionar fila(s) entera(s)
+Mostrar &cuadrícula
+Haz clic una vez para abrir elemento
+Modo de selección &alternativo
+Activar páginas &grandes de memoria
+2900
+Acerca de 7-Zip
+7-Zip es un software LIBRE. Sin embargo, puedes apoyar el desarrollo de 7-Zip donando. Como usuario donante, podrá obtener soporte técnico.
+3000
+El sistema no ha podido asignar la cantidad necesaria de memoria
+No hay errores
+{0} objecto(s) seleccionado(s)
+No se puede crear la carpeta '{0}'
+Este tipo de archivo no permite actualización.
+No se puede abrir '{0}' como un archivo comprimido
+No se puede abrir el archivo cifrado '{0}'. Verifique la contraseña.
+Tipo de archivo no soportado
+El archivo {0} ya existe
+El archivo '{0}' ha sido modificado.\n¿Quieres actualizarlo en el archivo?
+No se puede actualizarse el archivo\n'{0}'
+No se puede ejecutarse el editor.
+El archivo parece un virus (el nombre del archivo contiene espacios largos).
+No se puede realizarse la operación desde una carpeta que tenga una ruta larga.
+Debes seleccionar un archivo!
+Debes seleccionar uno o más archivos!
+Demasiados elementos
+No se puede abrir el archivo como un archivo {0}
+El archivo se abrió como archivo {0}
+El archivo está abierto con desplazamiento
+3300
+Extrayendo
+Comprimiendo
+Probando
+Abriendo...
+Buscando...
+Eliminando
+3320
+Agregando
+Actualizando
+Analizando
+Replicando
+Recomprimiendo
+Saltando
+Borrando
+Creando cabecera
+3400
+Extraer
+E&xtraer a:
+Selecciona destino para los archivos extraídos.
+3410
+Modo de directorio:
+Directorio completo
+Sin directorio
+Rutas absolutas
+Rutas relativas
+3420
+Sobrescribir
+Con confirmación
+Sin confirmación
+Conservar archivos existentes
+Renombrar automáticamente
+Autorrenombrar archivos existentes
+3430
+Eliminar duplicado de carpeta raíz
+Restaurar seguridad del archivo
+3440
+Propagar Zone.Id stream:
+Para archivoos Office
+3500
+Confirmar sustitución de archivos
+La carpeta ya contiene un archivo con el mismo nombre.
+¿Deseas sustituir el archivo existente
+por este otro?
+{0} bytes
+Renombrar a&utomáticamente
+3700
+Método de compresión no válido para '{0}'.
+Error de datos en '{0}'. El archivo está corrupto.
+CRC ha fallado en '{0}'. El archivo está corrupto.
+Error de datos en el archivo cifrado '{0}'. Verifica la contraseña.
+Fallo de CRC en el archivo cifrado '{0}'. Verifica la contraseña.
+3710
+¿Contraseña incorrecta?
+3721
+Método de compresión no soportado
+Error de datos
+CRC fallado
+Datos no disponibles
+Final de datos inesperado
+Hay datos después del final de los datos precargados
+No es un archivo
+Error en los encabezados
+Contraseña incorrecta
+3763
+Inicio de archivo no disponible
+Inicio de archivo sin confirmar
+
+
+
+Característica no soportada
+3800
+Introduce la contraseña
+Introducir la contraseña:
+Confirmar Contraseña:
+Mostrar la contra&seña
+¡Las dos contraseñas ingresadas no coinciden!
+Usa en la contraseña solamente letras del alfabeto inglés, números y caracteres especiales (!, #, $, ...)
+La contraseña es demasiado larga.
+Contraseña
+3900
+Tiempo Transcurrido:
+Tiempo Pendiente:
+Tamaño Total:
+Velocidad:
+Tamaño Procesado:
+Razón de compresión:
+Errores:
+Archivos:
+4000
+Añadir al archivo
+&Archivo:
+M&odo de actualización:
+&Formato de archivo:
+Nive&l de compresión:
+&Método de compresión:
+Tamaño del &diccionario:
+Tama&ño de la palabra:
+Tamaño de bloque compacto:
+Número de hilos de la CPU:
+&Parámetros:
+Opciones
+Crear archivo SF&X autoextraíble
+Comprimir archivos compartidos
+Cifrado
+Método de cifrado:
+Cifrar &nombres de archivo
+Memoria usada para comprimir:
+Memoria usada para descomprimir:
+Borrar archivos después de la compresión
+4040
+Almacenar vínculos simbólicos
+Almacenar vínculos duros
+Almacenar flujos de datos alternativos
+Almacenar seguridad del archivo
+4050
+Sin compresión
+La más rápida
+Rápida
+Normal
+Máxima
+Ultra
+4060
+Añadir y sustituir archivos
+Actualizar y añadir archivos
+Solo actualizar archivos
+Sincronizar archivos
+4070
+Explorar
+Todos los archivos
+No compacto
+Compacto
+4080
+Hora
+Precisión de marca de tiempo:
+Hora de modificación almacenada
+Hora de creación almacenada
+Hora de último acceso almacenada
+Establecer hora del archivo a la del archivo más reciente
+No cambiar hora de último acceso a los archivos de origen
+4090
+seg
+ns
+6000
+Copiar
+Mover
+Copiar a:
+Mover a:
+Copiado...
+Moviendo...
+Renombrando...
+Selecciona carpeta de destino
+Operación no permitida para esta carpeta.
+Error renombrando archivo o carpeta
+Confirmar copia de archivos
+¿Estás seguro de que deseas copiar los archivos al archivo
+6100
+Atención - Confirmar eliminar de archivo
+Atención - Confirmar eliminar de carpeta
+Atención - Confirmar eliminar de numerosos archivos
+¿Realmente quieres eliminar '{0}'?\n¡Se irá para siempre y esta acción no se puede deshacer!
+¿Realmente quieres eliminar la carpeta '{0}' y todo su contenido?\nSi elimina una carpeta, se perderá de manera permanente.\n¡Esta acción no se puede deshacer!
+¿Realmente quieres eliminar estos '{0}' objectos?\nSi elimina una archivos, se perderá de manera permanente.\n¡Esta acción no se puede deshacer!
+Eliminando...
+Error eliminando archivo o carpeta
+El sistema no puede mover un archivo con ruta larga a la Papelera de Reciclaje
+6300
+Crear Carpeta
+Crear Archivo
+Nombre de la Carpeta:
+Nombre de la Archivo:
+Nuevo Carpeta
+Nuevo Archivo
+Error creando carpeta
+Error creando archivo
+6400
+Comentario
+&Comentario:
+Seleccionar
+Deseleccionar
+Máscara:
+6600
+Propiedades
+Historial de Carpetas
+Mensajes de Diagnóstico
+Mensaje
+7100
+Este PC
+Entorno de Red
+Documentos
+Sistema
+7200
+Añadir
+Extraer
+Comprobar
+Copiar
+Mover
+Eliminar
+Información
+7300
+Dividir archivo
+Di&vidir a:
+Dividir en º&volúmenes, bytes:
+Dividiendo...
+Confirmar división
+¿Estás seguro de que deseas dividir el archivo en {0} partes?
+El tamaño de los volúmenes debe ser menor que el del archivo original
+Tamaño de volumen incorrecto
+Tamaño de volumen especificado: {0} bytes.\n¿Estás seguro de que deseas dividir el archivo en volúmenes de ese tamaño?
+7400
+Combinar archivos
+&Combinar a:
+Combinando...
+Selecciona solamente primera parte del archivo dividido
+No se ha podido detectar el archivo como parte de un archivo por volúmenes
+No se ha podido encontrar más que una parte del archivo por volúmenes
+7500
+Calculando suma de verificación...
+Suma de verificación (CRC)
+CRC de los datos:
+CRC de los datos y nombres:
+7600
+Rendimiento
+Uso de memoria:
+Compresión
+Descompresión
+Tasa
+Tasa total
+Actual
+Resultante
+Uso de CPU
+Resultante/uso
+Pasos:
+7700
+Vincular
+Vincular
+Vincular desde:
+Vincular hacia:
+7710
+Tipo de vínculo
+Vínculo duro
+Vínculo simbólico de archivo
+Vínculo simbólico de directorio
+Unión de directorio
+7800
+Solicitud de uso de memoria
+Cambiar el límite permitido para las próximas operaciones
+&Repetir la acción seleccionada para la operación actual
+Acción
+7810
+Esta operación la bloqueada por 7-zip y no se puede continuar.
+La operación requiere una gran cantidad de memoria (RAM).
+Tamaño de uso de memoria requerido
+Límite de uso de memoria permitido
+Límite de uso de memoria establecido por 7-Zip
+Tamaño de RAM
+Cantidad máxima de memoria RAM permitida para descomprimir archivos comprimidos:
+7820
+&Permitir descompresión del archivo comprimido
+&Omitir descompresión del archivo comprimido
+¡La extracción del archivo fue omitido!

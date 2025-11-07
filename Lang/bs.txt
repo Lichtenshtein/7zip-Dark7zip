@@ -1,0 +1,533 @@
+﻿;!@Lang2@!UTF-8!
+; 23.01 : 2023-08-05 : Nurudin Imširović <github.com/oxou>
+; 25.01 : 2025-08-24 : Michelpuri (Scubarisa) / Minor fixes
+;
+;
+;
+;
+;
+;
+;
+;
+;
+0
+7-Zip
+Bosnian
+Bosanski
+401
+U redu
+Otkaži
+
+
+
+&Da
+&Ne
+&Otkaži
+Pomoć
+
+&Nastavite
+440
+Da na &Sve
+Ne na S&ve
+Stop
+Ponovo pokreni
+&U pozadini
+&Ispred pozadine
+&Pauziraj
+Pauziran
+Jeste li sigurni da želite otkazati?
+500
+&Datoteka
+&Uredi
+&Pogled
+F&avoriti
+&Alati
+&Pomoć
+540
+&Otvori
+Otvori &unutra
+Otvori I&znutra
+&Pogledaj
+&Uredi
+Preimen&uj
+&Kopiraj u...
+&Makni u...
+&Izbriši
+&Podijeli datoteku...
+Kom&biniraj datoteke...
+S&vojstva
+Koment&ar...
+Izračunaj kontrolnu sumu
+Pronađi razliku
+Kreiraj Fasciklu
+Kreiraj Datoteku
+I&zlaz
+Veza
+&Alternativni Tokovi
+600
+Označi &Sve
+Odznači sve
+&Obrni Izbor
+Označi...
+Odznači...
+Označi po Tipu
+Odznači po Tipu
+700
+V&elike Ikone
+M&ale Ikone
+&Lista
+&Detaljno
+730
+Nesortirano
+Ravan Prikaz
+&2 Panela
+&Trake sa alatkama
+Otvori korijensku fasciklu
+Idi ka jednom nivou
+Historija fascikli...
+&Osvježi
+Automatski Osvježi
+750
+Alatna traka arhive
+Standardna alatna traka
+Velika dugmad
+Prikaži tekst dugmadi
+800
+&Dodaj fasciklu u Favorite kao
+Obilježi
+900
+&Opcije...
+&Benchmark
+910
+Izbriši privremene fajlove...
+960
+&Sadržaj...
+&O 7-Zip...
+1003
+Staza
+Ime
+Ekstenzija
+Fascikla
+Veličina
+Upakovana Veličina
+Atributi
+Kreiran
+Pristupljen
+Modificiran
+Solidan
+Komentiran
+Šifriran
+Razdvojen Prije
+Razdvojen Poslije
+Rječnik
+
+Tip
+Protiv
+Metod
+Operativni Sustav
+Datotečni Sistem
+Korisnik
+Grupa
+Blok
+Komentar
+Pozicija
+Prefiks Staze
+Fascikle
+Datoteke
+Verzija
+Volum
+Multivolum
+Kompenzacija
+Veze
+Blokova
+Volumova
+
+64-bit
+Veliki-endian
+CPU
+Fizička Veličina
+Veličina Zaglavlja
+Kontrolna suma
+Karakteristike
+Virtualna Adresa
+ID
+Kratki Naziv
+Aplikacija Kreatora
+Veličina Sektora
+Način
+Simbolički Link
+Greška
+Ukupna Veličina
+Slobodan Prostor
+Veličina Klastera
+Oznaka
+Lokalni Naziv
+Provajder
+NT sigurnost
+Alternativni Tok
+Aux
+Izbrisano
+Je li drvo
+
+
+Vrsta Greške
+Greške
+Greške
+Upozorenja
+Upozorenje
+Tokovi
+Alternativni Tokovi
+Veličina Alternativnih Tokova
+Virtualna Veličina
+Veličina Raspakivanja
+Ukupna Fizička Veličina
+Volum Indeks
+Podvrsta
+Kratak Komentar
+Stranica Koda
+
+
+
+Veličina Repa
+Ugrađena Veličina Stuba
+Veza
+Tvrda Veza
+iNode
+
+Samo za čitanje
+
+Kopiraj Vezu
+
+
+Metapodaci Promijenjeni
+2100
+Opcije
+Jezik
+Jezik:
+Uređivač
+&Uređivač:
+&Diff:
+2200
+Sistem
+Asociraj 7-Zip sa:
+Svi korisnici
+2301
+Integriraj 7-Zip u kontekstualni meni
+Kaskadni kontekstni meni
+Stavke kontekstnog menija:
+Ikone u kontekstualnom meniju
+2320
+<Fascikla>
+<Arhiva>
+Otvori arhivu
+Izvadi datoteke...
+Dodaj u arhivu...
+Testiraj arhivu
+Izvadi ovdje
+Izvadi u {0}
+Dodaj u {0}
+Kompresija i email...
+Kompresuj u {0} i email
+2400
+Fascikle
+&Radna fascikla
+&Sistemska privremena fascikla
+&Trenutni
+&Naveden:
+Koristi se samo za pokretne pogone
+Navedite lokaciju za privremene arhivske datoteke.
+2500
+Postavke
+Prikaži ".." stavku
+Prikaži ikone stvarne datoteke
+Prikaži sistemski meni
+&Odabir cijelog reda
+Prikaži &linije rešetke
+Jednokratni klik za otvaranje stavke
+&Alternativni način odabira
+Koristi &velike memorijske stranice
+2900
+O 7-Zip
+7-Zip je slobodan softver
+3000
+Sustav ne može dodijeliti potrebnu količinu memorije
+Nema pogrešaka
+{0} objekat(a) odabrano
+Nije moguće stvoriti fasciklu '{0}'
+Operacije ažuriranja nisu podržane za ovu arhivu.
+Nije moguće otvoriti datoteku '{0}' kao arhivu
+Nije moguće otvoriti šifriranu arhivu '{0}'. Pogrešna lozinka?
+Nepodržana vrsta arhive
+Datoteka {0} već postoji
+Datoteka '{0}' je izmijenjena.\nŽelite li je ažurirati u arhivi?
+Nije moguće ažurirati datoteku\n'{0}'
+Nije moguće pokrenuti uređivač.
+Datoteka izgleda kao virus (naziv datoteke sadrži duge razmake u nazivu).
+Operaciju nije moguće pozvati iz fascikle koja ima dug put.
+Morate odabrati jednu datoteku
+Morate odabrati jednu ili više datoteka
+Previše stavki
+Nije moguće otvoriti datoteku kao {0} arhivu
+Datoteka je otvorena kao {0} arhiva
+Arhiva je otvorena s pomakom
+3300
+Vađenje
+Sažimanje
+Testiranje
+Otvaranje...
+Skeniranje...
+Uklanjanje
+3320
+Dodavanje
+Ažuriranje
+Analiziranje
+Repliciranje
+Prepakiranje
+Preskakanje
+Brisanje
+Stvaranje zaglavlja
+3400
+Izvadi
+I&zvadi u:
+Navedite mjesto za izdvojene datoteke.
+3410
+Način puta:
+Puni nazivi putova
+Nema naziva putova
+Apsolutni nazivi putova
+Relativni nazivi putova
+3420
+Način prebrisivanja:
+Pitaj prije prebrisivanja
+Prebriši bez upita
+Preskoči postojeće datoteke
+Automatsko preimenovanje
+Automatsko preimenovanje postojećih datoteka
+3430
+Uklanjanje dupliciranja korijenske fascikle
+Vraćanje sigurnosti datoteke
+3440
+Prijenos Zone.Id toka:
+Za Office datoteke
+3500
+Potvrda Zamjene Datoteke
+Odredišna fascikla već sadrži obrađenu datoteku.
+Želite li zamijeniti postojeću datoteku
+sa ovom?
+{0} bajtova
+A&utomatsko Preimenovanje
+3700
+Nepodržana metoda sažimanja za '{0}'.
+Pogreška podataka u "{0}". Datoteka je pokvarena.
+CRC nije uspio u '{0}'. Datoteka je pokvarena.
+Pogreška podataka u šifriranoj datoteci '{0}'. Pogrešna lozinka?
+CRC nije uspio u šifriranoj datoteci '{0}'. Pogrešna lozinka?
+3710
+Pogrešna lozinka?
+3721
+Nepodržana metoda sažimanja
+Greška podataka
+CRC nije uspio
+Nedostupni podaci
+Neočekivani kraj podataka
+Postoje neki podaci nakon završetka podataka o korisnom teretu
+Nije arhiva
+Pogreška zaglavlja
+Pogrešna lozinka
+3763
+Nedostupan početak arhiviranja
+Nepotvrđeni početak arhiviranja
+
+
+
+Nepodržana značajka
+3800
+Unesite lozinku
+Unesite lozinku:
+Ponovo unesite lozinku:
+&Pokaži lozinku
+Lozinke se ne podudaraju
+Za lozinku koristite samo engleska slova, brojeve i posebne znakove (!, #, $, ...)
+Lozinka je predugačka
+Lozinka
+3900
+Proteklo vrijeme:
+Preostalo vrijeme:
+Ukupna veličina:
+Brzina:
+Obrađeno:
+Omjer sažimanja:
+Greške:
+Arhive:
+4000
+Dodaj u arhivu
+&Arhiva:
+&Način ažuriranja:
+Oblik &arhive:
+Razina &sažimanja:
+Način &sažimanja:
+&Veličina rječnika:
+&Veličina riječi:
+Veličina punog bloka:
+Broj niti procesora:
+&Parametri:
+Mogućnosti
+Kreiraj SF&X arhive
+Sažimanje zajedničkih datoteka
+Šifriranje
+Način šifriranja:
+Šifriraj &nazive datoteka
+Korištenje memorije za sažimanje:
+Korištenje memorije za dekompresiju:
+Brisanje datoteka nakon sažimanja
+4040
+Pohrana simboličkih veza
+Pohrana tvrdih veza
+Pohrana alternativnih tokova podataka
+Pohrana Sigurnosti datoteka
+4050
+Pohrani
+Najbrže
+Brz
+Normalan
+Maksimalan
+Ultra
+4060
+Dodavanje i zamjena datoteka
+Ažuriranje i dodavanje datoteka
+Osvježavanje postojećih datoteka
+Sinkronizacija datoteka
+4070
+Pregledaj
+Sve datoteke
+Bez solidnog
+Solidan
+4080
+Vrijeme
+Preciznost vremenske oznake:
+Vrijeme izmjene pohrane
+Vrijeme kreiranja pohrane
+Vrijeme posljednjeg pristupa
+Podesite vrijeme arhiviranja na najnovije vrijeme datoteka
+Ne mijenjaj izvorne datoteke posljednji put pristupa
+4090
+s
+ns
+6000
+Kopiraj
+Premjesti
+Kopiraj u:
+Premjesti u:
+Kopiranje...
+Premještanje...
+Preimenovanje...
+Označi odredišnu fasciklu.
+Operacija nije podržana za ovu fasciklu.
+Pogreška pri preimenovanju datoteke ili fascikle
+Potvrda Kopiranja Datoteke
+Jeste li sigurni da želite kopirati datoteke u arhivu
+6100
+Pažnja - Potvrda Brisanja Datoteke
+Pažnja - Potvrda Brisanja Fascikle
+Pažnja - Potvrda Brisanja Više Datoteka
+Jeste li sigurni da želite izbrisati '{0}'?\nNestat će zauvijek i ova radnja se ne može poništiti!
+Jeste li sigurni da želite izbrisati fasciklu '{0}' i sav njezin sadržaj?\nAko izbrišete fasciklu, ona će biti trajno izgubljena.\nOva radnja se ne može poništiti!
+Jeste li sigurni da želite izbrisati te {0} stavke?\nAko izbrišete datoteku, ona će biti trajno izgubljena.\nOva radnja se ne može poništiti!
+Brisanje...
+Pogreška pri brisanju datoteke ili fascikle
+Sustav ne može premjestiti datoteku s dugim putem do koša za smeće
+6300
+Stvori Fasciklu
+Stvori Datoteku
+Molimo unesite naziv nove Fasciklu:
+Molimo unesite naziv nove Datoteku:
+Nova Fascikla
+Nova Datoteka
+Pogreška pri stvaranju fascikle
+Pogreška pri stvaranju datoteke
+6400
+Komentar
+&Komentar:
+Označi
+Odznači
+Maska:
+6600
+Svojstava
+Povijest fascikli
+Dijagnostičke poruke
+Poruka
+7100
+Kompjuter
+Mreža
+Dokumenti
+Sistem
+7200
+Dodaj
+Izdvoji
+Testiraj
+Kopiraj
+Makni
+Izbriši
+Informacije
+7300
+Razdvoji Datoteku
+&Razdvoji u:
+Razdvoji u &volume, bajtova:
+Razdvajanje...
+Potvrdi Razdvajanje
+Jeste li sigurni da želite razdvojiti datoteku na {0} volume?
+Veličina voluma mora biti manja od veličine originalne datoteke
+Neispravna veličina voluma
+Specifična veličina voluma: {0} bajtova.\nJeste li sigurni da želite podijeliti arhivu na takve volume?
+7400
+Kombiniraj Fajlove
+&Kombiniraj u:
+Kombiniranje...
+Odaberite samo prvi dio razdvojene datoteke
+Računar ne može otkriti datoteku kao dio razdvojene datoteke
+Ne može se pronaći više od jednog dijela razdvojene datoteke
+7500
+Izračunavanje kontrolne sume...
+Informacije o kontrolnoj sumi
+CRC kontrolna suma za podatke:
+CRC kontrolna suma za podatke i imena:
+7600
+Benchmark
+Korištenje memorije:
+Kompresovanje
+Dekompresovanje
+Ocjena
+Ukupna Ocjena
+Trenutni
+Rezultirajući
+Korištenje CPU-a
+Ocjena / Upotreba
+Prolazi:
+7700
+Veza
+Veza
+Veza od:
+Veza na:
+7710
+Vrsta Veze
+Tvrda Veza
+Simbolički Link Datoteke
+Simbolički Link Fascikle
+Spoj Imenika
+7800
+Zahtjev za korištenje memorije
+Promijeni dozvoljeni limit za sljedeće operacije
+Ponovite odabranu &radnju za trenutni rad
+Akcija
+7810
+Ovu operaciju je blokirao 7-Zip i ne može se nastaviti.
+Ova operacija zahtijeva veliku količinu memorije RAM-a.
+Potrebna veličina korištenja memorije
+Dozvoljeno ograničenje korištenja memorije
+Ograničenje korištenja memorije koje je postavio 7-Zip
+Veličina RAM-a
+Maksimalna dozvoljena količina RAM memorije za raspakivanje arhiva:
+7820
+&Dozvolite raspakivanje arhive
+&Preskoči raspakivanje arhive
+Raspakivanje arhive je preskočeno!

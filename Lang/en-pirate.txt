@@ -1,0 +1,533 @@
+﻿;!@Lang2@!UTF-8!
+; 25.01 : 2025-08-24 : Michelpuri (CurePopuri/PopuriO2)
+;
+;
+;
+;
+;
+;
+;
+;
+;
+;
+0
+7-Zip
+English
+Pirate
+401
+Aye
+Retreat
+
+
+
+&Yar
+&No
+&Disembark
+Mayday
+
+&Continue
+440
+Yar t' &All
+No t' A&ll
+Stop
+Restart
+&Background
+&Foreground
+&Pause
+Paused
+Be ye sure ye want t' cancel?
+500
+&File
+&Edit
+&View
+F&avorites
+&Tools
+&Help
+540
+&Open
+Open &Inside
+Open O&utside
+&View
+&Edit
+Rena&me
+&Copy To...
+&Move To...
+Destroy (&D)
+&Split file...
+Com&bine files...
+P&roperties
+Comme&nt...
+Calculate checksum
+Diff
+Create Folder
+Create File
+E&xit
+Link
+&Alternate Streams
+600
+Select &All
+Deselect All
+&Invert Selection
+Select...
+Deselect...
+Select by Type
+Deselect by Type
+700
+Lar&ge Icons
+S&mall Icons
+&List
+&Details
+730
+Unsorted
+Flat View
+&2 Panels
+&Toolbars
+Open Root Folder
+Up One Level
+Folders History...
+&Refresh
+Auto Refresh
+750
+Archive Toolbar
+Standard Toolbar
+Large Buttons
+Show Buttons Text
+800
+&Add folder t' Favorites as
+Bookmark
+900
+&Options...
+&Benchmark
+910
+Destroy Temporary Files...
+960
+&Contents...
+&About 7-Zip...
+1003
+Path
+Name
+Extension
+Folder
+Size
+Packed Size
+Attributes
+Created
+Accessed
+Modified
+Solid
+Commented
+Encrypted
+Split Before
+Split After
+Dictionary
+
+Type
+Anti
+Method
+Host OS
+File System
+User
+Group
+Block
+Comment
+Position
+Path Prefix
+Folders
+Files
+Version
+Volume
+Multivolume
+Offset
+Links
+Blocks
+Volumes
+
+64-bit
+Big-endian
+CPU
+Physical Size
+Headers Size
+Checksum
+Characteristics
+Virtual Address
+ID
+Short Name
+Creator Application
+Sector Size
+Mode
+Symbolic Link
+Error
+Total Size
+Free Space
+Cluster Size
+Label
+Local Name
+Provider
+NT Security
+Alternate Stream
+Aux
+Destroyped
+Is Tree
+
+
+Error Type
+Errors
+Errors
+Warnings
+Warning
+Streams
+Alternate Streams
+Alternate Streams Size
+Virtual Size
+Unpack Size
+Total Physical Size
+Volume Index
+SubType
+Short Comment
+Code Page
+
+
+
+Tail Size
+Embedded Stub Size
+Link
+Hard Link
+iNode
+
+Read-only
+
+Copy Link
+
+
+Metadata Changed
+2100
+Options
+Tongue
+Choose yer Speakin':
+Editor
+&Editor:
+&Diff:
+2200
+System
+Associate 7-Zip with:
+All users
+2301
+Integrate 7-Zip t' shell context menu
+Cascaded context menu
+Context menu items:
+Icons in context menu
+2320
+<Folder>
+<Archive>
+Open archive
+Extract files...
+Add t' archive...
+Test archive
+Extract Here
+Extract t' {0}
+Add t' {0}
+Compress and E-Mail...
+Compress t' {0} and E-Mail
+2400
+Folders
+&Working folder
+&System temp folder
+&Current
+&Specified:
+Use fer removable drives only
+Specify a location fer temporary archive files.
+2500
+Settings
+Show ".." item
+Show real file icons
+Show system menu
+&Full row select
+Show &grid lines
+One-click t' open an item
+&Alternative selection mode
+Use &large memory pages
+2900
+About 7-Zip
+7-Zip is free software
+3000
+Th' system cannot allocate th' required amount of memory
+There are no errors
+{0} object(s) selected
+Cannot create folder '{0}'
+Update operations are not supported fer tis archive.
+Cannot open file '{0}' as archive
+Cannot open encrypted archive '{0}'. Wrong password?
+Unsupported archive type
+File {0} is already exist
+File '{0}' was modified.\nDo you want t' update it in th' archive?
+Cannot update file\n'{0}'
+Cannot start editor.
+Th' file looks like a virus (th' file name contains long spaces in name).
+Th' operation cannot be called from a folder that has a long path.
+Ye must select one file
+Ye must select one or more files
+Too many items
+Cannot open th' file as {0} archive
+Th' file is open as {0} archive
+Th' archive is open with offset
+3300
+Extracting
+Compressing
+Testing
+Opening...
+Scanning...
+Removing
+3320
+Adding
+Updating
+Analyzing
+Replicating
+Repacking
+Skipping
+Deleting
+Header creating
+3400
+Extract
+E&xtract to:
+Specify a location fer extracted files.
+3410
+Path mode:
+Full pathnames
+No pathnames
+Absolute pathnames
+Relative pathnames
+3420
+Overwrite mode:
+Ask before overwrite
+Overwrite without prompt
+Skip existing files
+Auto rename
+Auto rename existing files
+3430
+Eliminate duplication of root folder
+Restore file security
+3440
+Propagate Zone.Id stream:
+Fer Office files
+3500
+Confirm File Replace
+Destination folder already contains processed file.
+Would ye like t' replace th' existing file
+with this one?
+{0} bytes
+A&uto Rename
+3700
+Unsupported compression method fer '{0}'.
+Data error in '{0}'. File is broken.
+CRC failed in '{0}'. File is broken.
+Data error in encrypted file '{0}'. Wrong password?
+CRC failed in encrypted file '{0}'. Wrong password?
+3710
+Wrong password?
+3721
+Compression method is not supported!
+Data Error!
+CRC Failed!
+Unavailable data
+Unexpected end of data
+There are some data after th' end of th' payload data
+Is not archive
+Headers Error
+Wrong Password
+3763
+Unavailable start of archive
+Unconfirmed start of archive
+
+
+
+Unsupported Feature
+3800
+Enter Password
+Enter Password:
+Confirm Password:
+&Show Password
+Th' two passwords entered do not match!
+Use only English letters, numbers and special characters (!, #, $, ...) fer password
+Th' password is too long!
+Password
+3900
+Time Elapsed:
+Time Remaining:
+Total Size:
+Speed:
+Processed:
+Compression Ratio:
+Errors:
+Archives:
+4000
+Add t' Archive
+&Archive:
+&Update Mode:
+Archive &Format:
+Compression &Level:
+Compression &Method:
+&Dictionary Size:
+&Word Size:
+Solid Block Size:
+Number of CPU Threads:
+&Parameters:
+Options
+Create SF&X Archive
+Compress Shared Files
+Encryption
+Encryption Method:
+Encrypt File &Names
+Memory Usage fer Compressing:
+Memory Usage fer Decompressing:
+Destroy files after compression
+4040
+Store Symbolic Links
+Store Hard Links
+Store alternate data streams
+Store File Security
+4050
+Store
+Fastest
+Fast
+Normal
+Maximum
+Ultra
+4060
+Add an' Replace Files
+Update an' Add Files
+Freshen Existing Files
+Synchronise Files
+4070
+Browse
+All Files
+Non-Solid
+Solid
+4080
+Time
+Timestamp Precision:
+Store time modification
+Store time creation
+Store last access time
+Set archive time t' latest file time
+Do not change source files last access time
+4090
+sec
+ns
+6000
+Copy
+Move
+Copy to:
+Move to:
+Copying...
+Moving...
+Renaming...
+Select destination folder.
+Th' operation is not supported fer tis folder.
+Error Renaming File or Folder
+Confirm File Copy
+Be ye sure ye want t' copy files t' archive
+6100
+Confirm File Destroy
+Confirm Folder Scrap
+Confirm Multiple File Sink
+Do ye really want t' Scrap '{0}'?\nIt will be gone forever an' tis action cannot be undone!
+Do ye really want t' Sink the Folder '{0}' and all its contents?\nIf ye scrap an folder, it will be permanently lost.\nTis action cannot be undone!
+Do ye really want t' Destroy these {0} items?\nIf ye destroy a file, it will be permanently lost.\nTis action cannot be undone!
+Destroyin'...
+Error Destroyin' File or Folder
+Th' system cannot move a file with long path t' th' Recycle Bin
+6300
+Create Folder
+Create File
+Folder name:
+File Name:
+New Folder
+New File
+Error Creating Folder
+Error Creating File
+6400
+Comment
+&Comment:
+Select
+Deselect
+Mask:
+6600
+Properties
+Folders History
+Diagnostic Messages
+Message
+7100
+Tis PC
+Network
+Documents
+System
+7200
+Add
+Extract
+Test
+Copy
+Move
+Delete
+Info
+7300
+Split File
+&Split to:
+Split t' &volumes, bytes:
+Splitting...
+Confirm Splitting
+Be ye sure ye want t' split file into {0} volumes?
+Volume size must be smaller than size of original file
+Incorrect volume size
+Specified volume size: {0} bytes.\nBe ye sure ye want t' split archive into such volumes?
+7400
+Combine Files
+&Combine to:
+Combining...
+Select only first part of split file
+We couldn't detect file as part of split file.
+We couldn't find more than one part of split file.
+7500
+Calculating Checksum...
+Checksum Information
+CRC Checksum fer Data:
+CRC Checksum fer Data an' Names:
+7600
+Benchmark
+Memory Usage:
+Compressing
+Decompressing
+Rating
+Total Rating
+Current
+Resulting
+CPU Usage
+Rating/Usage
+Passed:
+7700
+Link
+Link
+Link from:
+Link to:
+7710
+Link Type
+Hard Link
+File Symbolic Link
+Directory Symbolic Link
+Directory Junction
+7800
+Memory usage request
+Change allowed limit fer next operations
+&Repeat selected action fer current operation
+Action
+7810
+Tis operation was blocked by 7-Zip an' cannot continue.
+Tis operation requires big amount of memory of RAM.
+Required memory usage size
+Allowed memory usage limit
+Memory usage limit set by 7-Zip
+RAM Size
+Maximum amount of RAM memory usage allowed t' unpack archives:
+7820
+&Allow unpacking archive
+&Skip unpacking archive
+Th' archive unpacking was skipped!

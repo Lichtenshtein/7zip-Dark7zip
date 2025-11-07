@@ -1,0 +1,533 @@
+﻿;!@Lang2@!UTF-8!
+; 25.01 : 2025-09-06 : Michelpuri (CurePopuri/PopuriO2)
+;
+;
+;
+;
+;
+;
+;
+;
+;
+;
+0
+7-Zip
+English
+Belize
+401
+Decide
+Cancel
+
+
+
+&Yes
+&No
+&Close
+Help
+
+&Continue
+440
+Yes to &All
+No to A&ll
+Stop
+Restart
+&Background
+&Foreground
+&Pause
+Paused
+Do you really want to Cancel?
+500
+&File
+&Edit
+&View
+F&avourites
+&Tools
+&Help
+540
+&Open
+Open &Inside
+Open O&utside
+&View
+&Edit
+Rena&me
+&Copy To...
+&Move To...
+&Delete
+&Split File...
+Com&bine Files...
+P&roperties
+Comme&nt...
+Calculate Checksum
+Diff
+Create Folder
+Create File
+e&Xit
+Link
+&Alternate Streams
+600
+Select &All
+Deselect All
+&Invert Selection
+Select...
+Deselect...
+Select by Type
+Deselect by Type
+700
+Lar&ge Icons
+S&mall Icons
+&List
+&Details
+730
+Unsorted
+Flat View
+2 Panels (&T)
+&Toolbars
+Open Root Folder
+Up One Level
+Folders History...
+&Refresh
+Automatic Refresh
+750
+Archive Toolbar
+Standard Toolbar
+Large Buttons
+Show Buttons Text
+800
+&Add Folder to Favourites as
+Bookmark
+900
+&Options...
+&Benchmark
+910
+Delete Temporary Files...
+960
+&Contents...
+&About 7-Zip...
+1003
+Path
+Name
+Extension
+Folder
+Size
+Packed Size
+Attributes
+Date Created
+Date Accessed
+Date Modified
+Solid
+Commented
+Encrypted
+Split Before
+Split After
+Dictionary
+
+Type
+Anti
+Method
+Host OS
+File System
+User
+Group
+Block
+Comment
+Position
+Path Prefix
+Folders
+Files
+Version
+Volume
+Multivolume
+Offset
+Links
+Blocks
+Volumes
+
+64-bit
+Big-endian
+CPU
+Physical Size
+Headers Size
+Checksum
+Characteristics
+Virtual Address
+ID
+Short Name
+Creator Application
+Sector Size
+Mode
+Symbolic Link
+Error
+Total Size
+Free Space
+Cluster Size
+Label
+Local Name
+Provider
+NT Security
+Alternate Stream
+Aux
+Deleted
+Is Tree
+
+
+Error Type
+Errors
+Errors
+Warnings
+Warning
+Streams
+Alternate Streams
+Alternate Streams Size
+Virtual Size
+Unpack Size
+Total Physical Size
+Volume Index
+SubType
+Short Comment
+Code Page
+
+
+
+Tail Size
+Embedded Stub Size
+Link
+Hard Link
+iNode
+
+Read-only
+
+Copy Link
+
+
+Metadata Changed
+2100
+Options
+Language
+Select a Language:
+Editor
+&Editor:
+&Diff:
+2200
+System
+Associate 7-Zip With:
+All Users
+2301
+Integrate 7-Zip To Shell Context Menu
+Cascaded Context Menu
+Context Menu Items:
+Icons in Context Menu
+2320
+<Folder>
+<Archive>
+Open Archive
+Extract Files...
+Add to Archive...
+Test Archive
+Extract Here
+Extract to {0}
+Add to {0}
+Compress and E-mail...
+Compress to {0} and E-mail
+2400
+Folders
+&Working Folder
+&System Temp Folder
+&Current
+&Specified:
+Use for Removable Drives Only
+Please specify the location for the temporary archive files.
+2500
+Settings
+Show ".." Item
+Show Real File Icons
+Show System Menu
+&Full Row Select
+Show &Grid Lines
+Single-click to open an item (point to select)
+&Alternative Selection Mode
+Enable &Large Memory Pages
+2900
+About 7-Zip
+7-Zip is FREE software. However, you can support development of 7-Zip by donating. As a donator user, you will be able to get technical support.
+3000
+The system cannot allocate the required amount of memory
+We've just confirmed testing the archive and there are no error problems!
+{0} object(s) selected
+Cannot create folder '{0}'
+The update operations IS NOT SUPPORTED for this archive!
+The file you are trying to open '{0}' which is Invalid or unsupported archive file format!
+Cannot open encrypted archive '{0}'. Wrong password?
+Archive type is not supported!
+File {0} is already exist
+File '{0}' was modified.\nWould you like me to update it in the archive?
+Cannot update file\n'{0}'
+Cannot start editor! Did you have set on the Editor tab? If so, Go to Options then set the Editor!\n\nI'll do it for you automatically this time, but don't do it again!
+The file looks like a virus (the file name contains long spaces in name).
+The operation cannot be called from a folder that has a long path.
+You must select one file!
+You must select one or more files!
+You've selected too many items!
+Cannot open the file as {0} archive
+The file is open as {0} archive
+The archive is open with offset
+3300
+Extracting
+Compressing
+Testing
+Opening...
+Scanning...
+Removing
+3320
+Adding
+Updating
+Analysing
+Replicating
+Repacking
+Skipping
+Deleting
+Header Creating
+3400
+Extract
+E&xtract to:
+Please specify the location for extracted files.
+3410
+Path Mode:
+Full Path Names
+No Path Names
+Absolute Path Names
+Relative Path Names
+3420
+Overwrite Mode:
+Ask before overwrite
+Overwrite Without Prompt
+Skip Existing Files
+Automatic Rename
+Auto Rename Existing Files
+3430
+Eliminate duplication of root folder
+Restore File Security
+3440
+Propagate Zone.Id Stream:
+For Office Files
+3500
+Confirm File Replace
+The destination folder already contains processed file.
+Do you want to replace the existing file
+with this one?
+{0} bytes
+A&utomatic Rename
+3700
+Unsupported compression method for '{0}'.
+Data error in '{0}'. The File is broken.
+CRC failed in '{0}'. The File is broken.
+Data error in encrypted file '{0}'. Wrong password?
+CRC failed in encrypted file '{0}'. Wrong password?
+3710
+Wrong Password?
+3721
+Compression method is not supported!
+Data Error!
+CRC Failed!
+Unavailable Data
+Unexpected end of data
+There are some data after the end of the payload data
+Is not archive
+Headers Error
+Wrong Password
+3763
+Unavailable start of archive
+Unconfirmed start of archive
+
+
+
+Unsupported Feature
+3800
+Enter Password
+Enter Password:
+Confirm Password:
+&Show Password
+The two passwords entered do not match!
+Please use only English letters, numbers and special characters (!, #, $, ...) for password\nAny other languages such as Spanish letters, Japanese, etc. are NOT ALLOWED.
+The password is too long!
+Password
+3900
+Time Elapsed:
+Time Remaining:
+Total Size:
+Speed:
+Size Processed:
+Compression Ratio:
+Errors:
+Archives:
+4000
+Add to Archive
+&Archive:
+&Update Mode:
+Archive &Format:
+Compression &Level:
+Compression &Method:
+&Dictionary Size:
+&Word Size:
+Solid Block Size:
+Number of CPU Threads:
+&Parameters:
+Options
+Create SF&X Archive
+Compress Shared Files
+Encryption
+Encryption Method:
+Encrypt File &Names
+Memory Usage for Compressing:
+Memory Usage for Decompressing:
+Delete Files After Compression
+4040
+Store Symbolic Links
+Store Hard Links
+Store Alternate Data Streams
+Store File Security
+4050
+Store
+Fastest
+Fast
+Normal
+Maximum
+Ultra
+4060
+Add and Replace Files
+Update and Add Files
+Freshen Existing Files
+Synchronise Files
+4070
+Browse
+All Files
+Non-Solid
+Solid
+4080
+Time
+Timestamp Precision:
+Store Time Modification
+Store Time Creation
+Store Last Access Time
+Set Archive Time to the Latest File Time
+Do not change source files last access time
+4090
+sec
+ns
+6000
+Copy
+Move
+Copy to:
+Move to:
+Copying...
+Moving...
+Renaming...
+Select destination folder.
+The operation is not supported for this folder!
+Error Renaming File or Folder
+Confirm File Copy
+Do you want to copy files to archive
+6100
+Attention - Confirm File Delete
+Attention - Confirm Folder Delete
+Attention - Confirm Multiple File Delete
+Do you really want to Delete '{0}'?\nIt will be gone forever and this action cannot be undone!
+Do you really want to Delete the Folder '{0}' and all its contents?\nIf you delete an folder, it will be permanently lost.\nThis action cannot be undone!
+Do you really want to Delete these {0} items?\nIf you delete a file, it will be permanently lost.\nThis action cannot be undone!
+Deleting...
+Error Deleting File or Folder
+As Michelpuri would say, "Hmm. It appears we cannot move these file with the long path to the Recycle Bin".\n\nThis means the system has been denied and you can't continue it.\n\nRegardless if the file/folder name has long, please ensure you have do it manually instead.
+6300
+Create Folder
+Create File
+Please enter a New Folder name:
+Please enter a New File name:
+New Folder
+New File
+Error Creating Folder
+Error Creating File
+6400
+Comment
+&Comment:
+Select
+Deselect
+Mask:
+6600
+Properties
+Folders History
+Diagnostic Messages
+Message
+7100
+This PC
+Network
+Documents
+System
+7200
+Add
+Extract
+Test
+Copy
+Move
+Delete
+Info
+7300
+Split File
+&Split to:
+Split to &Volumes, bytes:
+Splitting...
+Confirm Splitting
+Do you really want to split file into {0} volumes?
+The Volume Size must be smaller than size of original file
+Incorrect Volume Size
+Specified Volume Size: {0} bytes.\nDo you really want to split archive into such volumes?
+7400
+Combine Files
+&Combine to:
+Combining...
+Select only first part of split file
+We couldn't detect file as part of split file.
+We couldn't find more than one part of split file.
+7500
+Calculating Checksum...
+Checksum Information
+CRC Checksum for Data:
+CRC Checksum for Data and Names:
+7600
+Benchmark
+Memory Usage:
+Compressing
+Decompressing
+Rating
+Total Rating
+Current
+Resulting
+CPU Usage
+Rating/Usage
+Passed:
+7700
+Link
+Link
+Link from:
+Link to:
+7710
+Link Type
+Hard Link
+File Symbolic Link
+Directory Symbolic Link
+Directory Junction
+7800
+Memory Usage Request
+Change allowed limit for next operations
+&Repeat selected action for current operation
+Action
+7810
+This operation was blocked by 7-Zip and cannot continue.
+This operation requires big amount of memory of RAM.
+Required memory usage size
+Allowed memory usage limit
+Memory usage limit set by 7-Zip
+RAM Size
+Maximum amount of RAM memory usage allowed to unpack archives:
+7820
+&Allow unpacking archive
+&Skip unpacking archive
+The archive unpacking was skipped!

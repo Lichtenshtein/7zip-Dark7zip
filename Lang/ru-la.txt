@@ -1,0 +1,533 @@
+﻿;!@Lang2@!UTF-8!
+; 25.01 : 2025-08-25 : Michelpuri (CurePopuri/PopuriO2)
+; 25.01 : 2025-10-08 : Michelpuri (CurePopuri/PopuriO2)
+;
+;
+;
+;
+;
+;
+;
+;
+;
+0
+7-Zip
+Russian (Latin)
+Russkiy, Latin
+401
+OK
+Otmena
+
+
+
+&Da
+&Net
+&Zakryt'
+Pomoshch'
+
+&Prodolzhit'
+440
+Da dlya &vsekh
+Net dlya v&sekh
+Stop
+Perezapusk
+&Фоном
+&На передний план
+&Pauze
+Na pauze
+Vy deystvitel'no khotite prervat' operatsiyu?
+500
+&Файл
+&Правка
+&Вид
+&Избранное
+С&ервис
+&Справка
+540
+&Открыть
+Открыть &внутри
+Открыть снару&жи
+Prosmotr
+&Редактировать
+Переи&меновать
+&Копировать в...
+&Переместить в...
+&Удалить
+Ра&збить файл...
+О&бъединить файлы...
+Сво&йства
+Комме&нтарий...
+Kontrol'naya summa
+Sravnit'
+&Создать Папку
+Созд&ать Файл
+V&ykhod
+Ssylka
+&Альтернативные Потоки
+600
+Выделить в&се
+Ubrat' vydeleniye
+&Обратить в&ыделение
+Vydelit'...
+Ubrat' vydeleniye...
+Vydelit' po tipu
+Ubrat' vydeleniye po tipu
+700
+&Крупные значки
+&Мелкие значки
+Спис&ок
+&Таблица
+730
+Bez sortirovki
+Ploskiy rezhim
+&2 Paneli
+&Панели инструментов
+Otkryt' kornevuyu papku
+Perekhod na odin uroven' vverkh
+Istoriya papok...
+О&бновить
+Avtoobnovleniye
+750
+Panel' knopok arkhivatora
+Standartnaya panel' knopok
+Bol'shiye knopki
+Nadpisi na knopkakh
+800
+Добавить папку в &избранное как
+Zakladka
+900
+Nastroyki...
+Testirovaniye proizvoditel'nosti
+910
+Udalit' vremennyye fayly...
+960
+&Оглавление...
+О &программе...
+1003
+Put'
+Imya
+Rasshireniye
+Papka
+Razmer
+Szhatyy
+Atributy
+Sozdan
+Otkryt
+Izmenen
+Nepreryvnyy
+Kommentariy
+Zashifrovano
+Razbit Do
+Razbit Posle
+Slovar'
+
+Tip
+Anti
+Metod
+Sistema
+Faylovaya Sistema
+Pol'zovatel'
+Gruppa
+Blok
+Kommentariy
+Pozitsiya
+Put'
+Papok
+Faylov
+Versiya
+Tom
+Mnogotomnyy
+Smeshcheniye
+Ssylok
+Blokov
+Tomov
+
+64-bitnyy
+Big-endian
+Protsessor
+Fizicheskiy Razmer
+Razmer Zagolovkov
+Kontrol'naya Summa
+Kharakteristiki
+Virtual'nyy Adres
+
+Korotkoye Imya
+Sozdatel'
+Razmer Sektora
+Rezhim
+Simvol'naya Ssylka
+Oshibka
+Yemkost'
+Svobodno
+Razmer klastera
+Metka
+Lokal'noye imya
+Provayder
+NT Bezopasnost'
+Al'ternativnyy Potok
+
+Udalennyy
+Derevo
+
+
+Tip Oshibki
+Oshibki
+Oshibki
+Preduprezhdeniya
+Preduprezhdeniye
+Potoki
+Al'ternativnyye Potoki
+Razmer Al'ternativnykh potokov
+Virtual'nyy Razmer
+Raspakovannyy Razmer
+Obshchiy Fizicheskiy Razmer
+Nomer Toma
+Podtip
+Korotkiy Kommentariy
+Kodovaya Stranitsa
+
+
+
+Razmer Ostatka
+Razmer Vstroyennogo Bloka
+Ssylka
+Zhestkaya Ssylka
+iNode
+
+Tol'ko dlya chteniya
+
+Ssylka kopirovaniya
+
+
+Izmeneny metadannyye
+2100
+Nastroyki
+Yazyk
+Yazyk:
+Redaktor
+&Редактор:
+&Программа сравнения:
+2200
+Sistema
+Assotsiirovat' 7-Zip s faylami:
+Vse pol'zovateli
+2301
+Vstroit' 7-Zip v kontekstnoye menyu obolochki
+Kaskadnoye kontekstnoye menyu
+Elementy kontekstnogo menyu:
+Ikonki v kontekstnom menyu
+2320
+<Papka>
+<Arkhiv>
+Otkryt' arkhiv
+Raspakovat'
+Dobavit' k arkhivu...
+Testirovat'
+Raspakovat' zdes'
+Raspakovat' v {0}
+Dobavit' k {0}
+Szhat' i otpravit' po email...
+Szhat' v {0} i otpravit' po email
+2400
+Papki
+&Рабочая папка
+&Системная временная папка
+&Текущая
+&Задать:
+Ispol'zovat' tol'ko dlya smennykh nositeley
+Ukazhite polozheniye dlya vremennykh arkhivov.
+2500
+Nastroyki
+Pokazyvat' element ".."
+Pokazyvat' real'nyye ikonki faylov
+Pokazyvat' sistemnoye menyu
+Kursor na vsyu stroku
+Pokazyvat' razdeliteli
+Otkryvat' odnim shchelchkom
+Al'ternativnyy rezhim pometki
+Ispol'zovat' bol'shiye stranitsy pamyati
+2900
+O programme 7-Zip
+7-Zip yavlyayetsya svobodno rasprostranyayemoy programmoy.
+3000
+Nedostatochno svobodnoy pamyati
+Oshibok ne naydeno
+Vydeleno ob"yektov: {0}
+Ne udalos' sozdat' papku '{0}'
+Operatsii izmeneniya ne podderzhivayutsya dlya etogo arkhiva.
+Ne udalos' otkryt' fayl '{0}' kak arkhiv
+Ne udalos' otkryt' zashifrovannyy arkhiv '{0}'. Nevernyy parol'?
+v
+Fayl {0} uzhe sushchestvuyet
+Fayl '{0}' byl izmenen.\nVy khotite obnovit' yego v arkhive?
+Ne udalos' obnovit' fayl\n'{0}'
+Ne udalos' zapustit' redaktor
+Fayl pokhozh na virus (imya fayla soderzhit dlinnuyu posledovatel'nost' probelov).
+Operatsiya ne mozhet byt' ispolnena iz papki, kotoraya imeyet dlinnyy put'.
+Vy dolzhny vydelit' odin fayl
+Vy dolzhny vydelit' odin ili neskol'ko faylov
+Slishkom mnogo elementov
+Ne udalos' otkryt' fayl kak {0} arkhiv
+Fayl otkryt kak {0} arkhiv
+Arkhiv otkryt so smeshcheniyem
+3300
+Raspakovka
+Upakovka
+Testirovaniye
+Otkrytiye...
+Skanirovaniye...
+Udaleniye
+3320
+Dobavleniye
+Obnovleniye
+Analiz
+Kopirovaniye
+Perepakovka
+Propusk
+Udaleniye
+Sozdaniye zagolovkov
+3400
+Izvlech'
+&Распаковать в:
+Ukazhite polozheniye dlya izvlekayemykh faylov.
+3410
+Puti k faylam:
+Polnyye puti
+Bez putey
+Absolyutnyye puti
+Otnositel'nyye puti
+3420
+Perezapis':
+S podtverzhdeniyem
+Bez podtverzhdeniya
+Propuskat'
+Pereimenovat' avtomaticheski
+Pereimenovat' sushchestvuyushchiye
+3430
+Ustranit' dublirovaniye kornevoy papki
+Ustanavlivat' prava dostupa
+3440
+Rasprostranyat' potok Zone.Id:
+Dlya faylov Office
+3500
+Podtverzhdeniye zameny fayla
+Papka uzhe soderzhit obrabatyvayemyy fayl.
+Zamenit' sushchestvuyushchiy fayl
+sleduyushchim faylom?
+{0} baytov
+Pereimenovat' avtom.
+3700
+Nepodderzhivayemyy metod szhatiya dlya fayla '{0}'.
+Oshibka v dannykh v '{0}'. Fayl isporchen.
+Oshibka CRC v '{0}'. Fayl isporchen.
+Oshibka v dannykh zashifrovannogo fayla '{0}'. Nevernyy parol'?
+Oshibka CRC dlya zashifrovannogo fayla '{0}'. Nevernyy parol'?
+3710
+Nevernyy parol'?
+3721
+Nepodderzhivayemyy metod szhatiya
+Oshibka v dannykh
+Oshibka CRC
+Nedostupnyye dannyye
+Neozhidannyy konets dannykh
+Yest' dannyye posle kontsa bloka poleznykh dannykh
+Ne yavlyayetsya arkhivom
+Oshibka v zagolovkakh
+Nevernyy parol'
+3763
+Nedostupno nachalo arkhiva
+Nepodtverzhdennoye nachalo arkhiva
+
+
+
+Nepodderzhivayemaya funktsional'nost'
+3800
+Vvod parolya
+&Введите пароль:
+Povtorite parol':
+&Показать пароль
+Paroli ne sovpadayut
+Dlya parolya ispol'zuyte tol'ko simvoly latinskogo alfavita, tsifry i spetsial'nyye simvoly (!, #, $, ...)
+Parol' slishkom dlinnyy
+&Пароль
+3900
+Proshlo:
+Ostalos':
+Vsego:
+Skorost':
+Razmer:
+Stepen' szhatiya:
+Oshibok:
+Arkhivov:
+4000
+Dobavit' k arkhivu
+&Архив:
+&Режим изменения:
+&Формат архива:
+&Уровень сжатия:
+&Метод сжатия:
+Размер &словаря:
+Размер с&лова:
+Razmer bloka:
+Chislo potokov:
+&Параметры:
+&Опции
+Создать SF&X-архив
+Szhimat' otkrytyye dlya zapisi fayly
+Shifrovaniye
+Metod shifrovaniya:
+&Шифровать имена файлов
+Ob"yem pamyati dlya upakovki:
+Ob"yem pamyati dlya raspakovki:
+Udalyat' fayly posle szhatiya
+4040
+Sokhranyat' simvol'nyye ssylki
+Sokhranyat' zhestkiye ssylki
+Sokhranyat' al'ternativnyye potoki
+Sokhranyat' prava dostupa
+4050
+Bez szhatiya
+Skorostnoy
+Bystryy
+Normal'nyy
+Maksimal'nyy
+Ul'tra
+4060
+Dobavit' i zamenit'
+Obnovit' i dobavit'
+Obnovit'
+Sinkhronizirovat'
+4070
+Prolistat'
+Vse fayly
+Po razmeru fayla
+Nepreryvnyy
+4080
+Vremya
+Tochnost' otmetok vremeni:
+Sokhranyat' vremya izmeneniya faylov
+Sokhranyat' vremya sozdaniya faylov
+Sokhranyat' vremya poslednego dostupa k faylam
+Ustanovit' vremya arkhiva po vremeni samogo novogo fayla
+Ne izmenyat' vremya dostupa u iskhodnykh faylov
+4090
+sek
+ns
+6000
+Kopirovat'
+Peremestit'
+Kopirovat' v:
+Peremestit' v:
+Kopirovaniye...
+Peremeshcheniye...
+Pereimenovaniye...
+Ukazhite papku.
+Operatsiya ne podderzhivayetsya dlya etoy papki.
+Oshibka pri pereimenovanii fayla ili papki
+Podtverzhdeniye kopirovaniya faylov
+Vy deystvitel'no khotite skopirovat' eti fayly v arkhiv
+6100
+Vnimaniye - Podtverzhdeniye udaleniya fayla
+Vnimaniye - Podtverzhdeniye udaleniya papki
+Vnimaniye - Podtverzhdeniye udaleniya gruppy faylov
+Vy deystvitel'no khotite udalit' "{0}"?
+Vy deystvitel'no khotite udalit' papku "{0}" i vse yeye soderzhimoye?
+Vy deystvitel'no khotite udalit' eti ob"yekty ({0} sht.)?
+Udaleniye...
+Oshibka pri udalenii fayla ili papki
+Sistema ne podderzhivayet operatsiyu udaleniya faylov s dlinnymi putyami v korzinu
+6300
+Sozdat' papku
+Sozdat' fayl
+Imya papki:
+Imya fayla:
+Novaya papka
+Novyy fayl
+Oshibka pri sozdanii papki
+Oshibka pri sozdanii fayla
+6400
+Kommentariy
+&Комментарий:
+Vydelit'
+Ubrat' vydeleniye
+Maska:
+6600
+Svoystva
+Istoriya papok
+Soobshcheniya
+Soobshcheniye
+7100
+Komp'yuter
+Set'
+Dokumenty
+Sistema
+7200
+Dobavit'
+Izvlech'
+Testirovat'
+Kopirovat'
+Peremestit'
+Udalit'
+Informatsiya
+7300
+Razbit' fayl
+&Разбить в:
+Разбить на &тома размером (в байтах):
+Razbienie...
+Podtverzhdeniye razbiyeniya
+Vy deystvitel'no khotite razbit' fayl na {0} chastey?
+Razmer toma dolzhen byt' men'she razmera iskhodnogo fayla
+Oshibka v pole dlya zadaniya razmera tomov
+Ustanovlennyy razmer toma: {0} baytov.\nVy deystvitel'no khotite razbit' arkhiv na takiye toma?
+7400
+Ob"yedinit' fayly
+&Объединить в:
+Ob"yedineniye...
+Neobkhodimo vydelit' tol'ko pervuyu chast' razbitogo fayla
+Ne udalos' raspoznat' razbityy fayl
+Ne udalos' nayti boleye odnoy chasti razbitogo fayla
+7500
+Vychisleniye kontrol'noy summy...
+Kontrol'naya summa
+Summa CRC dlya dannykh:
+Summa CRC dlya dannykh i imen:
+7600
+Testirovaniye proizvoditel'nosti
+Ob"yem pamyati:
+Upakovka
+Raspakovka
+Reyting
+Obshchiy reyting
+Tekushchiy
+Itogovyy
+Nagruzka
+Reyting / Nagr.
+Prokhodov:
+7700
+Ssylka
+Svyazat'
+Istochnik:
+Tsel':
+7710
+Tip ssylki
+Zhestkaya ssylka
+Simvol'naya ssylka (Fayl)
+Simvol'naya ssylka (Papka)
+Tochka soyedineniya (Junction)
+7800
+Zapros ispol'zovaniya pamyati
+Izmenit' dopustimyy limit dlya sleduyushchikh operatsiy
+&Povtorit' vybrannoye deystviye dlya tekushchey operatsii
+Deystviye
+7810
+Eta operatsiya byla zablokirovana 7-Zip i ne mozhet byt' prodolzhena.
+Eta operatsiya trebuyet bol'shogo ob"yema operativnoy pamyati.
+Trebuyemyy razmer ispol'zovaniya pamyati
+Dopustimyy limit ispol'zovaniya pamyati
+Ogranicheniye ispol'zovaniya pamyati, ustanovlennoye 7-Zip
+Razmer operativnoy pamyati
+Maksimal'nyy ob"yem operativnoy pamyati, razreshennyy dlya raspakovki arkhivov:
+7820
+&Razreshit' raspakovku arkhiva
+&Propustit' raspakovku arkhiva
+Raspakovka arkhiva byla propushchena!
