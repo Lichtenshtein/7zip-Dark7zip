@@ -2991,6 +2991,10 @@ SOURCE=..\..\Archive\FlvHandler.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=..\..\Archive\FontHandler.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=..\..\Archive\GptHandler.cpp
 # End Source File
 # Begin Source File

@@ -111,6 +111,7 @@ AR_OBJS = \
   $O/ExtHandler.o \
   $O/FatHandler.o \
   $O/FlvHandler.o \
+  $O/FontHandler.o \
   $O/GzHandler.o \
   $O/GptHandler.o \
   $O/HandlerCont.o \

@@ -534,6 +534,8 @@ $O/FatHandler.o: ../../Archive/FatHandler.cpp
 	$(CXX) $(CXXFLAGS) $<
 $O/FlvHandler.o: ../../Archive/FlvHandler.cpp
 	$(CXX) $(CXXFLAGS) $<
+$O/FontHandler.o: ../../Archive/FontHandler.cpp
+	$(CXX) $(CXXFLAGS) $<
 $O/GptHandler.o: ../../Archive/GptHandler.cpp
 	$(CXX) $(CXXFLAGS) $<
 $O/GzHandler.o: ../../Archive/GzHandler.cpp
