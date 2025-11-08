@@ -82,6 +82,7 @@ AR_OBJS = \
   $O\ExtHandler.obj \
   $O\FatHandler.obj \
   $O\FlvHandler.obj \
+  $O\FontHandler.obj \
   $O\GzHandler.obj \
   $O\GptHandler.obj \
   $O\HandlerCont.obj \
