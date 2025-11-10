@@ -1,4 +1,6 @@
 LIBS = $(LIBS) oleaut32.lib ole32.lib
+CFLAGS = $(CFLAGS) /wd4566 /D_DISABLE_DEPRECATE_LTL_MESSAGE
+LFLAGS = $(LFLAGS) /LTCG
 
 # CFLAGS = $(CFLAGS) -DZ7_NO_UNICODE
 !IFNDEF MY_NO_UNICODE
@@ -26,15 +28,15 @@ O=o
 
 
 !IF "$(PLATFORM)" == "x64"
-MY_ML = ml64 -WX
+MY_ML = ml64
 !ELSEIF "$(PLATFORM)" == "arm64"
 MY_ML = armasm64
 !ELSEIF "$(PLATFORM)" == "arm"
-MY_ML = armasm -WX
+MY_ML = armasm
 !ELSEIF "$(PLATFORM)" == "arm64"
 MY_ML = armasm
 !ELSE
-MY_ML = ml -WX
+MY_ML = ml
 # -DABI_CDECL
 !ENDIF
 
@@ -48,7 +50,7 @@ LFLAGS = $(LFLAGS) /ENTRY:mainACRTStartup
 !ENDIF
 !ELSE
 !IFDEF OLD_COMPILER
-LFLAGS = $(LFLAGS) -OPT:NOWIN98
+LFLAGS = $(LFLAGS)
 !ENDIF
 !IF "$(PLATFORM)" != "arm" && "$(PLATFORM)" != "arm64"
 CFLAGS = $(CFLAGS) -Gr
@@ -70,8 +72,8 @@ CFLAGS_WARN_LEVEL = -W4
 CFLAGS_WARN_LEVEL = -Wall
 !ENDIF
 
-# CFLAGS = $(CFLAGS) -nologo -c -Fo$O/ $(CFLAGS_WARN_LEVEL) -WX -EHsc -Gy -MT -MP -GR- -GL -Gw
-CFLAGS = $(CFLAGS) -nologo -c -Fo$O/ -W4 -WX -EHsc -Gy -MT -MP -GR- -GL -Gw -std:c++20 -GF
+# CFLAGS = $(CFLAGS) -nologo -c -Fo$O/ $(CFLAGS_WARN_LEVEL) -EHsc -Gy -MT -MP -GR- -GL -Gw
+CFLAGS = $(CFLAGS) -nologo -c -Fo$O/ -W4 -EHsc -Gy -MT -MP -GR- -GL -Gw -std:c++20 -GF
 
 !IF "$(CC)" == "clang-cl"
 
@@ -181,7 +183,7 @@ CLANG_FLAGS_TARGET = --target=arm64-pc-windows-msvc
 !ENDIF
 
 COMPL_CLANG_SPEC=clang-cl $(CLANG_FLAGS_TARGET)
-COMPL_ASM_CLANG = $(COMPL_CLANG_SPEC) -nologo -c -Fo$O/ $(CFLAGS_WARN_LEVEL) -WX $**
+COMPL_ASM_CLANG = $(COMPL_CLANG_SPEC) -nologo -c -Fo$O/ $(CFLAGS_WARN_LEVEL) $**
 # COMPL_C_CLANG   = $(COMPL_CLANG_SPEC) $(CFLAGS_O2)
 
 
