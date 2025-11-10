@@ -1,6 +1,7 @@
 // Main.cpp
 
 #include "StdAfx.h"
+#include <memory>
 
 #include "../../../../C/DllSecur.h"
 
@@ -24,6 +25,8 @@
 
 #include "ExtractEngine.h"
 
+#include "BannerDlg.h"
+
 #include "resource.h"
 
 using namespace NWindows;
@@ -42,12 +45,32 @@ static char const volatile kSemicolon = ';';
 
 #define MY_SHELL_EXECUTE
 
+static HWND GetCurrentHwnd(void)
+{
+  HWND result = ::GetActiveWindow();
+  if(!(result && IsWindowVisible(result)))
+  {
+    for (UInt32 i = 0; i < 256; ++i)
+    {
+      ::Sleep(1); /*some delay*/
+      if(const HWND hwnd = ::GetForegroundWindow())
+      {
+        if(IsWindowVisible(result = hwnd))
+        {
+          break; /*success*/
+        }
+      }
+    }
+  }
+  return result;
+}
+
 static bool ReadDataString(CFSTR fileName, LPCSTR startID,
     LPCSTR endID, AString &stringResult)
 {
   stringResult.Empty();
   NIO::CInFile inFile;
-  if (!inFile.Open(fileName))
+  if (!inFile.OpenSafely(fileName))
     return false;
   const size_t kBufferSize = (1 << 12);
 
@@ -152,7 +175,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE /* hPrevInstance */,
 
   UString archiveName, switches;
   #ifdef MY_SHELL_EXECUTE
-  UString executeFile, executeParameters;
+  UString executeFile, executeParameters, launchingMsg, executeErrorMsg;
   #endif
   NCommandLineParser::SplitCommandLine(GetCommandLineW(), archiveName, switches);
 
@@ -178,7 +201,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE /* hPrevInstance */,
 
   UString dirPrefix ("." STRING_PATH_SEPARATOR);
   UString appLaunched;
-  bool showProgress = true;
+  bool showProgress = !switches.IsPrefixedBy_Ascii_NoCase("-ms") && !switches.IsPrefixedBy_Ascii_NoCase("/ini") && !switches.IsPrefixedBy_Ascii_NoCase("/s");
   if (!config.IsEmpty())
   {
     CObjectVector<CTextConfigPair> pairs;
@@ -198,7 +221,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE /* hPrevInstance */,
       dirPrefix = pairs[index].String;
     if (!installPrompt.IsEmpty() && !assumeYes)
     {
-      if (MessageBoxW(NULL, installPrompt, friendlyName, MB_YESNO |
+      if (MessageBoxW(NULL, installPrompt, friendlyName, MB_YESNO | MB_SYSTEMMODAL |
           MB_ICONQUESTION) != IDYES)
         return 0;
     }
@@ -207,6 +230,8 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE /* hPrevInstance */,
     #ifdef MY_SHELL_EXECUTE
     executeFile = GetTextConfigValue(pairs, "ExecuteFile");
     executeParameters = GetTextConfigValue(pairs, "ExecuteParameters");
+    launchingMsg = GetTextConfigValue(pairs, "LaunchingMsg");
+    executeErrorMsg = GetTextConfigValue(pairs, "ExecuteErrorMsg");
     #endif
   }
 
@@ -250,7 +275,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE /* hPrevInstance */,
         {
           if (errorMessage.IsEmpty())
             errorMessage = NError::MyFormatMessage(result);
-          ::MessageBoxW(NULL, errorMessage, NWindows::MyLoadString(IDS_EXTRACTION_ERROR_TITLE), MB_ICONERROR);
+          ::MessageBoxW(NULL, errorMessage, NWindows::MyLoadString(IDS_EXTRACTION_ERROR_TITLE), MB_ICONERROR | MB_SYSTEMMODAL);
         }
       }
       return 1;
@@ -294,13 +319,33 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE /* hPrevInstance */,
     execInfo.lpDirectory = NULL;
     execInfo.nShow = SW_SHOWNORMAL;
     execInfo.hProcess = NULL;
-    /* BOOL success = */ ::ShellExecuteEx(&execInfo);
-    UINT32 result = (UINT32)(UINT_PTR)execInfo.hInstApp;
-    if (result <= 32)
+
+    std::unique_ptr<CBannerDlg> banner;
+    if(showProgress)
+      banner.reset(new CBannerDlg(hInstance, executeFile, launchingMsg));
+    for (;;)
     {
-      if (!assumeYes)
-        ShowErrorMessage(L"Cannot open file");
-      return 1;
+       if(banner)
+         banner->Show();
+       execInfo.hwnd = (banner && (banner->Hwnd() != NULL)) ? banner->Hwnd() : GetCurrentHwnd(); /*prevent UAC dialog from appearing in the background!*/
+       const BOOL success = ::ShellExecuteEx(&execInfo);
+       const UINT32 result = success ? ((UINT32)(UINT_PTR)execInfo.hInstApp) : 0U;
+       if (result <= 32)
+       {
+         if(banner)
+           banner->ProcessPendingMessages();
+         if (!assumeYes)
+         {
+           const wchar_t *const lpErrorMessage = executeErrorMsg.IsEmpty() ? L"Failed to launch setup program. Please try again!" : executeErrorMsg;
+           const HWND hwnd = banner ? banner->Hwnd() : NULL;
+           if (MessageBoxW(hwnd, lpErrorMessage, executeFile.Ptr(), (hwnd ? MB_TOPMOST : MB_SYSTEMMODAL) | MB_ICONEXCLAMATION | MB_RETRYCANCEL) == IDRETRY)
+           {
+             continue; /*retry*/
+           }
+         }
+         return 1;
+       }
+       break; /*success*/
     }
     hProcess = execInfo.hProcess;
   }
