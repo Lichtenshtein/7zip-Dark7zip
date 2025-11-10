@@ -170,7 +170,7 @@ bool CProgressDialog::OnButtonClicked(unsigned buttonID, HWND buttonHWND)
       bool paused = Sync.GetPaused();
       Sync.SetPaused(true);
       _inCancelMessageBox = true;
-      int res = ::MessageBoxW(*this, L"Are you sure you want to cancel?", _title, MB_YESNOCANCEL);
+      int res = ::MessageBoxW(*this, L"Are you sure you want to cancel?", _title, MB_YESNOCANCEL | MB_SYSTEMMODAL);
       _inCancelMessageBox = false;
       Sync.SetPaused(paused);
       if (res == IDCANCEL || res == IDNO)

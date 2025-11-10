@@ -454,6 +454,18 @@ bool CInFile::Open(CFSTR fileName, DWORD shareMode, DWORD creationDisposition, D
 bool CInFile::OpenShared(CFSTR fileName, bool shareForWrite)
 { return Open(fileName, FILE_SHARE_READ | (shareForWrite ? FILE_SHARE_WRITE : 0), OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL); }
 
+bool CInFile::OpenSafely(CFSTR fileName)
+{
+  for (UInt32 i = 0; i < 256; ++i)
+  {
+    if(i)
+      ::Sleep(i);
+    if (Open(fileName))
+      return true;
+  }
+  return false;
+}
+
 bool CInFile::Open(CFSTR fileName)
   { return OpenShared(fileName, false); }
 

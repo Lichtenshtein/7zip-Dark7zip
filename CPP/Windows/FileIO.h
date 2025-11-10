@@ -254,6 +254,7 @@ public:
   bool Open(CFSTR fileName, DWORD shareMode, DWORD creationDisposition, DWORD flagsAndAttributes);
   bool OpenShared(CFSTR fileName, bool shareForWrite);
   bool Open(CFSTR fileName);
+  bool OpenSafely(CFSTR fileName);
 
 #if 0
   bool AttachStdIn()
