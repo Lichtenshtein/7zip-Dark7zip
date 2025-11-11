@@ -1371,7 +1371,33 @@ HRESULT CZipContextMenu::InvokeCommandCommon(const CCommandMapItem &cmi)
       case kExtract:
       case kExtractHere:
       case kExtractSmart:
+      {
+        if (_attribs.FirstDirIndex != -1)
+        {
+          ShowErrorMessageRes(IDS_SELECT_FILES);
+          break;
+        }
+        ExtractArchives(_fileNames, cmi.Folder,
+            (cmdID == kExtract), // showDialog
+            (cmdID == kExtractTo) && _elimDup.Val, // elimDup
+            _writeZone
+            );
+        break;
+      }
       case kExtractToSingle:
+      {
+        if (_attribs.FirstDirIndex != -1)
+        {
+          ShowErrorMessageRes(IDS_SELECT_FILES);
+          break;
+        }
+        ExtractArchives(_fileNames, cmi.Folder,
+            (cmdID == kExtract), // showDialog
+            (cmdID == kExtractTo) && _elimDup.Val, // elimDup
+            _writeZone
+            );
+        break;
+      }
       case kExtractTo:
       {
         if (_attribs.FirstDirIndex != -1)
