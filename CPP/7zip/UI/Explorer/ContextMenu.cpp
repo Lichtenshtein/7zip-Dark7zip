@@ -1370,9 +1370,9 @@ HRESULT CZipContextMenu::InvokeCommandCommon(const CCommandMapItem &cmi)
       }
       case kExtract:
       case kExtractHere:
-      case kExtractTo:
       case kExtractSmart:
       case kExtractToSingle:
+      case kExtractTo:
       {
         if (_attribs.FirstDirIndex != -1)
         {
