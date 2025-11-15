@@ -1,0 +1,84 @@
+From 4e90b530314152ca8be349f7ebc787ce1b1a9ea2 Mon Sep 17 00:00:00 2001
+From: Florin9doi <Florin9doi@users.noreply.github.com>
+Date: Mon, 22 Jan 2024 23:13:45 +0200
+Subject: [PATCH 3/3] Reorganize some keyboard shortcuts to well known variants
+
+[-] Remap "Open same folder" from Alt+Up to Alt+Down
+[-] Remap "Open current folder" from Alt+Left/Alt+Right to Ctrl+Enter
+[+] Map "Go Back" to Alt+Left
+[+] Map "Go Forward" to Alt+Right
+[+] Map "Go Up" to Alt+Up
+---
+ CPP/7zip/UI/FileManager/PanelKey.cpp        | 10 ++++++----
+ CPP/7zip/UI/FileManager/PanelListNotify.cpp |  2 ++
+ 2 files changed, 8 insertions(+), 4 deletions(-)
+
+diff --git a/CPP/7zip/UI/FileManager/PanelKey.cpp b/CPP/7zip/UI/FileManager/PanelKey.cpp
+index a4ea489a..42925678 100644
+--- a/CPP/7zip/UI/FileManager/PanelKey.cpp
++++ b/CPP/7zip/UI/FileManager/PanelKey.cpp
+@@ -190,36 +190,38 @@ bool CPanel::OnKeyDown(LPNMLVKEYDOWN keyDownInfo, LRESULT &result)
+         }
+       }
+       return false;
+     }
+     case VK_DOWN:
+     {
+-      if (shift)
++      if (alt)
++        _panelCallback->OnSetSameFolder();
++      else if (shift)
+         OnArrowWithShift();
+       return false;
+     }
+     case VK_UP:
+     {
+       if (alt)
+-        _panelCallback->OnSetSameFolder();
++        OpenParentFolder();
+       else if (shift)
+         OnArrowWithShift();
+       return false;
+     }
+     case VK_RIGHT:
+     {
+       if (alt)
+-        _panelCallback->OnSetSubFolder();
++        MoveForward();
+       else if (shift)
+         OnArrowWithShift();
+       return false;
+     }
+     case VK_LEFT:
+     {
+       if (alt)
+-        _panelCallback->OnSetSubFolder();
++        MoveBackward();
+       else if (shift)
+         OnArrowWithShift();
+       return false;
+     }
+     case VK_NEXT:
+     {
+diff --git a/CPP/7zip/UI/FileManager/PanelListNotify.cpp b/CPP/7zip/UI/FileManager/PanelListNotify.cpp
+index 2fb0e873..eba393a4 100644
+--- a/CPP/7zip/UI/FileManager/PanelListNotify.cpp
++++ b/CPP/7zip/UI/FileManager/PanelListNotify.cpp
+@@ -571,12 +571,14 @@ void CPanel::OnNotifyActivateItems()
+ {
+   bool alt = IsKeyDown(VK_MENU);
+   bool ctrl = IsKeyDown(VK_CONTROL);
+   bool shift = IsKeyDown(VK_SHIFT);
+   if (!shift && alt && !ctrl)
+     Properties();
++  else if (ctrl)
++    g_App.OnSetSubFolder(g_App.LastFocusedPanel);
+   else
+     OpenSelectedItems(!shift || alt || ctrl);
+ }
+ 
+ bool CPanel::OnNotifyList(LPNMHDR header, LRESULT &result)
+ {
+-- 
+2.41.0.windows.1
+

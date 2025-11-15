@@ -1,0 +1,650 @@
+From 304a02fe4bec6b4009d715a5a99370a929fa4411 Mon Sep 17 00:00:00 2001
+From: ironyman <ironyman13@gmail.com>
+Date: Tue, 26 Dec 2023 03:36:27 -0800
+Subject: [PATCH] Fix warnings and use c++20
+
+---
+ CPP/7zip/UI/FileManager/FM.mak                |   2 +-
+ CPP/7zip/UI/FileManager/FSFolderCopy.cpp      |   4 +-
+ CPP/7zip/UI/FileManager/PanelCopy.cpp         |   7 +-
+ CPP/7zip/UI/FileManager/PanelFolderChange.cpp |   4 +-
+ CPP/7zip/UI/FileManager/Path.cpp              |   1 -
+ CPP/7zip/UI/FileManager/Path.h                |   2 +-
+ CPP/7zip/UI/FileManager/StdAfx.h              |   4 +-
+ CPP/Windows/Clipboard.cpp                     | 354 ++++++++++--------
+ CPP/Windows/Shell.h                           |   1 -
+ 9 files changed, 205 insertions(+), 174 deletions(-)
+
+diff --git a/CPP/7zip/UI/FileManager/FM.mak b/CPP/7zip/UI/FileManager/FM.mak
+index 118c5c0..a709e70 100644
+--- a/CPP/7zip/UI/FileManager/FM.mak
++++ b/CPP/7zip/UI/FileManager/FM.mak
+@@ -5,7 +5,7 @@ CFLAGS = $(CFLAGS) \
+ LIBS = $(LIBS) ceshell.lib Commctrl.lib
+ !ELSE
+ LIBS = $(LIBS) comctl32.lib htmlhelp.lib comdlg32.lib Mpr.lib Gdi32.lib shlwapi.lib
+-CFLAGS = $(CFLAGS) -DZ7_LONG_PATH -DZ7_DEVICE_FILE /std:c++17
++CFLAGS = $(CFLAGS) -DZ7_LONG_PATH -DZ7_DEVICE_FILE /std:c++20
+ LFLAGS = $(LFLAGS) /DELAYLOAD:mpr.dll
+ LIBS = $(LIBS) delayimp.lib
+ !ENDIF
+diff --git a/CPP/7zip/UI/FileManager/FSFolderCopy.cpp b/CPP/7zip/UI/FileManager/FSFolderCopy.cpp
+index 0911a28..59314b2 100644
+--- a/CPP/7zip/UI/FileManager/FSFolderCopy.cpp
++++ b/CPP/7zip/UI/FileManager/FSFolderCopy.cpp
+@@ -785,8 +785,8 @@ HRESULT CopyFileSystemItems(
+ /* we don't use CFSFolder::CopyFrom() because the caller of CopyFrom()
+    is optimized for IFolderArchiveUpdateCallback interface,
+    but we want to use IFolderOperationsExtractCallback interface instead */
+-
+-Z7_COM7F_IMF(CFSFolder::CopyFrom(Int32 moveMode, const wchar_t * folderPrefix,
++// Not used yet.
++Z7_COM7F_IMF(CFSFolder::CopyFrom(Int32 moveMode, const wchar_t * /*folderPrefix*/,
+     const wchar_t * const *itemsPaths, UInt32 numItems, IProgress *progress))
+ {
+   Z7_DECL_CMyComPtr_QI_FROM(
+diff --git a/CPP/7zip/UI/FileManager/PanelCopy.cpp b/CPP/7zip/UI/FileManager/PanelCopy.cpp
+index e887b55..f951eb8 100644
+--- a/CPP/7zip/UI/FileManager/PanelCopy.cpp
++++ b/CPP/7zip/UI/FileManager/PanelCopy.cpp
+@@ -479,9 +479,9 @@ HRESULT CPanel::CopyFromFolder(bool moveMode, const UString &folderPrefix, const
+   {
+     if (!_parentFolders.IsEmpty())
+     {
+-      const CFolderLink &fl = _parentFolders.Back();
+-//      updater.UpdateCallbackSpec->PasswordIsDefined = fl.UsePassword;
+-//      updater.UpdateCallbackSpec->Password = fl.Password;
++      // const CFolderLink &fl = _parentFolders.Back();
++      // updater.UpdateCallbackSpec->PasswordIsDefined = fl.UsePassword;
++      // updater.UpdateCallbackSpec->Password = fl.Password;
+     }
+   }
+ 
+@@ -523,6 +523,7 @@ HRESULT CPanel::CopyFromFolder(bool moveMode, const UString &folderPrefix, const
+   return res;
+ }
+ 
++// Not used yet.
+ void CPanel::CopyFromFolderNoAsk(bool moveMode, const UStringVector &filePaths)
+ {
+   CDisableTimerProcessing disableTimerProcessing(*this);
+diff --git a/CPP/7zip/UI/FileManager/PanelFolderChange.cpp b/CPP/7zip/UI/FileManager/PanelFolderChange.cpp
+index 5562111..0e62a44 100644
+--- a/CPP/7zip/UI/FileManager/PanelFolderChange.cpp
++++ b/CPP/7zip/UI/FileManager/PanelFolderChange.cpp
+@@ -428,7 +428,7 @@ void CPanel::LoadFullPathAndShow()
+ #ifndef UNDER_CE
+ LRESULT CPanel::OnNotifyComboBoxEnter(const UString &s)
+ {
+-  auto path = ExpandEnvironmentStringsWrapper(std::wstring(s == L"~" ? L"%USERPROFILE%" : s));
++  auto path = ExpandEnvironmentStringsWrapper(std::wstring(s == L"~" ? L"%USERPROFILE%" : (const wchar_t *)s));
+   if (path && BindToPathAndRefresh(GetUnicodeString(UString((*path).data()))) == S_OK)
+   {
+     PostMsg(kSetFocusToListView);
+@@ -556,7 +556,7 @@ bool CPanel::OnComboBoxCommand(UINT code, LPARAM /* param */, LRESULT &result)
+         if (info.Find(us2fs(sumPass)))
+           attrib = info.Attrib;
+         AddComboBoxItem(
+-            name.IsEmpty() ? L"\\" : name,
++            name.IsEmpty() ? L"\\" : (const wchar_t *)name,
+             GetRealIconIndex(us2fs(sumPass), attrib),
+             (int)i, // iIndent
+             false); // addToList
+diff --git a/CPP/7zip/UI/FileManager/Path.cpp b/CPP/7zip/UI/FileManager/Path.cpp
+index 0c155d2..347bda3 100644
+--- a/CPP/7zip/UI/FileManager/Path.cpp
++++ b/CPP/7zip/UI/FileManager/Path.cpp
+@@ -1,4 +1,3 @@
+-#pragma once
+ #include "StdAfx.h"
+ #include <Shlwapi.h>
+ #include "Path.h"
+diff --git a/CPP/7zip/UI/FileManager/Path.h b/CPP/7zip/UI/FileManager/Path.h
+index 30ce494..fe7b940 100644
+--- a/CPP/7zip/UI/FileManager/Path.h
++++ b/CPP/7zip/UI/FileManager/Path.h
+@@ -1,4 +1,4 @@
+-
++#pragma once
+ #include <optional>
+ #include <string>
+ 
+diff --git a/CPP/7zip/UI/FileManager/StdAfx.h b/CPP/7zip/UI/FileManager/StdAfx.h
+index b31b32e..8fc5daa 100644
+--- a/CPP/7zip/UI/FileManager/StdAfx.h
++++ b/CPP/7zip/UI/FileManager/StdAfx.h
+@@ -12,8 +12,8 @@
+ Z7_DIAGNOSCTIC_IGNORE_BEGIN_RESERVED_MACRO_IDENTIFIER
+ #ifndef _WIN32_WINNT
+ // #define _WIN32_WINNT 0x0400
+-#define _WIN32_WINNT 0x0500
+-// #define _WIN32_WINNT 0x0600
++// #define _WIN32_WINNT 0x0500
++#define _WIN32_WINNT 0x0600
+ // #define _WIN32_WINNT 0x0A00
+ #endif
+ #ifndef WINVER
+diff --git a/CPP/Windows/Clipboard.cpp b/CPP/Windows/Clipboard.cpp
+index ac22549..8fef4c4 100644
+--- a/CPP/Windows/Clipboard.cpp
++++ b/CPP/Windows/Clipboard.cpp
+@@ -14,121 +14,9 @@
+ #include "Shell.h"
+ #include "../Common/MyCom.h"
+ #include "com.h"
+-
++#include <cassert>
+ namespace NWindows {
+ 
+-bool CClipboard::Open(HWND wndNewOwner) throw()
+-{
+-  m_Open = BOOLToBool(::OpenClipboard(wndNewOwner));
+-  return m_Open;
+-}
+-
+-bool CClipboard::Close() throw()
+-{
+-  if (!m_Open)
+-    return true;
+-  m_Open = !BOOLToBool(CloseClipboard());
+-  return !m_Open;
+-}
+-
+-bool ClipboardIsFormatAvailableHDROP()
+-{
+-  return BOOLToBool(IsClipboardFormatAvailable(CF_HDROP));
+-}
+-
+-/*
+-bool ClipboardGetTextString(AString &s)
+-{
+-  s.Empty();
+-  if (!IsClipboardFormatAvailable(CF_TEXT))
+-    return false;
+-  CClipboard clipboard;
+-
+-  if (!clipboard.Open(NULL))
+-    return false;
+-
+-  HGLOBAL h = ::GetClipboardData(CF_TEXT);
+-  if (h != NULL)
+-  {
+-    NMemory::CGlobalLock globalLock(h);
+-    const char *p = (const char *)globalLock.GetPointer();
+-    if (p != NULL)
+-    {
+-      s = p;
+-      return true;
+-    }
+-  }
+-  return false;
+-}
+-*/
+-
+-/*
+-bool ClipboardGetFileNames(UStringVector &names)
+-{
+-  names.Clear();
+-  if (!IsClipboardFormatAvailable(CF_HDROP))
+-    return false;
+-  CClipboard clipboard;
+-
+-  if (!clipboard.Open(NULL))
+-    return false;
+-
+-  HGLOBAL h = ::GetClipboardData(CF_HDROP);
+-  if (h != NULL)
+-  {
+-    NMemory::CGlobalLock globalLock(h);
+-    void *p = (void *)globalLock.GetPointer();
+-    if (p != NULL)
+-    {
+-      NShell::CDrop drop(false);
+-      drop.Attach((HDROP)p);
+-      drop.QueryFileNames(names);
+-      return true;
+-    }
+-  }
+-  return false;
+-}
+-*/
+-
+-static bool ClipboardSetData(UINT uFormat, const void *data, size_t size) throw()
+-{
+-  NMemory::CGlobal global;
+-  if (!global.Alloc(GMEM_DDESHARE | GMEM_MOVEABLE, size))
+-    return false;
+-  {
+-    NMemory::CGlobalLock globalLock(global);
+-    LPVOID p = globalLock.GetPointer();
+-    if (!p)
+-      return false;
+-    memcpy(p, data, size);
+-  }
+-  if (::SetClipboardData(uFormat, global) == NULL)
+-    return false;
+-  global.Detach();
+-  return true;
+-}
+-
+-bool ClipboardSetText(HWND owner, const UString &s)
+-{
+-  CClipboard clipboard;
+-  if (!clipboard.Open(owner))
+-    return false;
+-  if (!::EmptyClipboard())
+-    return false;
+-
+-  bool res;
+-  res = ClipboardSetData(CF_UNICODETEXT, (const wchar_t *)s, (s.Len() + 1) * sizeof(wchar_t));
+-  #ifndef _UNICODE
+-  AString a (UnicodeStringToMultiByte(s, CP_ACP));
+-  if (ClipboardSetData(CF_TEXT, (const char *)a, (a.Len() + 1) * sizeof(char)))
+-    res = true;
+-  a = UnicodeStringToMultiByte(s, CP_OEMCP);
+-  if (ClipboardSetData(CF_OEMTEXT, (const char *)a, (a.Len() + 1) * sizeof(char)))
+-    res = true;
+-  #endif
+-  return res;
+-}
+-
+ class EnumFormatEtc : public IEnumFORMATETC
+ {
+ public:
+@@ -142,7 +30,7 @@ class EnumFormatEtc : public IEnumFORMATETC
+   HRESULT __stdcall Clone(IEnumFORMATETC** ppEnumFormatEtc);
+ 
+   EnumFormatEtc(UInt32 numFormats, FORMATETC* pFormatEtc);
+-  ~EnumFormatEtc();
++  virtual ~EnumFormatEtc();
+ 
+ private:
+   int refCount;
+@@ -171,10 +59,10 @@ ULONG __stdcall EnumFormatEtc::AddRef()
+ }
+ ULONG __stdcall EnumFormatEtc::Release()
+ {
+-  int count = InterlockedDecrement((LONG*) &refCount);
+-  if (count == 0)
++  int countSave = InterlockedDecrement((LONG*) &refCount);
++  if (countSave == 0)
+     delete this;
+-  return count;
++  return countSave;
+ }
+ 
+ HRESULT __stdcall EnumFormatEtc::Next(ULONG celt, FORMATETC* rgelt, ULONG* pceltFetched)
+@@ -244,7 +132,6 @@ EnumFormatEtc::~EnumFormatEtc()
+   delete[] fmtetc;
+ }
+ 
+-
+ class DataObject : public IDataObject
+ {
+ public:
+@@ -263,12 +150,13 @@ class DataObject : public IDataObject
+   HRESULT __stdcall EnumDAdvise(IEnumSTATDATA** ppEnumAdvise);
+ 
+   DataObject(CLIPFORMAT format, HGLOBAL data);
+-  ~DataObject();
++  DataObject() : refCount(1) {}
++  virtual ~DataObject();
+ 
+ private:
+   int refCount;
+-  FORMATETC fmtetc;
+-  STGMEDIUM stgmed;
++  std::vector<FORMATETC> fmtetcs;
++  std::vector<STGMEDIUM> stgmeds;
+ };
+ 
+ HRESULT __stdcall DataObject::QueryInterface(REFIID iid, void** ppvObject)
+@@ -299,63 +187,85 @@ ULONG __stdcall DataObject::Release()
+ 
+ HRESULT __stdcall DataObject::GetData(FORMATETC* pFormatEtc, STGMEDIUM* pMedium)
+ {
+-  if (fmtetc.cfFormat != pFormatEtc->cfFormat || fmtetc.dwAspect != pFormatEtc->dwAspect ||
+-      (fmtetc.tymed & pFormatEtc->tymed) == 0)
+-    return DV_E_FORMATETC;
+-  pMedium->tymed = fmtetc.tymed;
+-  pMedium->pUnkForRelease = NULL;
+-  if (fmtetc.tymed == TYMED_HGLOBAL)
++  for (size_t i = 0; i < fmtetcs.size(); ++i)
+   {
+-    UInt32 len = GlobalSize(stgmed.hGlobal);
+-    void* source = GlobalLock(stgmed.hGlobal);
++    if (fmtetcs[i].cfFormat != pFormatEtc->cfFormat || fmtetcs[i].dwAspect != pFormatEtc->dwAspect ||
++        (fmtetcs[i].tymed & pFormatEtc->tymed) == 0)
++      continue;
++    if (fmtetcs[i].tymed != TYMED_HGLOBAL)
++      continue;
++
++    pMedium->tymed = fmtetcs[i].tymed;
++    pMedium->pUnkForRelease = NULL;
++
++    SIZE_T len = GlobalSize(stgmeds[i].hGlobal);
++    void* source = GlobalLock(stgmeds[i].hGlobal);
+     pMedium->hGlobal = GlobalAlloc(GMEM_FIXED, len);
+     memcpy((void*) pMedium->hGlobal, source, len);
+-    GlobalUnlock(stgmed.hGlobal);
++    GlobalUnlock(stgmeds[i].hGlobal);
+     return S_OK;
+   }
+-  else
+-    return DV_E_FORMATETC;
++
++  return DV_E_FORMATETC;
+ }
+-HRESULT __stdcall DataObject::GetDataHere(FORMATETC* pFormatEtc, STGMEDIUM* pMedium)
++HRESULT __stdcall DataObject::GetDataHere(FORMATETC* /*pFormatEtc*/, STGMEDIUM* /*pMedium*/)
+ {
+   return DV_E_FORMATETC;
+ }
+ HRESULT __stdcall DataObject::QueryGetData(FORMATETC* pFormatEtc)
+ {
+-  if (fmtetc.cfFormat != pFormatEtc->cfFormat || fmtetc.dwAspect != pFormatEtc->dwAspect ||
+-      (fmtetc.tymed & pFormatEtc->tymed) == 0)
+-    return DV_E_FORMATETC;
+-  return S_OK;
++  for (auto const& fmtetc : fmtetcs)
++  {
++    if (fmtetc.cfFormat == pFormatEtc->cfFormat || fmtetc.dwAspect == pFormatEtc->dwAspect ||
++          (fmtetc.tymed & pFormatEtc->tymed) != 0)
++        return S_OK;
++  }
++  return DV_E_FORMATETC;
+ }
+-HRESULT __stdcall DataObject::GetCanonicalFormatEtc(FORMATETC* pFormatEtc, FORMATETC* pFormatEtcOut)
++HRESULT __stdcall DataObject::GetCanonicalFormatEtc(FORMATETC* /*pFormatEtc*/, FORMATETC* pFormatEtcOut)
+ {
+   pFormatEtcOut->ptd = NULL;
+   return E_NOTIMPL;
+ }
+ HRESULT __stdcall DataObject::SetData(FORMATETC* pFormatEtc, STGMEDIUM* pMedium, BOOL fRelease)
+ {
+-  return E_NOTIMPL;
++  assert(fRelease == TRUE); //  return E_NOTIMPL;
++  // https://en.cppreference.com/w/cpp/language/aggregate_initialization
++  fmtetcs.emplace_back(FORMATETC{
++    .cfFormat = pFormatEtc->cfFormat,
++    .ptd = NULL,
++    .dwAspect = DVASPECT_CONTENT,
++    .lindex = -1,
++    .tymed = TYMED_HGLOBAL,
++  });
++
++  stgmeds.emplace_back(STGMEDIUM{
++    .tymed = TYMED_HGLOBAL,
++    .hGlobal = pMedium->hGlobal,
++    .pUnkForRelease = NULL,
++  });
++  return S_OK;
+ }
+ HRESULT __stdcall DataObject::EnumFormatEtc(DWORD dwDirection, IEnumFORMATETC** ppEnumFormatEtc)
+ {
+-  if (dwDirection == DATADIR_GET)
++  if (dwDirection == DATADIR_GET && fmtetcs.size() > 0)
+   {
+-    *ppEnumFormatEtc = new NWindows::EnumFormatEtc(1, &fmtetc);
++    *ppEnumFormatEtc = new NWindows::EnumFormatEtc(1, &fmtetcs[0]);
+     return S_OK;
+   }
+   else
+     return E_NOTIMPL;
+ }
+-HRESULT __stdcall DataObject::DAdvise(FORMATETC* pFormatEtc, DWORD advf, IAdviseSink* pAdvSink,
+-                                      DWORD* pdwConnection)
++HRESULT __stdcall DataObject::DAdvise(FORMATETC* /*pFormatEtc*/, DWORD /*advf*/, IAdviseSink* /*pAdvSink*/,
++                                      DWORD* /*pdwConnection*/)
+ {
+   return OLE_E_ADVISENOTSUPPORTED;
+ }
+-HRESULT __stdcall DataObject::DUnadvise(DWORD dwConnection)
++HRESULT __stdcall DataObject::DUnadvise(DWORD /*dwConnection*/)
+ {
+   return OLE_E_ADVISENOTSUPPORTED;
+ }
+-HRESULT __stdcall DataObject::EnumDAdvise(IEnumSTATDATA** ppEnumAdvise)
++HRESULT __stdcall DataObject::EnumDAdvise(IEnumSTATDATA** /*ppEnumAdvise*/)
+ {
+   return OLE_E_ADVISENOTSUPPORTED;
+ }
+@@ -363,18 +273,24 @@ HRESULT __stdcall DataObject::EnumDAdvise(IEnumSTATDATA** ppEnumAdvise)
+ DataObject::DataObject(CLIPFORMAT format, HGLOBAL data)
+ {
+   refCount = 1;
+-  fmtetc.cfFormat = format;
+-  fmtetc.ptd = NULL;
+-  fmtetc.dwAspect = DVASPECT_CONTENT;
+-  fmtetc.lindex = -1;
+-  fmtetc.tymed = TYMED_HGLOBAL;
+-  stgmed.tymed = TYMED_HGLOBAL;
+-  stgmed.hGlobal = data;
+-  stgmed.pUnkForRelease = NULL;
++  fmtetcs.resize(1);
++  fmtetcs[0].cfFormat = format;
++  fmtetcs[0].ptd = NULL;
++  fmtetcs[0].dwAspect = DVASPECT_CONTENT;
++  fmtetcs[0].lindex = -1;
++  fmtetcs[0].tymed = TYMED_HGLOBAL;
++  stgmeds.resize(1);
++  stgmeds[0].tymed = TYMED_HGLOBAL;
++  stgmeds[0].hGlobal = data;
++  stgmeds[0].pUnkForRelease = NULL;
+ }
+ DataObject::~DataObject()
+ {
+-  GlobalFree(stgmed.hGlobal);
++  for (auto & medium : stgmeds)
++  {
++    if (medium.hGlobal != nullptr)
++      GlobalFree(medium.hGlobal);
++  }
+ }
+ 
+ void ClipboardSetFiles(HWND owner, const std::vector<std::wstring>& filePaths, DWORD effect)
+@@ -384,7 +300,7 @@ void ClipboardSetFiles(HWND owner, const std::vector<std::wstring>& filePaths, D
+   NCOM::CStgMedium medium;
+   CMyComPtr<IDataObject> clipboardObject;
+ 
+-  HRESULT hr = S_OK;
++  // HRESULT hr = S_OK;
+   // hr = OleGetClipboard(&clipboardObject);
+ 
+   // if (FAILED(hr))
+@@ -397,6 +313,8 @@ void ClipboardSetFiles(HWND owner, const std::vector<std::wstring>& filePaths, D
+ 
+   DROPFILES *dropFiles = nullptr;
+   PDWORD pdwEffect = NULL;
++  wchar_t *fileBuffer = nullptr;
++  wchar_t *fileBufferPos = nullptr;
+ 
+   // Allocate memory for the DROPFILES structure
+   size_t fileBufferSize = 0;
+@@ -425,8 +343,8 @@ void ClipboardSetFiles(HWND owner, const std::vector<std::wstring>& filePaths, D
+   dropFiles->fNC = FALSE;
+   dropFiles->fWide = TRUE;
+ 
+-  wchar_t *fileBuffer = reinterpret_cast<wchar_t *>(dropFiles + 1);
+-  wchar_t *fileBufferPos = fileBuffer;
++  fileBuffer = reinterpret_cast<wchar_t *>(dropFiles + 1);
++  fileBufferPos = fileBuffer;
+   for (const auto &filePath : filePaths)
+   {
+     int ret = wcsncpy_s(fileBufferPos, fileBufferSize - (fileBufferPos - fileBuffer),
+@@ -480,6 +398,117 @@ void ClipboardSetFiles(HWND owner, const std::vector<std::wstring>& filePaths, D
+   }
+ }
+ 
++bool CClipboard::Open(HWND wndNewOwner) throw()
++{
++  m_Open = BOOLToBool(::OpenClipboard(wndNewOwner));
++  return m_Open;
++}
++
++bool CClipboard::Close() throw()
++{
++  if (!m_Open)
++    return true;
++  m_Open = !BOOLToBool(CloseClipboard());
++  return !m_Open;
++}
++
++bool ClipboardIsFormatAvailableHDROP()
++{
++  return BOOLToBool(IsClipboardFormatAvailable(CF_HDROP));
++}
++
++/*
++bool ClipboardGetTextString(AString &s)
++{
++  s.Empty();
++  if (!IsClipboardFormatAvailable(CF_TEXT))
++    return false;
++  CClipboard clipboard;
++
++  if (!clipboard.Open(NULL))
++    return false;
++
++  HGLOBAL h = ::GetClipboardData(CF_TEXT);
++  if (h != NULL)
++  {
++    NMemory::CGlobalLock globalLock(h);
++    const char *p = (const char *)globalLock.GetPointer();
++    if (p != NULL)
++    {
++      s = p;
++      return true;
++    }
++  }
++  return false;
++}
++*/
++
++/*
++bool ClipboardGetFileNames(UStringVector &names)
++{
++  names.Clear();
++  if (!IsClipboardFormatAvailable(CF_HDROP))
++    return false;
++  CClipboard clipboard;
++
++  if (!clipboard.Open(NULL))
++    return false;
++
++  HGLOBAL h = ::GetClipboardData(CF_HDROP);
++  if (h != NULL)
++  {
++    NMemory::CGlobalLock globalLock(h);
++    void *p = (void *)globalLock.GetPointer();
++    if (p != NULL)
++    {
++      NShell::CDrop drop(false);
++      drop.Attach((HDROP)p);
++      drop.QueryFileNames(names);
++      return true;
++    }
++  }
++  return false;
++}
++*/
++
++static bool ClipboardSetData(UINT uFormat, const void *data, size_t size) throw()
++{
++  NMemory::CGlobal global;
++  if (!global.Alloc(GMEM_DDESHARE | GMEM_MOVEABLE, size))
++    return false;
++  {
++    NMemory::CGlobalLock globalLock(global);
++    LPVOID p = globalLock.GetPointer();
++    if (!p)
++      return false;
++    memcpy(p, data, size);
++  }
++  if (::SetClipboardData(uFormat, global) == NULL)
++    return false;
++  global.Detach();
++  return true;
++}
++
++bool ClipboardSetText(HWND owner, const UString &s)
++{
++  CClipboard clipboard;
++  if (!clipboard.Open(owner))
++    return false;
++  if (!::EmptyClipboard())
++    return false;
++
++  bool res;
++  res = ClipboardSetData(CF_UNICODETEXT, (const wchar_t *)s, (s.Len() + 1) * sizeof(wchar_t));
++  #ifndef _UNICODE
++  AString a (UnicodeStringToMultiByte(s, CP_ACP));
++  if (ClipboardSetData(CF_TEXT, (const char *)a, (a.Len() + 1) * sizeof(char)))
++    res = true;
++  a = UnicodeStringToMultiByte(s, CP_OEMCP);
++  if (ClipboardSetData(CF_OEMTEXT, (const char *)a, (a.Len() + 1) * sizeof(char)))
++    res = true;
++  #endif
++  return res;
++}
+ 
+ void ClipboardSetFiles2(HWND owner, const std::vector<std::wstring>& filePaths, DWORD effect)
+ {
+@@ -489,6 +518,8 @@ void ClipboardSetFiles2(HWND owner, const std::vector<std::wstring>& filePaths,
+   // from #include <ShlObj.h>
+   DROPFILES *dropFiles = nullptr;
+   HGLOBAL hGlobal = NULL;
++  wchar_t *fileBuffer = nullptr;
++  wchar_t *fileBufferPos = nullptr;
+ 
+   // Open the clipboard
+   if (!OpenClipboard(nullptr))
+@@ -525,8 +556,8 @@ void ClipboardSetFiles2(HWND owner, const std::vector<std::wstring>& filePaths,
+   dropFiles->fNC = FALSE;
+   dropFiles->fWide = TRUE;
+ 
+-  wchar_t *fileBuffer = reinterpret_cast<wchar_t *>(dropFiles + 1);
+-  wchar_t *fileBufferPos = fileBuffer;
++  fileBuffer = reinterpret_cast<wchar_t *>(dropFiles + 1);
++  fileBufferPos = fileBuffer;
+   for (const auto &filePath : filePaths)
+   {
+     int ret = wcsncpy_s(fileBufferPos, fileBufferSize - (fileBufferPos - fileBuffer),
+@@ -563,7 +594,7 @@ void SetFORMATETC(FORMATETC *pftc, CLIPFORMAT cfFormat, DVTARGETDEVICE *ptd, DWO
+   pftc->ptd = ptd;
+ }
+ 
+-void ClipboardGetFiles(HWND owner, UStringVector& filePaths, DWORD& effect)
++void ClipboardGetFiles(HWND /*owner*/, UStringVector& filePaths, DWORD& effect)
+ {
+   NCOM::CStgMedium medium;
+   CMyComPtr<IDataObject> clipboardObject;
+@@ -605,6 +636,7 @@ void ClipboardGetFiles2(HWND owner, std::vector<std::wstring>& filePaths)
+ {
+   HANDLE hDrop = NULL;
+   HDROP hDropInfo = nullptr;
++  UINT numFiles = 0;
+ 
+   if (!OpenClipboard(owner))
+   {
+@@ -628,7 +660,7 @@ void ClipboardGetFiles2(HWND owner, std::vector<std::wstring>& filePaths)
+     goto cleanup;
+   }
+ 
+-  UINT numFiles = DragQueryFileW(hDropInfo, 0xFFFFFFFF, nullptr, 0);
++  numFiles = DragQueryFileW(hDropInfo, 0xFFFFFFFF, nullptr, 0);
+ 
+   // Loop through the files and retrieve their names
+   for (UINT i = 0; i < numFiles; ++i)
+diff --git a/CPP/Windows/Shell.h b/CPP/Windows/Shell.h
+index 5330e0e..2810f06 100644
+--- a/CPP/Windows/Shell.h
++++ b/CPP/Windows/Shell.h
+@@ -6,7 +6,6 @@
+ #include "../Common/Common.h"
+ #include "../Common/MyWindows.h"
+ // https://learn.microsoft.com/en-gb/windows/win32/winprog/using-the-windows-headers?redirectedfrom=MSDN
+-#define NTDDI_VERSION NTDDI_VISTA
+ #if defined(__MINGW32__) || defined(__MINGW64__)
+ #include <shlobj.h>
+ #else

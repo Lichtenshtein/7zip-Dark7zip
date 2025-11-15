@@ -1,0 +1,31 @@
+From 18d8f72f93f3dc2c796c81b77cd34e7a0b07a59b Mon Sep 17 00:00:00 2001
+From: ozone10 <positronix10@gmail.com>
+Date: Sat, 18 Jan 2025 08:41:02 +0100
+Subject: [PATCH] Apply DM on edit control created by listview when renaming
+ item
+
+---
+ DarkMode/DarkModeSubclass.cpp | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/DarkMode/DarkModeSubclass.cpp b/DarkMode/DarkModeSubclass.cpp
+index 22893523d..57bc03652 100644
+--- a/DarkMode/DarkModeSubclass.cpp
++++ b/DarkMode/DarkModeSubclass.cpp
+@@ -2213,6 +2213,16 @@ namespace DarkMode
+ 				break;
+ 			}
+ 
++			// For edit control, which is created when renaming/editing items
++			case WM_CTLCOLOREDIT:
++			{
++				if (DarkMode::isEnabled())
++				{
++					return DarkMode::onCtlColorSofter(reinterpret_cast<HDC>(wParam));
++				}
++				break;
++			}
++
+ 			case WM_NOTIFY:
+ 			{
+ 				switch (reinterpret_cast<LPNMHDR>(lParam)->code)

@@ -1,0 +1,10 @@
+I wrote a font handler for 7zip.
+It can extract fonts from a font collection (.ttc)
+or extract font tables from a TrueType or OpenType font.
+
+Copy FontHandler.cpp (in the attached file) to CPP\7zip\Archive\
+and add the file name to the following files after "FlvHandler.cpp":
+CPP\7zip\7zip_gcc.mak
+CPP\7zip\Bundles\Format7zF\ Arc.mak
+CPP\7zip\Bundles\Format7zF\Arc_gcc.mak
+CPP\7zip\Bundles\Format7zF\Format7z.dsp

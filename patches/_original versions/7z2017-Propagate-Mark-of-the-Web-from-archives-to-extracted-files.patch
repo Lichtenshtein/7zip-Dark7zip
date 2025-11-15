@@ -1,0 +1,212 @@
+diff -crB 7z2107-src-old/CPP/7zip/UI/Common/ArchiveExtractCallback.cpp 7z2107-src-new/CPP/7zip/UI/Common/ArchiveExtractCallback.cpp
+*** 7z2107-src-old/CPP/7zip/UI/Common/ArchiveExtractCallback.cpp	2021-12-16 11:00:00.000000000 -0800
+--- 7z2107-src-new/CPP/7zip/UI/Common/ArchiveExtractCallback.cpp	2022-05-09 17:25:41.434555600 -0700
+***************
+*** 1111,1116 ****
+--- 1111,1127 ----
+  
+  
+  
++ static const FChar * const k_ZoneId_StreamName = FTEXT("Zone.Identifier");
++ static bool WriteZoneFile(FString fileName, const CByteBuffer &zoneBuf)
++ {
++   NIO::COutFile file;
++   if (!file.Create(fileName + FTEXT(":") + k_ZoneId_StreamName, true))
++     return false;
++   UInt32 processed;
++   if (!file.Write(zoneBuf, (UInt32)zoneBuf.Size(), processed))
++     return false;
++   return processed == zoneBuf.Size();
++ }
+  
+  
+  HRESULT CArchiveExtractCallback::GetExtractStream(CMyComPtr<ISequentialOutStream> &outStreamLoc, bool &needExit)
+***************
+*** 1147,1152 ****
+--- 1158,1169 ----
+    #ifdef SUPPORT_ALT_STREAMS
+    if (_item.IsAltStream && _item.ParentIndex != (UInt32)(Int32)-1)
+    {
++     //Don't overwrite ZoneIds propagated from the archive file with ZoneId stream items
++     if (_arc->zoneBuf.Size() != 0 && _item.AltStreamName == k_ZoneId_StreamName) {
++       needExit = true;
++       return S_OK;
++     }
++ 
+      int renIndex = _renamedFiles.FindInSorted(CIndexToPathPair(_item.ParentIndex));
+      if (renIndex >= 0)
+      {
+***************
+*** 1350,1355 ****
+--- 1367,1382 ----
+    } // if not reprase
+  
+    _outFileStream = outFileStream_Loc;
++ 
++   #if defined(_WIN32) && !defined(_UNDER_CE)
++   #ifndef _UNICODE
++   if (g_IsNT)
++   #endif
++   if (_arc->zoneBuf.Size() != 0)
++   {
++     WriteZoneFile(fullProcessedPath, _arc->zoneBuf);
++   }
++   #endif
+        
+    needExit = false;
+    return S_OK;
+diff -crB 7z2107-src-old/CPP/7zip/UI/Common/OpenArchive.cpp 7z2107-src-new/CPP/7zip/UI/Common/OpenArchive.cpp
+*** 7z2107-src-old/CPP/7zip/UI/Common/OpenArchive.cpp	2021-10-16 02:12:06.095080200 -0700
+--- 7z2107-src-new/CPP/7zip/UI/Common/OpenArchive.cpp	2022-04-27 17:15:02.965111800 -0700
+***************
+*** 3040,3045 ****
+--- 3040,3064 ----
+  
+  #endif
+  
++ static const FChar * const k_ZoneId_StreamName = FTEXT("Zone.Identifier");
++ static void ReadZoneFile(FString fileName, CByteBuffer &zoneBuf)
++ {
++   zoneBuf.Free();
++   NFile::NIO::CInFile file;
++   if (!file.Open(fileName + FTEXT(":") + k_ZoneId_StreamName))
++     return;
++   UInt64 fileSize;
++   if (!file.GetLength(fileSize))
++     return;
++   if (fileSize == 0 || fileSize >= ((UInt32)1 << 20))
++     return;
++   zoneBuf.Alloc((size_t)fileSize);
++   size_t processed;
++   if (file.ReadFull(zoneBuf, (size_t)fileSize, processed) && processed == fileSize)
++     return;
++   zoneBuf.Free();
++ }
++ 
+  HRESULT CArc::OpenStreamOrFile(COpenOptions &op)
+  {
+    CMyComPtr<IInStream> fileStream;
+***************
+*** 3121,3126 ****
+--- 3140,3152 ----
+    
+    #endif
+  
++   #if defined(_WIN32) && !defined(_UNDER_CE)
++   #ifndef _UNICODE
++   if (g_IsNT)
++   #endif
++   ReadZoneFile(Path, zoneBuf);
++   #endif
++ 
+    return res;
+  }
+  
+diff -crB 7z2107-src-old/CPP/7zip/UI/Common/OpenArchive.h 7z2107-src-new/CPP/7zip/UI/Common/OpenArchive.h
+*** 7z2107-src-old/CPP/7zip/UI/Common/OpenArchive.h	2021-10-25 03:06:46.951523500 -0700
+--- 7z2107-src-new/CPP/7zip/UI/Common/OpenArchive.h	2022-04-20 14:19:57.139172000 -0700
+***************
+*** 284,289 ****
+--- 284,293 ----
+    CArcErrorInfo ErrorInfo; // for OK archives
+    CArcErrorInfo NonOpen_ErrorInfo; // ErrorInfo for mainArchive (false OPEN)
+  
++   #if defined(_WIN32) && !defined(UNDER_CE)
++   CByteBuffer zoneBuf;
++   #endif
++ 
+    UString Path;
+    UString filePath;
+    UString DefaultName;
+diff -crB 7z2107-src-old/CPP/7zip/UI/FileManager/PanelItemOpen.cpp 7z2107-src-new/CPP/7zip/UI/FileManager/PanelItemOpen.cpp
+*** 7z2107-src-old/CPP/7zip/UI/FileManager/PanelItemOpen.cpp	2021-10-23 03:28:17.318082100 -0700
+--- 7z2107-src-new/CPP/7zip/UI/FileManager/PanelItemOpen.cpp	2022-04-20 14:22:54.781186900 -0700
+***************
+*** 1403,1447 ****
+  }
+  
+  
+- 
+- #if defined(_WIN32) && !defined(UNDER_CE)
+- static const FChar * const k_ZoneId_StreamName = FTEXT(":Zone.Identifier");
+- #endif
+- 
+- 
+- #ifndef UNDER_CE
+- 
+- static void ReadZoneFile(CFSTR fileName, CByteBuffer &buf)
+- {
+-   buf.Free();
+-   NIO::CInFile file;
+-   if (!file.Open(fileName))
+-     return;
+-   UInt64 fileSize;
+-   if (!file.GetLength(fileSize))
+-     return;
+-   if (fileSize == 0 || fileSize >= ((UInt32)1 << 20))
+-     return;
+-   buf.Alloc((size_t)fileSize);
+-   size_t processed;
+-   if (file.ReadFull(buf, (size_t)fileSize, processed) && processed == fileSize)
+-     return;
+-   buf.Free();
+- }
+- 
+- static bool WriteZoneFile(CFSTR fileName, const CByteBuffer &buf)
+- {
+-   NIO::COutFile file;
+-   if (!file.Create(fileName, true))
+-     return false;
+-   UInt32 processed;
+-   if (!file.Write(buf, (UInt32)buf.Size(), processed))
+-     return false;
+-   return processed == buf.Size();
+- }
+- 
+- #endif
+- 
+  /*
+  class CBufSeqOutStream_WithFile:
+    public ISequentialOutStream,
+--- 1403,1408 ----
+***************
+*** 1654,1672 ****
+      password = fl.Password;
+    }
+  
+-   #if defined(_WIN32) && !defined(UNDER_CE)
+-   CByteBuffer zoneBuf;
+-   #ifndef _UNICODE
+-   if (g_IsNT)
+-   #endif
+-   if (_parentFolders.Size() > 0)
+-   {
+-     const CFolderLink &fl = _parentFolders.Front();
+-     if (!fl.IsVirtual && !fl.FilePath.IsEmpty())
+-       ReadZoneFile(fl.FilePath + k_ZoneId_StreamName, zoneBuf);
+-   }
+-   #endif
+- 
+  
+    CVirtFileSystem *virtFileSystemSpec = NULL;
+    CMyComPtr<ISequentialOutStream> virtFileSystem;
+--- 1615,1620 ----
+***************
+*** 1759,1774 ****
+    }
+  
+  
+-   #if defined(_WIN32) && !defined(UNDER_CE)
+-   if (zoneBuf.Size() != 0)
+-   {
+-     if (NFind::DoesFileExist_Raw(tempFilePath))
+-     {
+-       WriteZoneFile(tempFilePath + k_ZoneId_StreamName, zoneBuf);
+-     }
+-   }
+-   #endif
+- 
+  
+    if (tryAsArchive)
+    {
+--- 1707,1712 ----

@@ -1,0 +1,1135 @@
+From 8e57c4d78682170ce7b60fddaa585d90fb77a6d1 Mon Sep 17 00:00:00 2001
+From: Himmelt <master@void-3.cn>
+Date: Sat, 15 Feb 2025 16:10:03 +0800
+Subject: [PATCH] Add auto extra button
+
+---
+
+ CPP/7zip.sln                        |  31 ++
+ CPP/7zip.vcxproj                    | 341 ++++++++++++++++
+ CPP/7zip.vcxproj.filters            | 610 ++++++++++++++++++++++++++++
+ CPP/7zip/UI/FileManager/App.cpp     |   1 +
+ CPP/7zip/UI/FileManager/App.h       |   3 +-
+ CPP/7zip/UI/FileManager/FM.cpp      |   1 +
+ CPP/7zip/UI/FileManager/Panel.cpp   |   2 +-
+ CPP/7zip/UI/FileManager/Panel.h     |   2 +-
+ CPP/7zip/UI/FileManager/resource.h  |   1 +
+ CPP/7zip/UI/FileManager/resource.rc |   1 +
+ Lang/en.ttt                         | 534 ++++++++++++++++++++++++
+ Lang/zh-cn.txt                      | 534 ++++++++++++++++++++++++
+ 13 files changed, 2420 insertions(+), 3 deletions(-)
+ create mode 100644 .gitignore
+ create mode 100644 CPP/7zip.sln
+ create mode 100644 CPP/7zip.vcxproj
+ create mode 100644 CPP/7zip.vcxproj.filters
+ create mode 100644 Lang/en.ttt
+ create mode 100644 Lang/zh-cn.txt
+diff --git a/CPP/7zip.sln b/CPP/7zip.sln
+new file mode 100644
+index 00000000..326f3114
+--- /dev/null
++++ b/CPP/7zip.sln
+@@ -0,0 +1,31 @@
++﻿
++Microsoft Visual Studio Solution File, Format Version 12.00
++# Visual Studio Version 17
++VisualStudioVersion = 17.13.35806.99
++MinimumVisualStudioVersion = 10.0.40219.1
++Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "7zip", "7zip.vcxproj", "{48568A4C-387B-4030-AE7F-CCF9DD58BFB1}"
++EndProject
++Global
++	GlobalSection(SolutionConfigurationPlatforms) = preSolution
++		Debug|x64 = Debug|x64
++		Debug|x86 = Debug|x86
++		Release|x64 = Release|x64
++		Release|x86 = Release|x86
++	EndGlobalSection
++	GlobalSection(ProjectConfigurationPlatforms) = postSolution
++		{48568A4C-387B-4030-AE7F-CCF9DD58BFB1}.Debug|x64.ActiveCfg = Debug|x64
++		{48568A4C-387B-4030-AE7F-CCF9DD58BFB1}.Debug|x64.Build.0 = Debug|x64
++		{48568A4C-387B-4030-AE7F-CCF9DD58BFB1}.Debug|x86.ActiveCfg = Debug|Win32
++		{48568A4C-387B-4030-AE7F-CCF9DD58BFB1}.Debug|x86.Build.0 = Debug|Win32
++		{48568A4C-387B-4030-AE7F-CCF9DD58BFB1}.Release|x64.ActiveCfg = Release|x64
++		{48568A4C-387B-4030-AE7F-CCF9DD58BFB1}.Release|x64.Build.0 = Release|x64
++		{48568A4C-387B-4030-AE7F-CCF9DD58BFB1}.Release|x86.ActiveCfg = Release|Win32
++		{48568A4C-387B-4030-AE7F-CCF9DD58BFB1}.Release|x86.Build.0 = Release|Win32
++	EndGlobalSection
++	GlobalSection(SolutionProperties) = preSolution
++		HideSolutionNode = FALSE
++	EndGlobalSection
++	GlobalSection(ExtensibilityGlobals) = postSolution
++		SolutionGuid = {D2FAA4E3-8D80-4F74-B948-2FEC8F9A2412}
++	EndGlobalSection
++EndGlobal
+diff --git a/CPP/7zip.vcxproj b/CPP/7zip.vcxproj
+new file mode 100644
+index 00000000..0a0bbcf9
+--- /dev/null
++++ b/CPP/7zip.vcxproj
+@@ -0,0 +1,341 @@
++<?xml version="1.0" encoding="utf-8"?>
++<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
++  <ItemGroup Label="ProjectConfigurations">
++    <ProjectConfiguration Include="Debug|Win32">
++      <Configuration>Debug</Configuration>
++      <Platform>Win32</Platform>
++    </ProjectConfiguration>
++    <ProjectConfiguration Include="Release|Win32">
++      <Configuration>Release</Configuration>
++      <Platform>Win32</Platform>
++    </ProjectConfiguration>
++    <ProjectConfiguration Include="Debug|x64">
++      <Configuration>Debug</Configuration>
++      <Platform>x64</Platform>
++    </ProjectConfiguration>
++    <ProjectConfiguration Include="Release|x64">
++      <Configuration>Release</Configuration>
++      <Platform>x64</Platform>
++    </ProjectConfiguration>
++  </ItemGroup>
++  <PropertyGroup Label="Globals">
++    <VCProjectVersion>17.0</VCProjectVersion>
++    <Keyword>Win32Proj</Keyword>
++    <ProjectGuid>{48568a4c-387b-4030-ae7f-ccf9dd58bfb1}</ProjectGuid>
++    <RootNamespace>My7zipx</RootNamespace>
++    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
++  </PropertyGroup>
++  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
++  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
++    <ConfigurationType>Application</ConfigurationType>
++    <UseDebugLibraries>true</UseDebugLibraries>
++    <PlatformToolset>v143</PlatformToolset>
++    <CharacterSet>Unicode</CharacterSet>
++  </PropertyGroup>
++  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
++    <ConfigurationType>Application</ConfigurationType>
++    <UseDebugLibraries>false</UseDebugLibraries>
++    <PlatformToolset>v143</PlatformToolset>
++    <WholeProgramOptimization>true</WholeProgramOptimization>
++    <CharacterSet>Unicode</CharacterSet>
++  </PropertyGroup>
++  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
++    <ConfigurationType>Application</ConfigurationType>
++    <UseDebugLibraries>true</UseDebugLibraries>
++    <PlatformToolset>v143</PlatformToolset>
++    <CharacterSet>Unicode</CharacterSet>
++  </PropertyGroup>
++  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
++    <ConfigurationType>Application</ConfigurationType>
++    <UseDebugLibraries>false</UseDebugLibraries>
++    <PlatformToolset>v143</PlatformToolset>
++    <WholeProgramOptimization>true</WholeProgramOptimization>
++    <CharacterSet>Unicode</CharacterSet>
++  </PropertyGroup>
++  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
++  <ImportGroup Label="ExtensionSettings">
++  </ImportGroup>
++  <ImportGroup Label="Shared">
++  </ImportGroup>
++  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
++    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
++  </ImportGroup>
++  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
++    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
++  </ImportGroup>
++  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
++    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
++  </ImportGroup>
++  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
++    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
++  </ImportGroup>
++  <PropertyGroup Label="UserMacros" />
++  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
++    <ClCompile>
++      <WarningLevel>Level3</WarningLevel>
++      <SDLCheck>true</SDLCheck>
++      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
++      <ConformanceMode>true</ConformanceMode>
++    </ClCompile>
++    <Link>
++      <SubSystem>Console</SubSystem>
++      <GenerateDebugInformation>true</GenerateDebugInformation>
++    </Link>
++  </ItemDefinitionGroup>
++  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
++    <ClCompile>
++      <WarningLevel>Level3</WarningLevel>
++      <FunctionLevelLinking>true</FunctionLevelLinking>
++      <IntrinsicFunctions>true</IntrinsicFunctions>
++      <SDLCheck>true</SDLCheck>
++      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
++      <ConformanceMode>true</ConformanceMode>
++    </ClCompile>
++    <Link>
++      <SubSystem>Console</SubSystem>
++      <EnableCOMDATFolding>true</EnableCOMDATFolding>
++      <OptimizeReferences>true</OptimizeReferences>
++      <GenerateDebugInformation>true</GenerateDebugInformation>
++    </Link>
++  </ItemDefinitionGroup>
++  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
++    <ClCompile>
++      <WarningLevel>Level3</WarningLevel>
++      <SDLCheck>true</SDLCheck>
++      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
++      <ConformanceMode>true</ConformanceMode>
++    </ClCompile>
++    <Link>
++      <SubSystem>Console</SubSystem>
++      <GenerateDebugInformation>true</GenerateDebugInformation>
++    </Link>
++  </ItemDefinitionGroup>
++  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
++    <ClCompile>
++      <WarningLevel>Level3</WarningLevel>
++      <FunctionLevelLinking>true</FunctionLevelLinking>
++      <IntrinsicFunctions>true</IntrinsicFunctions>
++      <SDLCheck>true</SDLCheck>
++      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
++      <ConformanceMode>true</ConformanceMode>
++    </ClCompile>
++    <Link>
++      <SubSystem>Console</SubSystem>
++      <EnableCOMDATFolding>true</EnableCOMDATFolding>
++      <OptimizeReferences>true</OptimizeReferences>
++      <GenerateDebugInformation>true</GenerateDebugInformation>
++    </Link>
++  </ItemDefinitionGroup>
++  <ItemGroup>
++    <Manifest Include="7zip\UI\FileManager\7zFM.exe.manifest" />
++  </ItemGroup>
++  <ItemGroup>
++    <Image Include="7zip\UI\FileManager\7zipLogo.ico" />
++    <Image Include="7zip\UI\FileManager\Add.bmp" />
++    <Image Include="7zip\UI\FileManager\Add2.bmp" />
++    <Image Include="7zip\UI\FileManager\Copy.bmp" />
++    <Image Include="7zip\UI\FileManager\Copy2.bmp" />
++    <Image Include="7zip\UI\FileManager\Delete.bmp" />
++    <Image Include="7zip\UI\FileManager\Delete2.bmp" />
++    <Image Include="7zip\UI\FileManager\Extract.bmp" />
++    <Image Include="7zip\UI\FileManager\Extract2.bmp" />
++    <Image Include="7zip\UI\FileManager\FM.ico" />
++    <Image Include="7zip\UI\FileManager\Info.bmp" />
++    <Image Include="7zip\UI\FileManager\Info2.bmp" />
++    <Image Include="7zip\UI\FileManager\Move.bmp" />
++    <Image Include="7zip\UI\FileManager\Move2.bmp" />
++    <Image Include="7zip\UI\FileManager\Test.bmp" />
++    <Image Include="7zip\UI\FileManager\Test2.bmp" />
++  </ItemGroup>
++  <ItemGroup>
++    <ClCompile Include="7zip\UI\FileManager\AboutDialog.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\AltStreamsFolder.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\App.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\BrowseDialog.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\BrowseDialog2.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\ClassDefs.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\ComboDialog.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\CopyDialog.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\EditDialog.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\EditPage.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\EnumFormatEtc.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\ExtractCallback.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\FileFolderPluginOpen.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\FilePlugins.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\FM.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\FoldersPage.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\FormatUtils.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\FSDrives.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\FSFolder.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\FSFolderCopy.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\HelpUtils.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\LangPage.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\LangUtils.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\LinkDialog.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\ListViewDialog.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\MemDialog.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\MenuPage.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\MessagesDialog.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\MyLoadMenu.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\NetFolder.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\OpenCallback.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\OptionsDialog.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\OverwriteDialog.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\Panel.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\PanelCopy.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\PanelCrc.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\PanelDrag.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\PanelFolderChange.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\PanelItemOpen.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\PanelItems.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\PanelKey.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\PanelListNotify.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\PanelMenu.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\PanelOperations.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\PanelSelect.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\PanelSort.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\PanelSplitFile.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\PasswordDialog.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\ProgramLocation.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\ProgressDialog.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\ProgressDialog2.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\PropertyName.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\RegistryAssociations.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\RegistryPlugins.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\RegistryUtils.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\RootFolder.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\SettingsPage.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\SplitDialog.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\SplitUtils.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\StdAfx.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\StringUtils.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\SysIconUtils.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\SystemPage.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\TextPairs.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\UpdateCallback100.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\VerCtrl.cpp" />
++    <ClCompile Include="7zip\UI\FileManager\ViewSettings.cpp" />
++  </ItemGroup>
++  <ItemGroup>
++    <ClInclude Include="7zip\UI\FileManager\AboutDialog.h" />
++    <ClInclude Include="7zip\UI\FileManager\AboutDialogRes.h" />
++    <ClInclude Include="7zip\UI\FileManager\AltStreamsFolder.h" />
++    <ClInclude Include="7zip\UI\FileManager\App.h" />
++    <ClInclude Include="7zip\UI\FileManager\AppState.h" />
++    <ClInclude Include="7zip\UI\FileManager\BrowseDialog.h" />
++    <ClInclude Include="7zip\UI\FileManager\BrowseDialog2.h" />
++    <ClInclude Include="7zip\UI\FileManager\BrowseDialog2Res.h" />
++    <ClInclude Include="7zip\UI\FileManager\BrowseDialogRes.h" />
++    <ClInclude Include="7zip\UI\FileManager\ComboDialog.h" />
++    <ClInclude Include="7zip\UI\FileManager\ComboDialogRes.h" />
++    <ClInclude Include="7zip\UI\FileManager\CopyDialog.h" />
++    <ClInclude Include="7zip\UI\FileManager\CopyDialogRes.h" />
++    <ClInclude Include="7zip\UI\FileManager\DialogSize.h" />
++    <ClInclude Include="7zip\UI\FileManager\EditDialog.h" />
++    <ClInclude Include="7zip\UI\FileManager\EditDialogRes.h" />
++    <ClInclude Include="7zip\UI\FileManager\EditPage.h" />
++    <ClInclude Include="7zip\UI\FileManager\EditPageRes.h" />
++    <ClInclude Include="7zip\UI\FileManager\EnumFormatEtc.h" />
++    <ClInclude Include="7zip\UI\FileManager\ExtractCallback.h" />
++    <ClInclude Include="7zip\UI\FileManager\FileFolderPluginOpen.h" />
++    <ClInclude Include="7zip\UI\FileManager\FilePlugins.h" />
++    <ClInclude Include="7zip\UI\FileManager\FoldersPage.h" />
++    <ClInclude Include="7zip\UI\FileManager\FoldersPageRes.h" />
++    <ClInclude Include="7zip\UI\FileManager\FormatUtils.h" />
++    <ClInclude Include="7zip\UI\FileManager\FSDrives.h" />
++    <ClInclude Include="7zip\UI\FileManager\FSFolder.h" />
++    <ClInclude Include="7zip\UI\FileManager\HelpUtils.h" />
++    <ClInclude Include="7zip\UI\FileManager\IFolder.h" />
++    <ClInclude Include="7zip\UI\FileManager\LangPage.h" />
++    <ClInclude Include="7zip\UI\FileManager\LangPageRes.h" />
++    <ClInclude Include="7zip\UI\FileManager\LangUtils.h" />
++    <ClInclude Include="7zip\UI\FileManager\LinkDialog.h" />
++    <ClInclude Include="7zip\UI\FileManager\LinkDialogRes.h" />
++    <ClInclude Include="7zip\UI\FileManager\ListViewDialog.h" />
++    <ClInclude Include="7zip\UI\FileManager\ListViewDialogRes.h" />
++    <ClInclude Include="7zip\UI\FileManager\MemDialog.h" />
++    <ClInclude Include="7zip\UI\FileManager\MemDialogRes.h" />
++    <ClInclude Include="7zip\UI\FileManager\MenuPage.h" />
++    <ClInclude Include="7zip\UI\FileManager\MenuPageRes.h" />
++    <ClInclude Include="7zip\UI\FileManager\MessagesDialog.h" />
++    <ClInclude Include="7zip\UI\FileManager\MessagesDialogRes.h" />
++    <ClInclude Include="7zip\UI\FileManager\MyCom2.h" />
++    <ClInclude Include="7zip\UI\FileManager\MyLoadMenu.h" />
++    <ClInclude Include="7zip\UI\FileManager\MyWindowsNew.h" />
++    <ClInclude Include="7zip\UI\FileManager\NetFolder.h" />
++    <ClInclude Include="7zip\UI\FileManager\OpenCallback.h" />
++    <ClInclude Include="7zip\UI\FileManager\OverwriteDialog.h" />
++    <ClInclude Include="7zip\UI\FileManager\OverwriteDialogRes.h" />
++    <ClInclude Include="7zip\UI\FileManager\Panel.h" />
++    <ClInclude Include="7zip\UI\FileManager\PasswordDialog.h" />
++    <ClInclude Include="7zip\UI\FileManager\PasswordDialogRes.h" />
++    <ClInclude Include="7zip\UI\FileManager\PluginInterface.h" />
++    <ClInclude Include="7zip\UI\FileManager\PluginLoader.h" />
++    <ClInclude Include="7zip\UI\FileManager\ProgramLocation.h" />
++    <ClInclude Include="7zip\UI\FileManager\ProgressDialog.h" />
++    <ClInclude Include="7zip\UI\FileManager\ProgressDialog2.h" />
++    <ClInclude Include="7zip\UI\FileManager\ProgressDialog2Res.h" />
++    <ClInclude Include="7zip\UI\FileManager\ProgressDialogRes.h" />
++    <ClInclude Include="7zip\UI\FileManager\PropertyName.h" />
++    <ClInclude Include="7zip\UI\FileManager\PropertyNameRes.h" />
++    <ClInclude Include="7zip\UI\FileManager\RegistryAssociations.h" />
++    <ClInclude Include="7zip\UI\FileManager\RegistryPlugins.h" />
++    <ClInclude Include="7zip\UI\FileManager\RegistryUtils.h" />
++    <ClInclude Include="7zip\UI\FileManager\resource.h" />
++    <ClInclude Include="7zip\UI\FileManager\resourceGui.h" />
++    <ClInclude Include="7zip\UI\FileManager\RootFolder.h" />
++    <ClInclude Include="7zip\UI\FileManager\SettingsPage.h" />
++    <ClInclude Include="7zip\UI\FileManager\SettingsPageRes.h" />
++    <ClInclude Include="7zip\UI\FileManager\SplitDialog.h" />
++    <ClInclude Include="7zip\UI\FileManager\SplitDialogRes.h" />
++    <ClInclude Include="7zip\UI\FileManager\SplitUtils.h" />
++    <ClInclude Include="7zip\UI\FileManager\StdAfx.h" />
++    <ClInclude Include="7zip\UI\FileManager\StringUtils.h" />
++    <ClInclude Include="7zip\UI\FileManager\SysIconUtils.h" />
++    <ClInclude Include="7zip\UI\FileManager\SystemPage.h" />
++    <ClInclude Include="7zip\UI\FileManager\SystemPageRes.h" />
++    <ClInclude Include="7zip\UI\FileManager\TextPairs.h" />
++    <ClInclude Include="7zip\UI\FileManager\UpdateCallback100.h" />
++    <ClInclude Include="7zip\UI\FileManager\ViewSettings.h" />
++  </ItemGroup>
++  <ItemGroup>
++    <ResourceCompile Include="7zip\UI\FileManager\AboutDialog.rc" />
++    <ResourceCompile Include="7zip\UI\FileManager\BrowseDialog.rc" />
++    <ResourceCompile Include="7zip\UI\FileManager\BrowseDialog2.rc" />
++    <ResourceCompile Include="7zip\UI\FileManager\ComboDialog.rc" />
++    <ResourceCompile Include="7zip\UI\FileManager\CopyDialog.rc" />
++    <ResourceCompile Include="7zip\UI\FileManager\EditDialog.rc" />
++    <ResourceCompile Include="7zip\UI\FileManager\EditPage.rc" />
++    <ResourceCompile Include="7zip\UI\FileManager\EditPage2.rc" />
++    <ResourceCompile Include="7zip\UI\FileManager\FoldersPage.rc" />
++    <ResourceCompile Include="7zip\UI\FileManager\FoldersPage2.rc" />
++    <ResourceCompile Include="7zip\UI\FileManager\LangPage.rc" />
++    <ResourceCompile Include="7zip\UI\FileManager\LinkDialog.rc" />
++    <ResourceCompile Include="7zip\UI\FileManager\ListViewDialog.rc" />
++    <ResourceCompile Include="7zip\UI\FileManager\MemDialog.rc" />
++    <ResourceCompile Include="7zip\UI\FileManager\MenuPage.rc" />
++    <ResourceCompile Include="7zip\UI\FileManager\MenuPage2.rc" />
++    <ResourceCompile Include="7zip\UI\FileManager\MessagesDialog.rc" />
++    <ResourceCompile Include="7zip\UI\FileManager\OverwriteDialog.rc" />
++    <ResourceCompile Include="7zip\UI\FileManager\PasswordDialog.rc" />
++    <ResourceCompile Include="7zip\UI\FileManager\ProgressDialog.rc" />
++    <ResourceCompile Include="7zip\UI\FileManager\ProgressDialog2.rc" />
++    <ResourceCompile Include="7zip\UI\FileManager\ProgressDialog2a.rc" />
++    <ResourceCompile Include="7zip\UI\FileManager\PropertyName.rc" />
++    <ResourceCompile Include="7zip\UI\FileManager\resource.rc" />
++    <ResourceCompile Include="7zip\UI\FileManager\resourceGui.rc" />
++    <ResourceCompile Include="7zip\UI\FileManager\SettingsPage.rc" />
++    <ResourceCompile Include="7zip\UI\FileManager\SettingsPage2.rc" />
++    <ResourceCompile Include="7zip\UI\FileManager\SplitDialog.rc" />
++    <ResourceCompile Include="7zip\UI\FileManager\SystemPage.rc" />
++  </ItemGroup>
++  <ItemGroup>
++    <None Include="7zip\UI\FileManager\FM.dsp" />
++    <None Include="7zip\UI\FileManager\FM.dsw" />
++    <None Include="7zip\UI\FileManager\FM.mak" />
++    <None Include="7zip\UI\FileManager\makefile" />
++  </ItemGroup>
++  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
++  <ImportGroup Label="ExtensionTargets">
++  </ImportGroup>
++</Project>
+\ No newline at end of file
+diff --git a/CPP/7zip.vcxproj.filters b/CPP/7zip.vcxproj.filters
+new file mode 100644
+index 00000000..c8a6e7d6
+--- /dev/null
++++ b/CPP/7zip.vcxproj.filters
+@@ -0,0 +1,610 @@
++﻿<?xml version="1.0" encoding="utf-8"?>
++<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
++  <ItemGroup>
++    <Filter Include="源文件">
++      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
++      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
++    </Filter>
++    <Filter Include="头文件">
++      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
++      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
++    </Filter>
++    <Filter Include="资源文件">
++      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
++      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
++    </Filter>
++  </ItemGroup>
++  <ItemGroup>
++    <Manifest Include="7zip\UI\FileManager\7zFM.exe.manifest" />
++  </ItemGroup>
++  <ItemGroup>
++    <Image Include="7zip\UI\FileManager\7zipLogo.ico">
++      <Filter>资源文件</Filter>
++    </Image>
++    <Image Include="7zip\UI\FileManager\Add.bmp">
++      <Filter>资源文件</Filter>
++    </Image>
++    <Image Include="7zip\UI\FileManager\Add2.bmp">
++      <Filter>资源文件</Filter>
++    </Image>
++    <Image Include="7zip\UI\FileManager\Copy.bmp">
++      <Filter>资源文件</Filter>
++    </Image>
++    <Image Include="7zip\UI\FileManager\Copy2.bmp">
++      <Filter>资源文件</Filter>
++    </Image>
++    <Image Include="7zip\UI\FileManager\Delete.bmp">
++      <Filter>资源文件</Filter>
++    </Image>
++    <Image Include="7zip\UI\FileManager\Delete2.bmp">
++      <Filter>资源文件</Filter>
++    </Image>
++    <Image Include="7zip\UI\FileManager\Extract.bmp">
++      <Filter>资源文件</Filter>
++    </Image>
++    <Image Include="7zip\UI\FileManager\Extract2.bmp">
++      <Filter>资源文件</Filter>
++    </Image>
++    <Image Include="7zip\UI\FileManager\FM.ico">
++      <Filter>资源文件</Filter>
++    </Image>
++    <Image Include="7zip\UI\FileManager\Info.bmp">
++      <Filter>资源文件</Filter>
++    </Image>
++    <Image Include="7zip\UI\FileManager\Info2.bmp">
++      <Filter>资源文件</Filter>
++    </Image>
++    <Image Include="7zip\UI\FileManager\Move.bmp">
++      <Filter>资源文件</Filter>
++    </Image>
++    <Image Include="7zip\UI\FileManager\Move2.bmp">
++      <Filter>资源文件</Filter>
++    </Image>
++    <Image Include="7zip\UI\FileManager\Test.bmp">
++      <Filter>资源文件</Filter>
++    </Image>
++    <Image Include="7zip\UI\FileManager\Test2.bmp">
++      <Filter>资源文件</Filter>
++    </Image>
++  </ItemGroup>
++  <ItemGroup>
++    <ClCompile Include="7zip\UI\FileManager\AboutDialog.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\AltStreamsFolder.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\App.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\BrowseDialog.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\BrowseDialog2.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\ClassDefs.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\ComboDialog.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\CopyDialog.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\EditDialog.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\EditPage.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\EnumFormatEtc.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\ExtractCallback.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\FileFolderPluginOpen.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\FilePlugins.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\FM.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\FoldersPage.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\FormatUtils.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\FSDrives.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\FSFolder.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\FSFolderCopy.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\HelpUtils.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\LangPage.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\LangUtils.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\LinkDialog.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\ListViewDialog.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\MemDialog.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\MenuPage.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\MessagesDialog.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\MyLoadMenu.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\NetFolder.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\OpenCallback.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\OptionsDialog.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\OverwriteDialog.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\Panel.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\PanelCopy.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\PanelCrc.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\PanelDrag.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\PanelFolderChange.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\PanelItemOpen.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\PanelItems.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\PanelKey.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\PanelListNotify.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\PanelMenu.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\PanelOperations.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\PanelSelect.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\PanelSort.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\PanelSplitFile.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\PasswordDialog.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\ProgramLocation.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\ProgressDialog.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\ProgressDialog2.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\PropertyName.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\RegistryAssociations.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\RegistryPlugins.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\RegistryUtils.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\RootFolder.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\SettingsPage.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\SplitDialog.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\SplitUtils.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\StdAfx.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\StringUtils.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\SysIconUtils.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\SystemPage.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\TextPairs.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\UpdateCallback100.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\VerCtrl.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\FileManager\ViewSettings.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++  </ItemGroup>
++  <ItemGroup>
++    <ClInclude Include="7zip\UI\FileManager\AboutDialog.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\AboutDialogRes.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\AltStreamsFolder.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\App.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\AppState.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\BrowseDialog.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\BrowseDialog2.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\BrowseDialog2Res.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\BrowseDialogRes.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\ComboDialog.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\ComboDialogRes.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\CopyDialog.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\CopyDialogRes.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\DialogSize.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\EditDialog.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\EditDialogRes.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\EditPage.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\EditPageRes.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\EnumFormatEtc.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\ExtractCallback.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\FileFolderPluginOpen.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\FilePlugins.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\FoldersPage.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\FoldersPageRes.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\FormatUtils.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\FSDrives.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\FSFolder.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\HelpUtils.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\IFolder.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\LangPage.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\LangPageRes.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\LangUtils.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\LinkDialog.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\LinkDialogRes.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\ListViewDialog.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\ListViewDialogRes.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\MemDialog.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\MemDialogRes.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\MenuPage.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\MenuPageRes.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\MessagesDialog.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\MessagesDialogRes.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\MyCom2.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\MyLoadMenu.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\MyWindowsNew.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\NetFolder.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\OpenCallback.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\OverwriteDialog.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\OverwriteDialogRes.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\Panel.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\PasswordDialog.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\PasswordDialogRes.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\PluginInterface.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\PluginLoader.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\ProgramLocation.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\ProgressDialog.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\ProgressDialog2.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\ProgressDialog2Res.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\ProgressDialogRes.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\PropertyName.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\PropertyNameRes.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\RegistryAssociations.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\RegistryPlugins.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\RegistryUtils.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\resource.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\resourceGui.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\RootFolder.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\SettingsPage.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\SettingsPageRes.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\SplitDialog.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\SplitDialogRes.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\SplitUtils.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\StdAfx.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\StringUtils.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\SysIconUtils.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\SystemPage.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\SystemPageRes.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\TextPairs.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\UpdateCallback100.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\FileManager\ViewSettings.h">
++      <Filter>头文件</Filter>
++    </ClInclude>
++  </ItemGroup>
++  <ItemGroup>
++    <ResourceCompile Include="7zip\UI\FileManager\AboutDialog.rc">
++      <Filter>资源文件</Filter>
++    </ResourceCompile>
++    <ResourceCompile Include="7zip\UI\FileManager\BrowseDialog.rc">
++      <Filter>资源文件</Filter>
++    </ResourceCompile>
++    <ResourceCompile Include="7zip\UI\FileManager\BrowseDialog2.rc">
++      <Filter>资源文件</Filter>
++    </ResourceCompile>
++    <ResourceCompile Include="7zip\UI\FileManager\ComboDialog.rc">
++      <Filter>资源文件</Filter>
++    </ResourceCompile>
++    <ResourceCompile Include="7zip\UI\FileManager\CopyDialog.rc">
++      <Filter>资源文件</Filter>
++    </ResourceCompile>
++    <ResourceCompile Include="7zip\UI\FileManager\EditDialog.rc">
++      <Filter>资源文件</Filter>
++    </ResourceCompile>
++    <ResourceCompile Include="7zip\UI\FileManager\EditPage.rc">
++      <Filter>资源文件</Filter>
++    </ResourceCompile>
++    <ResourceCompile Include="7zip\UI\FileManager\EditPage2.rc">
++      <Filter>资源文件</Filter>
++    </ResourceCompile>
++    <ResourceCompile Include="7zip\UI\FileManager\FoldersPage.rc">
++      <Filter>资源文件</Filter>
++    </ResourceCompile>
++    <ResourceCompile Include="7zip\UI\FileManager\FoldersPage2.rc">
++      <Filter>资源文件</Filter>
++    </ResourceCompile>
++    <ResourceCompile Include="7zip\UI\FileManager\LangPage.rc">
++      <Filter>资源文件</Filter>
++    </ResourceCompile>
++    <ResourceCompile Include="7zip\UI\FileManager\LinkDialog.rc">
++      <Filter>资源文件</Filter>
++    </ResourceCompile>
++    <ResourceCompile Include="7zip\UI\FileManager\ListViewDialog.rc">
++      <Filter>资源文件</Filter>
++    </ResourceCompile>
++    <ResourceCompile Include="7zip\UI\FileManager\MemDialog.rc">
++      <Filter>资源文件</Filter>
++    </ResourceCompile>
++    <ResourceCompile Include="7zip\UI\FileManager\MenuPage.rc">
++      <Filter>资源文件</Filter>
++    </ResourceCompile>
++    <ResourceCompile Include="7zip\UI\FileManager\MenuPage2.rc">
++      <Filter>资源文件</Filter>
++    </ResourceCompile>
++    <ResourceCompile Include="7zip\UI\FileManager\MessagesDialog.rc">
++      <Filter>资源文件</Filter>
++    </ResourceCompile>
++    <ResourceCompile Include="7zip\UI\FileManager\OverwriteDialog.rc">
++      <Filter>资源文件</Filter>
++    </ResourceCompile>
++    <ResourceCompile Include="7zip\UI\FileManager\PasswordDialog.rc">
++      <Filter>资源文件</Filter>
++    </ResourceCompile>
++    <ResourceCompile Include="7zip\UI\FileManager\ProgressDialog.rc">
++      <Filter>资源文件</Filter>
++    </ResourceCompile>
++    <ResourceCompile Include="7zip\UI\FileManager\ProgressDialog2.rc">
++      <Filter>资源文件</Filter>
++    </ResourceCompile>
++    <ResourceCompile Include="7zip\UI\FileManager\ProgressDialog2a.rc">
++      <Filter>资源文件</Filter>
++    </ResourceCompile>
++    <ResourceCompile Include="7zip\UI\FileManager\PropertyName.rc">
++      <Filter>资源文件</Filter>
++    </ResourceCompile>
++    <ResourceCompile Include="7zip\UI\FileManager\resource.rc">
++      <Filter>资源文件</Filter>
++    </ResourceCompile>
++    <ResourceCompile Include="7zip\UI\FileManager\resourceGui.rc">
++      <Filter>资源文件</Filter>
++    </ResourceCompile>
++    <ResourceCompile Include="7zip\UI\FileManager\SettingsPage.rc">
++      <Filter>资源文件</Filter>
++    </ResourceCompile>
++    <ResourceCompile Include="7zip\UI\FileManager\SettingsPage2.rc">
++      <Filter>资源文件</Filter>
++    </ResourceCompile>
++    <ResourceCompile Include="7zip\UI\FileManager\SplitDialog.rc">
++      <Filter>资源文件</Filter>
++    </ResourceCompile>
++    <ResourceCompile Include="7zip\UI\FileManager\SystemPage.rc">
++      <Filter>资源文件</Filter>
++    </ResourceCompile>
++  </ItemGroup>
++  <ItemGroup>
++    <None Include="7zip\UI\FileManager\FM.dsp" />
++    <None Include="7zip\UI\FileManager\FM.dsw" />
++    <None Include="7zip\UI\FileManager\FM.mak" />
++    <None Include="7zip\UI\FileManager\makefile" />
++  </ItemGroup>
++</Project>
+\ No newline at end of file
+diff --git a/CPP/7zip/UI/FileManager/App.cpp b/CPP/7zip/UI/FileManager/App.cpp
+index 5b7d6167..ee5a7a1b 100644
+--- a/CPP/7zip/UI/FileManager/App.cpp
++++ b/CPP/7zip/UI/FileManager/App.cpp
+@@ -194,6 +194,7 @@ static const CButtonInfo g_ArchiveButtons[] =
+ {
+   { kMenuCmdID_Toolbar_Add,     IDB_ADD,     IDB_ADD2,     IDS_ADD },
+   { kMenuCmdID_Toolbar_Extract, IDB_EXTRACT, IDB_EXTRACT2, IDS_EXTRACT },
++  { kMenuCmdID_Toolbar_AutoExtract, IDB_EXTRACT, IDB_EXTRACT2, IDS_AUTOEXTRACT },
+   { kMenuCmdID_Toolbar_Test,    IDB_TEST,    IDB_TEST2,    IDS_TEST }
+ };
+ 
+diff --git a/CPP/7zip/UI/FileManager/App.h b/CPP/7zip/UI/FileManager/App.h
+index cf74d6a5..bf41725e 100644
+--- a/CPP/7zip/UI/FileManager/App.h
++++ b/CPP/7zip/UI/FileManager/App.h
+@@ -26,6 +26,7 @@ enum
+ {
+   kMenuCmdID_Toolbar_Add = kMenuCmdID_Toolbar_Start,
+   kMenuCmdID_Toolbar_Extract,
++  kMenuCmdID_Toolbar_AutoExtract,
+   kMenuCmdID_Toolbar_Test,
+   kMenuCmdID_Toolbar_End
+ };
+@@ -298,7 +299,7 @@ class CApp
+   }
+ 
+   void AddToArchive() { GetFocusedPanel().AddToArchive(); }
+-  void ExtractArchives() { GetFocusedPanel().ExtractArchives(); }
++  void ExtractArchives(bool _auto = false) { GetFocusedPanel().ExtractArchives(_auto); }
+   void TestArchives() { GetFocusedPanel().TestArchives(); }
+ 
+   void OnNotify(int ctrlID, LPNMHDR pnmh);
+diff --git a/CPP/7zip/UI/FileManager/FM.cpp b/CPP/7zip/UI/FileManager/FM.cpp
+index 73108024..980f4682 100644
+--- a/CPP/7zip/UI/FileManager/FM.cpp
++++ b/CPP/7zip/UI/FileManager/FM.cpp
+@@ -883,6 +883,7 @@ static void ExecuteCommand(UINT commandID)
+   {
+     case kMenuCmdID_Toolbar_Add: g_App.AddToArchive(); break;
+     case kMenuCmdID_Toolbar_Extract: g_App.ExtractArchives(); break;
++    case kMenuCmdID_Toolbar_AutoExtract: g_App.ExtractArchives(true); break;
+     case kMenuCmdID_Toolbar_Test: g_App.TestArchives(); break;
+   }
+ }
+diff --git a/CPP/7zip/UI/FileManager/Panel.cpp b/CPP/7zip/UI/FileManager/Panel.cpp
+index 84bd88c5..c68be76f 100644
+--- a/CPP/7zip/UI/FileManager/Panel.cpp
++++ b/CPP/7zip/UI/FileManager/Panel.cpp
+@@ -1005,7 +1005,7 @@ void CPanel::GetFilePaths(const CRecordVector<UInt32> &operatedIndices, UStringV
+ }
+ 
+ 
+-void CPanel::ExtractArchives()
++void CPanel::ExtractArchives(bool)
+ {
+   if (!_parentFolders.IsEmpty())
+   {
+diff --git a/CPP/7zip/UI/FileManager/Panel.h b/CPP/7zip/UI/FileManager/Panel.h
+index 9c530488..575076ca 100644
+--- a/CPP/7zip/UI/FileManager/Panel.h
++++ b/CPP/7zip/UI/FileManager/Panel.h
+@@ -921,7 +921,7 @@ class CPanel Z7_final: public NWindows::NControl::CWindow2
+ 
+   int FindDir_InOperatedList(const CRecordVector<UInt32> &indices) const;
+   void GetFilePaths(const CRecordVector<UInt32> &indices, UStringVector &paths) const;
+-  void ExtractArchives();
++  void ExtractArchives(bool _auto);
+   void TestArchives();
+ 
+   void Get_ZoneId_Stream_from_ParentFolders(CByteBuffer &buf);
+diff --git a/CPP/7zip/UI/FileManager/resource.h b/CPP/7zip/UI/FileManager/resource.h
+index 36c4b531..3d7b8258 100644
+--- a/CPP/7zip/UI/FileManager/resource.h
++++ b/CPP/7zip/UI/FileManager/resource.h
+@@ -185,6 +185,7 @@
+ #define IDS_BUTTON_MOVE                 7204
+ #define IDS_BUTTON_DELETE               7205
+ #define IDS_BUTTON_INFO                 7206
++#define IDS_AUTOEXTRACT                 7207
+ 
+ #define IDS_SPLITTING                   7303
+ #define IDS_SPLIT_CONFIRM_TITLE         7304
+diff --git a/CPP/7zip/UI/FileManager/resource.rc b/CPP/7zip/UI/FileManager/resource.rc
+index d9fc6f25..d7181a6d 100644
+--- a/CPP/7zip/UI/FileManager/resource.rc
++++ b/CPP/7zip/UI/FileManager/resource.rc
+@@ -254,6 +254,7 @@ BEGIN
+   IDS_BUTTON_MOVE    "Move"
+   IDS_BUTTON_DELETE  "Delete"
+   IDS_BUTTON_INFO    "Info"
++  IDS_AUTOEXTRACT    "AutoExtract"
+ 
+   IDS_SPLITTING            "Splitting..."
+   IDS_SPLIT_CONFIRM_TITLE  "Confirm Splitting"
+diff --git a/Lang/en.ttt b/Lang/en.ttt
+index 6122aa5f..88ddb2a9 100644
+--- a/Lang/en.ttt
++++ b/Lang/en.ttt
+@@ -471,6 +471,7 @@ Copy
+ Move
+ Delete
+ Info
++AutoExtract
+ 7300
+ Split File
+ &Split to:

@@ -1,0 +1,101 @@
+From 82007a022aa2af74bbc6c89270f69cd45b75afa3 Mon Sep 17 00:00:00 2001
+From: ozone10 <positronix10@gmail.com>
+Date: Thu, 13 Feb 2025 16:50:15 +0100
+Subject: [PATCH] Header control enhancement
+
+---
+ DarkMode/DarkModeSubclass.cpp | 39 +++++++++++++++++++++++++++++++++--
+ 1 file changed, 37 insertions(+), 2 deletions(-)
+
+diff --git a/DarkMode/DarkModeSubclass.cpp b/DarkMode/DarkModeSubclass.cpp
+index 9e96d068f..7dcf4bc8e 100644
+--- a/DarkMode/DarkModeSubclass.cpp
++++ b/DarkMode/DarkModeSubclass.cpp
+@@ -2315,10 +2315,15 @@ namespace DarkMode
+ 		HTHEME hTheme = nullptr;
+ 		HFONT hFont = nullptr;
+ 		bool isHot = false;
++		bool _hasBtnStyle = true;
+ 		POINT pt{ LONG_MIN, LONG_MIN };
++		bool isPressed = false;
+ 
+ 		HeaderData() = default;
+ 
++		HeaderData(bool hasBtnStyle)
++			: _hasBtnStyle(hasBtnStyle) {}
++
+ 		~HeaderData()
+ 		{
+ 			closeTheme();
+@@ -2395,8 +2400,9 @@ namespace DarkMode
+ 		for (int i = 0; i < count; i++)
+ 		{
+ 			Header_GetItemRect(hWnd, i, &rcItem);
++			bool isOnItem = ::PtInRect(&rcItem, pHeaderData->pt);
+ 
+-			if (::PtInRect(&rcItem, pHeaderData->pt))
++			if (pHeaderData->_hasBtnStyle && isOnItem)
+ 			{
+ 				RECT rcTmp{ rcItem };
+ 				if (hasGridlines)
+@@ -2454,6 +2460,9 @@ namespace DarkMode
+ 			rcItem.left += 6;
+ 			rcItem.right -= 8;
+ 
++			if (pHeaderData->isPressed && isOnItem)
++				::OffsetRect(&rcItem, 1, 1);
++
+ 			if (hasTheme)
+ 				::DrawThemeTextEx(pHeaderData->hTheme, hdc, HP_HEADERITEM, HIS_NORMAL, hdi.pszText, -1, dtFlags, &rcItem, &dtto);
+ 			else
+@@ -2537,8 +2546,30 @@ namespace DarkMode
+ 				break;
+ 			}
+ 
++			case WM_LBUTTONDOWN:
++			{
++				if (!pHeaderData->_hasBtnStyle)
++					break;
++
++				pHeaderData->isPressed = true;
++
++				break;
++			}
++
++			case WM_LBUTTONUP:
++			{
++				if (!pHeaderData->_hasBtnStyle)
++					break;
++
++				pHeaderData->isPressed = false;
++				break;
++			}
++
+ 			case WM_MOUSEMOVE:
+ 			{
++				if (!pHeaderData->_hasBtnStyle || pHeaderData->isPressed)
++					break;
++
+ 				TRACKMOUSEEVENT tme{};
+ 
+ 				if (!pHeaderData->isHot)
+@@ -2561,6 +2592,9 @@ namespace DarkMode
+ 
+ 			case WM_MOUSELEAVE:
+ 			{
++				if (!pHeaderData->_hasBtnStyle)
++					break;
++
+ 				LRESULT result = ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
+ 
+ 				pHeaderData->isHot = false;
+@@ -2586,7 +2620,8 @@ namespace DarkMode
+ 	{
+ 		if (::GetWindowSubclass(hWnd, HeaderSubclass, g_headerSubclassID, nullptr) == FALSE)
+ 		{
+-			auto pHeaderData = reinterpret_cast<DWORD_PTR>(new HeaderData());
++			const bool hasBtnStyle = (::GetWindowLongPtr(hWnd, GWL_STYLE) & HDS_BUTTONS) == HDS_BUTTONS;
++			auto pHeaderData = reinterpret_cast<DWORD_PTR>(new HeaderData(hasBtnStyle));
+ 			::SetWindowSubclass(hWnd, HeaderSubclass, g_headerSubclassID, pHeaderData);
+ 		}
+ 	}

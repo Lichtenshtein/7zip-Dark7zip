@@ -1,0 +1,41 @@
+From bebf12b82618c86cb64faf9377540b817990603c Mon Sep 17 00:00:00 2001
+From: Fr0sT-Brutal <fr0st.brutal@gmail.com>
+Date: Mon, 16 Mar 2020 15:30:47 +0300
+Subject: [PATCH] [Win32] Fix console output doesn't respect current console
+ code page
+
+---
+ CPP/Common/StdOutStream.cpp | 12 +++++-------
+ 1 file changed, 5 insertions(+), 7 deletions(-)
+
+diff --git a/CPP/Common/StdOutStream.cpp b/CPP/Common/StdOutStream.cpp
+index 8236072..4fe8244 100644
+--- a/CPP/Common/StdOutStream.cpp
++++ b/CPP/Common/StdOutStream.cpp
+@@ -47,14 +47,8 @@ CStdOutStream & endl(CStdOutStream & outStream) throw()
+ 
+ CStdOutStream & CStdOutStream::operator<<(const wchar_t *s)
+ {
+-  int codePage = g_CodePage;
+-  if (codePage == -1)
+-    codePage = CP_OEMCP;
+   AString dest;
+-  if (codePage == CP_UTF8)
+-    ConvertUnicodeToUTF8(s, dest);
+-  else
+-    UnicodeStringToMultiByte2(dest, s, (UINT)codePage);
++  StdOut_Convert_UString_to_AString(s, dest);
+   return operator<<((const char *)dest);
+ }
+ 
+@@ -62,6 +56,10 @@ void StdOut_Convert_UString_to_AString(const UString &s, AString &temp)
+ {
+   int codePage = g_CodePage;
+   if (codePage == -1)
++  #ifdef _WIN32
++    codePage = GetConsoleOutputCP();
++  if (codePage == 0)
++  #endif
+     codePage = CP_OEMCP;
+   if (codePage == CP_UTF8)
+     ConvertUnicodeToUTF8(s, temp);

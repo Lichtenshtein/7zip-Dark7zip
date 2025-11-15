@@ -1,0 +1,25 @@
+From e40cb39fa5209e06412ee35396692abb98eaaa21 Mon Sep 17 00:00:00 2001
+From: ironyman <ironyman13@gmail.com>
+Date: Tue, 26 Dec 2023 04:57:46 -0800
+Subject: [PATCH] Allow drag and drop into same panel
+
+---
+ CPP/7zip/UI/FileManager/PanelDrag.cpp | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/CPP/7zip/UI/FileManager/PanelDrag.cpp b/CPP/7zip/UI/FileManager/PanelDrag.cpp
+index 1c24406..9302b27 100644
+--- a/CPP/7zip/UI/FileManager/PanelDrag.cpp
++++ b/CPP/7zip/UI/FileManager/PanelDrag.cpp
+@@ -1953,8 +1953,9 @@ void CDropTarget::PositionCursor(const POINTL &ptl)
+           {
+             m_Panel = panel;
+             m_IsAppTarget = false;
+-            if ((int)i == SrcPanelIndex)
+-              return; // we don't allow to drop to source panel
++
++            // if ((int)i == SrcPanelIndex)
++            //   return; // we don't allow to drop to source panel
+             break;
+           }
+         }

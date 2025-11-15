@@ -1,0 +1,77 @@
+From 81c0f0cbc4d749c857f33ddecb9b514f136efc92 Mon Sep 17 00:00:00 2001
+From: myfreeer https://github.com/myfreeer/7z-build-nsis & Lichtenshtein
+Date: Tue, 11 Nov 2025 00:38:06 +0300
+Subject: [PATCH] NSIS_SCRIPT pre-patch
+
+Remove -OPT:NOWIN98 flag
+Drop -WX option
+Workaround error C2220: warning treated as error
+Since warning C4456: declaration of '&1' hides previous local declaration introduced by NSIS_SCRIPT
+Silent warning C4566 character represented by universal-character-name 'char' cannot be represented in the current code page (page). introduced by VC-LTL at ucrt/*/stdlib.h making console output terrible without this. define _DISABLE_DEPRECATE_LTL_MESSAGE supresses note message provided by VC-LTL.
+
+---
+ CPP/Build.mak | 16 +++++++++-------
+ 1 file changed, 9 insertions(+), 7 deletions(-)
+
+diff --git a/CPP/Build.mak b/CPP/Build.mak
+index c411b22..f007ce7 100644
+--- a/CPP/Build.mak
++++ b/CPP/Build.mak
+@@ -1,4 +1,6 @@
+ LIBS = $(LIBS) oleaut32.lib ole32.lib
++CFLAGS = $(CFLAGS) /wd4566 /D_DISABLE_DEPRECATE_LTL_MESSAGE
++LFLAGS = $(LFLAGS) /LTCG
+ 
+ # CFLAGS = $(CFLAGS) -DZ7_NO_UNICODE
+ !IFNDEF MY_NO_UNICODE
+@@ -26,15 +28,15 @@ O=o
+ 
+ 
+ !IF "$(PLATFORM)" == "x64"
+-MY_ML = ml64 -WX
++MY_ML = ml64
+ !ELSEIF "$(PLATFORM)" == "arm64"
+ MY_ML = armasm64
+ !ELSEIF "$(PLATFORM)" == "arm"
+-MY_ML = armasm -WX
++MY_ML = armasm
+ !ELSEIF "$(PLATFORM)" == "arm64"
+ MY_ML = armasm
+ !ELSE
+-MY_ML = ml -WX
++MY_ML = ml
+ # -DABI_CDECL
+ !ENDIF
+ 
+@@ -48,7 +50,7 @@ LFLAGS = $(LFLAGS) /ENTRY:mainACRTStartup
+ !ENDIF
+ !ELSE
+ !IFDEF OLD_COMPILER
+-LFLAGS = $(LFLAGS) -OPT:NOWIN98
++LFLAGS = $(LFLAGS)
+ !ENDIF
+ !IF "$(PLATFORM)" != "arm" && "$(PLATFORM)" != "arm64"
+ CFLAGS = $(CFLAGS) -Gr
+@@ -70,8 +72,8 @@ CFLAGS_WARN_LEVEL = -W4
+ CFLAGS_WARN_LEVEL = -Wall
+ !ENDIF
+ 
+-# CFLAGS = $(CFLAGS) -nologo -c -Fo$O/ $(CFLAGS_WARN_LEVEL) -WX -EHsc -Gy -MT -MP -GR- -GL -Gw
+-CFLAGS = $(CFLAGS) -nologo -c -Fo$O/ -W4 -WX -EHsc -Gy -MT -MP -GR- -GL -Gw -std:c++20 -GF
++# CFLAGS = $(CFLAGS) -nologo -c -Fo$O/ $(CFLAGS_WARN_LEVEL) -EHsc -Gy -MT -MP -GR- -GL -Gw
++CFLAGS = $(CFLAGS) -nologo -c -Fo$O/ -W4 -EHsc -Gy -MT -MP -GR- -GL -Gw -std:c++20 -GF
+ 
+ !IF "$(CC)" == "clang-cl"
+ 
+@@ -181,7 +183,7 @@ CLANG_FLAGS_TARGET = --target=arm64-pc-windows-msvc
+ !ENDIF
+ 
+ COMPL_CLANG_SPEC=clang-cl $(CLANG_FLAGS_TARGET)
+-COMPL_ASM_CLANG = $(COMPL_CLANG_SPEC) -nologo -c -Fo$O/ $(CFLAGS_WARN_LEVEL) -WX $**
++COMPL_ASM_CLANG = $(COMPL_CLANG_SPEC) -nologo -c -Fo$O/ $(CFLAGS_WARN_LEVEL) $**
+ # COMPL_C_CLANG   = $(COMPL_CLANG_SPEC) $(CFLAGS_O2)
+ 
+ 
+-- 
+2.49.0.windows.1
+

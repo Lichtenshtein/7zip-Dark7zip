@@ -1,0 +1,91 @@
+From 773fca1626ed1468bb6c08baf7c186c97dc44284 Mon Sep 17 00:00:00 2001
+From: SCell555 <kubci.rusnk645@gmail.com>
+Date: Mon, 8 Feb 2021 23:45:46 +0100
+Subject: [PATCH] Add hack for codec-driven mult-archive writing support
+
+---
+ CPP/7zip/Archive/IArchive.h           |  5 ++++
+ CPP/7zip/UI/Common/LoadCodecs.cpp     |  4 +++
+ CPP/7zip/UI/Common/LoadCodecs.h       |  2 ++
+ CPP/7zip/UI/Common/Update.cpp         | 38 ++++++++++++++++++++++-----
+ CPP/7zip/UI/Common/UpdateCallback.cpp | 33 ++++++++++++++++++-----
+ CPP/7zip/UI/Common/UpdateCallback.h   |  4 +++
+ CPP/7zip/UI/GUI/CompressDialog.cpp    |  3 +++
+ 7 files changed, 76 insertions(+), 13 deletions(-)
+
+diff --git a/CPP/7zip/Archive/IArchive.h b/CPP/7zip/Archive/IArchive.h
+index ac0f58076..a9578746c 100644
+--- a/CPP/7zip/Archive/IArchive.h
++++ b/CPP/7zip/Archive/IArchive.h
+@@ -565,5 +565,9 @@ ARCHIVE_INTERFACE(IOutArchive, 0xA0)
+ Z7_IFACE_CONSTR_ARCHIVE(IOutArchive, 0xA0)
+ 
++Z7_IFACE_CONSTR_ARCHIVE(IMultiVolumeOutArchive, 0xFF)
++{
++  STDMETHOD(GetMultiArchiveNameFmt)(PROPVARIANT* nameMod, PROPVARIANT* prefix, PROPVARIANT* postfix, BOOL* numberAfterExt, UInt32* digitCount) PURE;
++};
+ 
+ /*
+ ISetProperties::SetProperties()
+diff --git a/CPP/7zip/UI/Common/Update.cpp b/CPP/7zip/UI/Common/Update.cpp
+index 4c94109d5..03042a1b3 100644
+--- a/CPP/7zip/UI/Common/Update.cpp
++++ b/CPP/7zip/UI/Common/Update.cpp
+@@ -685,6 +685,7 @@ static HRESULT Compress(
+     }
+     else
+     {
++    single:
+       outStreamSpec = new COutFileStream;
+       outSeekStream = outStreamSpec;
+       outStream = outSeekStream;
+@@ -881,6 +882,36 @@ static HRESULT Compress(
+     if (arc && arc->GetGlobalOffset() > 0)
+       return E_NOTIMPL;
+       
++    CMyComPtr<IMultiVolumeOutArchive> multiVolArch;
++    outArchive->QueryInterface(IID_IMultiVolumeOutArchive, (void**)&multiVolArch);
++    if (multiVolArch)
++    {
++      CPropVariant prefix, postfix, name;
++      name = archivePath.Name;
++      BOOL numberAfterExt = FALSE;
++      UInt32 numberCount = 2;
++      RINOK(multiVolArch->GetMultiArchiveNameFmt(&name, &prefix, &postfix, &numberAfterExt, &numberCount));
++      if (prefix.vt != VT_EMPTY && prefix.vt != VT_BSTR)
++        return E_FAIL;
++      if (postfix.vt != VT_EMPTY && postfix.vt != VT_BSTR)
++        return E_FAIL;
++      updateCallbackSpec->VolumesSizes = options.VolumesSizes;
++      if (name.vt == VT_BSTR)
++        updateCallbackSpec->VolName = archivePath.Prefix + name.bstrVal;
++      else
++        updateCallbackSpec->VolName = archivePath.Prefix + archivePath.Name;
++      updateCallbackSpec->VolNumberAfterExt = numberAfterExt != FALSE;
++      if (prefix.vt == VT_BSTR)
++        updateCallbackSpec->VolPrefix.SetFromBstr(prefix.bstrVal);
++      if (postfix.vt == VT_BSTR)
++        updateCallbackSpec->VolPostfix.SetFromBstr(postfix.bstrVal);
++      if (!archivePath.VolExtension.IsEmpty())
++        updateCallbackSpec->VolExt = UString('.') + archivePath.VolExtension;
++      updateCallbackSpec->DigitCount = numberCount;
++      const_cast<CRecordVector<UInt64>&>(options.VolumesSizes).Clear();
++      goto single;
++    }
++
+     volStreamSpec = new CMultiOutStream();
+     outSeekStream = volStreamSpec;
+     outStream = outSeekStream;
+diff --git a/CPP/7zip/UI/Common/UpdateCallback.cpp b/CPP/7zip/UI/Common/UpdateCallback.cpp
+index 3a5873b38..9d2ada263 100644
+--- a/CPP/7zip/UI/Common/UpdateCallback.cpp
++++ b/CPP/7zip/UI/Common/UpdateCallback.cpp
+@@ -92,6 +92,8 @@ CArchiveUpdateCallback::CArchiveUpdateCallback():
+     Comment(NULL),
+     CommentIndex(-1),
+     
+     ProcessedItemsStatuses(NULL),
++    VolNumberAfterExt(false),
++    DigitCount(2),
+     _hardIndex_From((UInt32)(Int32)-1)
+ {

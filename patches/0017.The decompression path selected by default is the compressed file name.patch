@@ -1,0 +1,57 @@
+From 9a65a44ef3c1172a38e43a9014f7c49e129dc0d2 Mon Sep 17 00:00:00 2001
+From: mofazhe https://github.com/mofazhe/7zip-Dark-Mod
+Date: Sun, 14 Jan 2024 03:40:09 +0000
+Subject: [PATCH] The decompression path selected by default is the compressed file name
+
+---
+ CPP/7zip/UI/FileManager/App.cpp | 34 +++++++++++++++++++++++++++++++--
+ 1 file changed, 32 insertions(+), 2 deletions(-)
+
+diff --git a/CPP/7zip/UI/FileManager/App.cpp b/CPP/7zip/UI/FileManager/App.cpp
+index 2e6ca993..3c099699 100644
+--- a/CPP/7zip/UI/FileManager/App.cpp
++++ b/CPP/7zip/UI/FileManager/App.cpp
+@@ -658,8 +658,38 @@ void CApp::OnCopy(bool move, bool copyToSame, unsigned srcPanelIndex)
+       if (indices.Size() == 0)
+         return;
+       destPath = destPanel.GetFsPath();
+-      if (NumPanels == 1)
+-        Reduce_Path_To_RealFileSystemPath(destPath);
++     if (NumPanels == 1) {
++       Reduce_Path_To_RealFileSystemPath(destPath);
++
++        CMyComPtr<IGetFolderArcProps> getFolderArcProps;
++        GetFocusedPanel()._folder.QueryInterface(IID_IGetFolderArcProps, &getFolderArcProps);
++        if (getFolderArcProps) {
++          CMyComPtr<IFolderArcProps> getProps;
++          getFolderArcProps->GetFolderArcProps(&getProps);
++          UInt32 numLevels;
++          if (getProps->GetArcNumLevels(&numLevels) != S_OK)
++            numLevels = 0;
++          for (UInt32 level2 = 0; level2 < numLevels; level2++)
++          {
++            UInt32 level = numLevels - 1;
++            NCOM::CPropVariant prop;
++            if (getProps->GetArcProp(level, kpidPath, &prop) == S_OK) {
++              ConvertPropertyToString2(destPath, prop, kpidName, 9);
++              UString fileName = ExtractFileNameFromPath(destPath);
++              const int dotPos = fileName.ReverseFind_Dot();
++              UString prefix;
++              if (dotPos > 0) {
++                prefix = fileName.Left((unsigned)(dotPos));
++              } else {
++                prefix = fileName;
++              }
++              const UString zipDir = destPath.Left((unsigned)(destPath.ReverseFind_PathSepar() + 1));
++              destPath = zipDir + prefix;
++              break;
++            }
++          }
++        }
++      }
+     }
+   }
+   
+-- 
+2.49.0.windows.1
+

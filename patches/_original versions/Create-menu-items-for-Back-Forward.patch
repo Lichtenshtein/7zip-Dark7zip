@@ -1,0 +1,144 @@
+From 60aed33dcdb0452f72d46c7f3b3fa3de2a948e0c Mon Sep 17 00:00:00 2001
+From: Florin9doi <Florin9doi@users.noreply.github.com>
+Date: Mon, 22 Jan 2024 22:37:43 +0200
+Subject: [PATCH 2/3] Create menu items for Back/Forward
+
+---
+ CPP/7zip/UI/FileManager/App.h          | 4 ++++
+ CPP/7zip/UI/FileManager/MyLoadMenu.cpp | 8 +++++++-
+ CPP/7zip/UI/FileManager/resource.h     | 9 ++++++---
+ CPP/7zip/UI/FileManager/resource.rc    | 8 ++++++--
+ 4 files changed, 23 insertions(+), 6 deletions(-)
+
+diff --git a/CPP/7zip/UI/FileManager/App.h b/CPP/7zip/UI/FileManager/App.h
+index fc54501c..cd58842f 100644
+--- a/CPP/7zip/UI/FileManager/App.h
++++ b/CPP/7zip/UI/FileManager/App.h
+@@ -162,12 +162,16 @@ public:
+   void SetListViewMode(UInt32 index) { GetFocusedPanel().SetListViewMode(index); }
+   UInt32 GetListViewMode() { return GetFocusedPanel().GetListViewMode(); }
+   PROPID GetSortID() { return GetFocusedPanel().GetSortID(); }
+ 
+   void SortItemsWithPropID(PROPID propID) { GetFocusedPanel().SortItemsWithPropID(propID); }
+ 
++  bool IsBackwardAvailable() { return GetFocusedPanel().IsBackwardAvailable(); }
++  bool IsForwardAvailable() { return GetFocusedPanel().IsForwardAvailable(); }
++  void MoveBackward() { GetFocusedPanel().MoveBackward(); }
++  void MoveForward() { GetFocusedPanel().MoveForward(); }
+   void OpenRootFolder() { GetFocusedPanel().OpenDrivesFolder(); }
+   void OpenParentFolder() { GetFocusedPanel().OpenParentFolder(); }
+   void FoldersHistory() { GetFocusedPanel().FoldersHistory(); }
+   void RefreshView() { GetFocusedPanel().OnReload(); }
+   void RefreshAllPanels()
+   {
+diff --git a/CPP/7zip/UI/FileManager/MyLoadMenu.cpp b/CPP/7zip/UI/FileManager/MyLoadMenu.cpp
+index 9453536a..84f63b3b 100644
+--- a/CPP/7zip/UI/FileManager/MyLoadMenu.cpp
++++ b/CPP/7zip/UI/FileManager/MyLoadMenu.cpp
+@@ -417,13 +417,16 @@ void OnMenuActivating(HWND /* hWnd */, HMENU hMenu, int position)
+ 
+     menu.CheckRadioItem(
+         IDM_VIEW_ARANGE_BY_NAME,
+         IDM_VIEW_ARANGE_NO_SORT,
+         GetSortControlID(g_App.GetSortID()),
+         MF_BYCOMMAND);
+-    
++
++    menu.EnableItem(IDM_OPEN_BACK_FOLDER, !g_App.IsBackwardAvailable());
++    menu.EnableItem(IDM_OPEN_FORWARD_FOLDER, !g_App.IsForwardAvailable());
++
+     menu.CheckItemByID(IDM_VIEW_TWO_PANELS, g_App.NumPanels == 2);
+     menu.CheckItemByID(IDM_VIEW_FLAT_VIEW, g_App.GetFlatMode());
+     menu.CheckItemByID(IDM_VIEW_ARCHIVE_TOOLBAR, g_App.ShowArchiveToolbar);
+     menu.CheckItemByID(IDM_VIEW_STANDARD_TOOLBAR, g_App.ShowStandardToolbar);
+     menu.CheckItemByID(IDM_VIEW_TOOLBARS_LARGE_BUTTONS, g_App.LargeButtons);
+     menu.CheckItemByID(IDM_VIEW_TOOLBARS_SHOW_BUTTONS_TEXT, g_App.ShowButtonsLables);
+@@ -851,14 +854,17 @@ bool OnMenuCommand(HWND hWnd, unsigned id)
+     case IDM_VIEW_ARANGE_BY_NAME: g_App.SortItemsWithPropID(kpidName); break;
+     case IDM_VIEW_ARANGE_BY_TYPE: g_App.SortItemsWithPropID(kpidExtension); break;
+     case IDM_VIEW_ARANGE_BY_DATE: g_App.SortItemsWithPropID(kpidMTime); break;
+     case IDM_VIEW_ARANGE_BY_SIZE: g_App.SortItemsWithPropID(kpidSize); break;
+     case IDM_VIEW_ARANGE_NO_SORT: g_App.SortItemsWithPropID(kpidNoProperty); break;
+ 
++    case IDM_OPEN_BACK_FOLDER:    g_App.MoveBackward(); break;
++    case IDM_OPEN_FORWARD_FOLDER: g_App.MoveForward(); break;
+     case IDM_OPEN_ROOT_FOLDER:    g_App.OpenRootFolder(); break;
+     case IDM_OPEN_PARENT_FOLDER:  g_App.OpenParentFolder(); break;
++
+     case IDM_FOLDERS_HISTORY:     g_App.FoldersHistory(); break;
+     case IDM_VIEW_FLAT_VIEW:      g_App.ChangeFlatMode(); break;
+     case IDM_VIEW_REFRESH:        g_App.RefreshView(); break;
+     case IDM_VIEW_AUTO_REFRESH:   g_App.Change_AutoRefresh_Mode(); break;
+ 
+     // case IDM_VIEW_SHOW_STREAMS:     g_App.Change_ShowNtfsStrems_Mode(); break;
+diff --git a/CPP/7zip/UI/FileManager/resource.h b/CPP/7zip/UI/FileManager/resource.h
+index 50735d89..c1940bd7 100644
+--- a/CPP/7zip/UI/FileManager/resource.h
++++ b/CPP/7zip/UI/FileManager/resource.h
+@@ -84,19 +84,22 @@
+ #define IDM_VIEW_DETAILS         703
+ 
+ #define IDM_VIEW_ARANGE_BY_NAME  710
+ #define IDM_VIEW_ARANGE_BY_TYPE  711
+ #define IDM_VIEW_ARANGE_BY_DATE  712
+ #define IDM_VIEW_ARANGE_BY_SIZE  713
++#define IDM_VIEW_ARANGE_NO_SORT  714
++
++#define IDM_OPEN_BACK_FOLDER     720
++#define IDM_OPEN_FORWARD_FOLDER  721
++#define IDM_OPEN_PARENT_FOLDER   722
++#define IDM_OPEN_ROOT_FOLDER     723
+ 
+-#define IDM_VIEW_ARANGE_NO_SORT  730
+ #define IDM_VIEW_FLAT_VIEW       731
+ #define IDM_VIEW_TWO_PANELS      732
+ #define IDM_VIEW_TOOLBARS        733
+-#define IDM_OPEN_ROOT_FOLDER     734
+-#define IDM_OPEN_PARENT_FOLDER   735
+ #define IDM_FOLDERS_HISTORY      736
+ #define IDM_VIEW_REFRESH         737
+ #define IDM_VIEW_AUTO_REFRESH    738
+ // #define IDM_VIEW_SHOW_DELETED    739
+ // #define IDM_VIEW_SHOW_STREAMS    740
+ 
+diff --git a/CPP/7zip/UI/FileManager/resource.rc b/CPP/7zip/UI/FileManager/resource.rc
+index 06ff79d0..01144d1a 100644
+--- a/CPP/7zip/UI/FileManager/resource.rc
++++ b/CPP/7zip/UI/FileManager/resource.rc
+@@ -96,12 +96,18 @@ BEGIN
+     MENUITEM "Name\tCtrl+F3",               IDM_VIEW_ARANGE_BY_NAME
+     MENUITEM "Type\tCtrl+F4",               IDM_VIEW_ARANGE_BY_TYPE
+     MENUITEM "Date\tCtrl+F5",               IDM_VIEW_ARANGE_BY_DATE
+     MENUITEM "Size\tCtrl+F6",               IDM_VIEW_ARANGE_BY_SIZE
+     MENUITEM "Unsorted\tCtrl+F7",           IDM_VIEW_ARANGE_NO_SORT
+     MY_MENUITEM_SEPARATOR
++    // consider to create a dedicated "GoTo" menu... or remove
++    MENUITEM "Back",                        IDM_OPEN_BACK_FOLDER
++    MENUITEM "Forward",                     IDM_OPEN_FORWARD_FOLDER
++    MENUITEM "Up One Level\tBackspace",     IDM_OPEN_PARENT_FOLDER
++    MENUITEM "Open Root Folder\t\\",        IDM_OPEN_ROOT_FOLDER
++    MY_MENUITEM_SEPARATOR
+     MENUITEM "Flat View",                   IDM_VIEW_FLAT_VIEW
+     MENUITEM "&2 Panels\tF9",               IDM_VIEW_TWO_PANELS
+ 
+     POPUP "2017" MY_MENUITEM_ID(IDM_VIEW_TIME_POPUP)
+     BEGIN
+       MENUITEM "Time",                      IDM_VIEW_TIME
+@@ -112,14 +118,12 @@ BEGIN
+       MENUITEM "Archive Toolbar",           IDM_VIEW_ARCHIVE_TOOLBAR
+       MENUITEM "Standard Toolbar",          IDM_VIEW_STANDARD_TOOLBAR
+       MY_MENUITEM_SEPARATOR
+       MENUITEM "Large Buttons",             IDM_VIEW_TOOLBARS_LARGE_BUTTONS
+       MENUITEM "Show Buttons Text",         IDM_VIEW_TOOLBARS_SHOW_BUTTONS_TEXT
+     END
+-    MENUITEM "Open Root Folder\t\\",        IDM_OPEN_ROOT_FOLDER
+-    MENUITEM "Up One Level\tBackspace",     IDM_OPEN_PARENT_FOLDER
+     MENUITEM "Folders History...\tAlt+F12", IDM_FOLDERS_HISTORY
+     MENUITEM "&Refresh\tCtrl+R",            IDM_VIEW_REFRESH
+     MENUITEM "Auto Refresh",                IDM_VIEW_AUTO_REFRESH
+ 
+     // MENUITEM "Show NTFS streams",           IDM_VIEW_SHOW_STREAMS
+     // MENUITEM "Show deleted files",          IDM_VIEW_SHOW_DELETED
+-- 
+2.41.0.windows.1
+

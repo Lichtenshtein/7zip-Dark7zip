@@ -1,0 +1,611 @@
+From 42d5ebde17c39e4447210e84ea4f6ede601bf707 Mon Sep 17 00:00:00 2001
+From: ozone10 <positronix10@gmail.com>
+Date: Sat, 3 May 2025 14:57:42 +0200
+Subject: [PATCH] Add feature to change rounded corner preference and border
+ color on Windows 11
+
+---
+ CPP/7zip/UI/FileManager/App.cpp      |   4 +-
+ CPP/Windows/Control/Dialog.cpp       |   4 +-
+ CPP/Windows/Control/PropertyPage.cpp |   2 +-
+ DarkMode/7zDark.ini                  |   8 +-
+ DarkMode/DarkMode.cpp                |  17 +-
+ DarkMode/DarkMode.h                  |   2 +
+ DarkMode/DarkModeSubclass.cpp        | 222 ++++++++++++++++++---------
+ DarkMode/DarkModeSubclass.h          |  19 +++
+ DarkMode/Version.h                   |  22 ++-
+ README.md                            |  17 +-
+ 10 files changed, 226 insertions(+), 91 deletions(-)
+
+diff --git a/CPP/7zip/UI/FileManager/App.cpp b/CPP/7zip/UI/FileManager/App.cpp
+index 455f2a7ff..c8824002e 100644
+--- a/CPP/7zip/UI/FileManager/App.cpp
++++ b/CPP/7zip/UI/FileManager/App.cpp
+@@ -287,7 +287,7 @@ HRESULT CApp::Create(HWND hwnd, const UString &mainPath, const UString &arcForma
+ {
+   _window.Attach(hwnd);
+ 
+-  DarkMode::initDarkMode();
++  DarkMode::initDarkMode(L"7zDark");
+ 
+   #ifdef UNDER_CE
+   _commandBar.Create(g_hInstance, hwnd, 1);
+@@ -355,7 +355,7 @@ HRESULT CApp::Create(HWND hwnd, const UString &mainPath, const UString &arcForma
+     }
+   }
+ 
+-  DarkMode::setDarkTitleBar(hwnd);
++  DarkMode::setDarkTitleBarEx(hwnd, true);
+   DarkMode::autoSubclassWindowMenuBar(hwnd);
+   DarkMode::autoSubclassCtlColor(hwnd);
+   DarkMode::autoSubclassNotifyCustomDraw(hwnd, true);
+diff --git a/CPP/Windows/Control/Dialog.cpp b/CPP/Windows/Control/Dialog.cpp
+index 23a33043a..7659ef053 100644
+--- a/CPP/Windows/Control/Dialog.cpp
++++ b/CPP/Windows/Control/Dialog.cpp
+@@ -38,8 +38,8 @@ DialogProcedure(HWND dialogHWND, UINT message, WPARAM wParam, LPARAM lParam)
+   if (message == WM_INITDIALOG)
+     {
+       dialog->Attach(dialogHWND);
+-      DarkMode::initDarkMode();
+-      DarkMode::setDarkTitleBar(*dialog);
++      DarkMode::initDarkMode(L"7zDark");
++      DarkMode::setDarkTitleBarEx(*dialog, true);
+       DarkMode::autoSubclassCtlColor(*dialog);
+       DarkMode::autoSubclassNotifyCustomDraw(*dialog, true);
+     }
+diff --git a/CPP/Windows/Control/PropertyPage.cpp b/CPP/Windows/Control/PropertyPage.cpp
+index 893ea11c1..696976cec 100644
+--- a/CPP/Windows/Control/PropertyPage.cpp
++++ b/CPP/Windows/Control/PropertyPage.cpp
+@@ -35,7 +35,7 @@ APIENTRY MyProperyPageProcedure(HWND dialogHWND, UINT message, WPARAM wParam, LP
+   if (message == WM_INITDIALOG)
+     {
+       dialog->Attach(dialogHWND);
+-      DarkMode::setDarkTitleBar(::GetParent(*dialog));
++      DarkMode::setDarkTitleBarEx(::GetParent(*dialog), true);
+       DarkMode::autoSubclassCtlColor(::GetParent(*dialog));
+       DarkMode::autoSubclassNotifyCustomDraw(::GetParent(*dialog), true);
+       DarkMode::autoSubclassNotifyCustomDraw(*dialog, true);
+diff --git a/DarkMode/7zDark.ini b/DarkMode/7zDark.ini
+index 235fa4c2e..bfe044e2d 100644
+--- a/DarkMode/7zDark.ini
++++ b/DarkMode/7zDark.ini
+@@ -3,11 +3,13 @@ mode = 1
+ 
+ [dark]
+ tone = 0
++roundCorner = 0
++borderColor = "FFFFFF"
+ mica = 0
+ 
+ [dark.colors]
+ background =            "202020"
+-backgroundInteractive = "404040"
++backgroundCtrl =        "404040"
+ backgroundHot =         "404040"
+ backgroundDlg =         "202020"
+ text =                  "E0E0E0"
+@@ -27,11 +29,13 @@ textHeader =            "C0C0C0"
+ edgeHeader =            "646464"
+ 
+ [light]
++roundCorner = 0
++borderColor = "FFFFFF"
+ mica = 0
+ 
+ [light.colors]
+ background =            "F0F0F0"
+-backgroundInteractive = "FFFFFF"
++backgroundCtrl =        "FFFFFF"
+ backgroundHot =         "C0DCF3"
+ backgroundDlg =         "F0F0F0"
+ text =                  "000000"
+diff --git a/DarkMode/DarkMode.cpp b/DarkMode/DarkMode.cpp
+index b08a2eebb..cfe562c07 100644
+--- a/DarkMode/DarkMode.cpp
++++ b/DarkMode/DarkMode.cpp
+@@ -3,19 +3,28 @@
+ #ifndef WIN32_LEAN_AND_MEAN
+ #define WIN32_LEAN_AND_MEAN
+ #endif
+-
+-#include <windows.h>
++#ifndef NOMINMAX
++#define NOMINMAX
++#endif
+ 
+ #include "DarkMode.h"
+ 
+-#include "IatHook.h"
+-
+ #include <uxtheme.h>
+ #include <vssym32.h>
+ 
+ #include <unordered_set>
+ #include <mutex>
+ 
++#if !defined(_DARKMODELIB_EXTERNAL_IATHOOK)
++#include "IatHook.h"
++#else
++extern PIMAGE_THUNK_DATA FindAddressByName(void* moduleBase, PIMAGE_THUNK_DATA impName, PIMAGE_THUNK_DATA impAddr, const char* funcName);
++extern PIMAGE_THUNK_DATA FindAddressByOrdinal(void* moduleBase, PIMAGE_THUNK_DATA impName, PIMAGE_THUNK_DATA impAddr, uint16_t ordinal);
++extern PIMAGE_THUNK_DATA FindIatThunkInModule(void* moduleBase, const char* dllName, const char* funcName);
++extern PIMAGE_THUNK_DATA FindDelayLoadThunkInModule(void* moduleBase, const char* dllName, const char* funcName);
++extern PIMAGE_THUNK_DATA FindDelayLoadThunkInModule(void* moduleBase, const char* dllName, uint16_t ordinal);
++#endif
++
+ #if defined(__GNUC__) && (__GNUC__ > 8)
+ #define WINAPI_LAMBDA_RETURN(return_t) -> return_t WINAPI
+ #elif defined(__GNUC__)
+diff --git a/DarkMode/DarkMode.h b/DarkMode/DarkMode.h
+index 38d6b9801..034092a60 100644
+--- a/DarkMode/DarkMode.h
++++ b/DarkMode/DarkMode.h
+@@ -1,5 +1,7 @@
+ #pragma once
+ 
++#include <windows.h>
++
+ extern bool g_darkModeSupported;
+ extern bool g_darkModeEnabled;
+ 
+diff --git a/DarkMode/DarkModeSubclass.cpp b/DarkMode/DarkModeSubclass.cpp
+index 5c8d6e467..9dd1d22bf 100644
+--- a/DarkMode/DarkModeSubclass.cpp
++++ b/DarkMode/DarkModeSubclass.cpp
+@@ -18,6 +18,7 @@
+ // with modification from Notepad++ team.
+ // Heavily modified by ozone10 (contributor of Notepad++)
+ 
++
+ #include "StdAfx.h"
+ 
+ #ifndef WIN32_LEAN_AND_MEAN
+@@ -29,20 +30,23 @@
+ 
+ #include "DarkModeSubclass.h"
+ 
+-#include "DarkMode.h"
+-#include "UAHMenuBar.h"
++#if !defined(_DARKMODELIB_NOT_USED)
+ 
+ #include <dwmapi.h>
++#include <shlwapi.h>
+ #include <uxtheme.h>
+ #include <vssym32.h>
+ #include <windowsx.h>
+ 
+-#include <shlwapi.h>
+-
+ #include <array>
+ #include <cmath>
+ #include <string>
+ 
++#include "DarkMode.h"
++#include "UAHMenuBar.h"
++
++#include "Version.h"
++
+ #ifdef __GNUC__
+ #define WINAPI_LAMBDA WINAPI
+ #ifndef DWMWA_USE_IMMERSIVE_DARK_MODE
+@@ -76,8 +80,6 @@ constexpr int CP_DROPDOWNITEM = 9; // for some reason mingw use only enum up to
+ #pragma comment(lib, "Gdi32.lib")
+ #endif
+ 
+-static constexpr const wchar_t* g_iniName = L"7zDark";
+-
+ static constexpr COLORREF HEXRGB(DWORD rrggbb) {
+ 	// from 0xRRGGBB like natural #RRGGBB
+ 	// to the little-endian 0xBBGGRR
+@@ -100,6 +102,7 @@ static bool cmpWndClassName(HWND hWnd, const wchar_t* classNameToCmp)
+ 	return (getWndClassName(hWnd) == classNameToCmp);
+ }
+ 
++#if !defined(_DARKMODELIB_NO_INI_CONFIG)
+ static std::wstring getIniPath(std::wstring iniFilename)
+ {
+ 	wchar_t buffer[MAX_PATH]{};
+@@ -160,9 +163,24 @@ static bool setClrFromIni(std::wstring sectionName, std::wstring keyName, std::w
+ 	*clr = clrTmp;
+ 	return true;
+ }
++#endif // !defined(_DARKMODELIB_NO_INI_CONFIG)
+ 
+ namespace DarkMode
+ {
++	int* getDarkModeLibVersion()
++	{
++		std::array<int, 4> version{ DM_VERSION_MAJOR, DM_VERSION_MINOR, DM_VERSION_REVISION, DM_VERSION_BUILD };
++		return version.data();
++	}
++
++	enum class DarkModeType
++	{
++		light   = 0,
++		dark    = 1,
++		windows = 2, // never used
++		classic = 3
++	};
++
+ 	enum class SubclassID : UINT_PTR
+ 	{
+ 		button          = 42,
+@@ -702,86 +720,117 @@ namespace DarkMode
+ 
+ 	static TreeViewStyle g_treeViewStyle = TreeViewStyle::classic;
+ 
+-	static bool g_useDarkMode = true;
++	static DarkModeType g_dmType = DarkModeType::dark;
+ 	static bool g_enableWindowsMode = false;
+ 
+ 	static auto g_mica = DWMSBT_AUTO;
+ 	static bool g_micaExtend = false;
+ 
++	static auto g_roundCorner = DWMWCP_DEFAULT;
++	static COLORREF g_borderColor = DWMWA_COLOR_DEFAULT;
++
+ 	static bool g_isInit = false;
+ 	static bool g_isInitExperimental = false;
+ 
+-	static void initOptions()
++	void setDarkModeTypeConfig(int dmType)
+ 	{
+-		std::wstring iniPath = getIniPath(g_iniName);
+-		if (fileExists(iniPath))
++		switch (dmType)
+ 		{
+-			switch (::GetPrivateProfileInt(L"main", L"mode", 1, iniPath.c_str()))
++			case 0:
+ 			{
+-				case 0:
+-				{
+-					g_useDarkMode = false;
+-					g_enableWindowsMode = false;
+-					break;
+-				}
+-
+-				case 2:
+-				{
+-					g_useDarkMode = DarkMode::isDarkModeReg();
+-					g_enableWindowsMode = true;
+-					break;
+-				}
++				g_dmType = DarkModeType::light;
++				g_enableWindowsMode = false;
++				break;
++			}
+ 
+-				case 1:
+-				default:
+-				{
+-					g_useDarkMode = true;
+-					g_enableWindowsMode = false;
+-					break;
+-				}
++			case 2:
++			{
++				g_dmType = DarkMode::isDarkModeReg() ? DarkModeType::dark : DarkModeType::light;
++				g_enableWindowsMode = true;
++				break;
+ 			}
+ 
+-			std::wstring sectionBase = g_useDarkMode ? L"dark" : L"light";
+-			std::wstring sectionColorsView = sectionBase + L".colors.view";
+-			std::wstring sectionColors = sectionBase + L".colors";
++			case 3:
++			{
++				g_dmType = DarkModeType::classic;
++				g_enableWindowsMode = false;
++				break;
++			}
+ 
+-			switch (::GetPrivateProfileInt(sectionBase.c_str(), L"mica", 0, iniPath.c_str()))
++			case 1:
++			default:
+ 			{
+-				case 1:
+-				{
+-					g_mica = DWMSBT_NONE;
+-					break;
+-				}
++				g_dmType = DarkModeType::dark;
++				g_enableWindowsMode = false;
++				break;
++			}
++		}
++	}
+ 
+-				case 2:
+-				{
+-					g_mica = DWMSBT_MAINWINDOW;
+-					break;
+-				}
++	void setRoundCornerConfig(int roundCornerStyle)
++	{
++		const auto cornerStyle = static_cast<DWM_WINDOW_CORNER_PREFERENCE>(roundCornerStyle);
++		if (cornerStyle > DWMWCP_ROUNDSMALL || cornerStyle < DWMWCP_DEFAULT)
++			g_roundCorner = DWMWCP_DEFAULT;
++		g_roundCorner = cornerStyle;
++	}
+ 
+-				case 3:
+-				{
+-					g_mica = DWMSBT_TRANSIENTWINDOW;
+-					break;
+-				}
++	void setBorderColorConfig(COLORREF clr)
++	{
++		if (clr == 0xFFFFFF)
++			g_borderColor = DWMWA_COLOR_DEFAULT;
++		else
++			g_borderColor = clr;
++	}
+ 
+-				case 4:
+-				{
+-					g_mica = DWMSBT_TABBEDWINDOW;
+-					break;
+-				}
++	void setMicaConfig(int mica)
++	{
++		const auto micaType = static_cast<DWM_SYSTEMBACKDROP_TYPE>(mica);
++		if (micaType > DWMSBT_TABBEDWINDOW || micaType < DWMSBT_AUTO)
++			g_mica = DWMSBT_AUTO;
++		g_mica = micaType;
++	}
+ 
+-				default:
+-				{
+-					g_mica = DWMSBT_AUTO;
+-					break;
+-				}
+-			}
++	void setMicaExtendedConfig(bool extendMica)
++	{
++		g_micaExtend = extendMica;
++	}
++
++#if !defined(_DARKMODELIB_NO_INI_CONFIG)
++	static std::wstring g_iniName = L"";
++
++	static void initOptions(std::wstring iniName = L"")
++	{
++		if (!iniName.empty() && iniName != L"")
++		{
++			g_iniName = iniName;
++		}
++
++		if (g_iniName.empty() || g_iniName == L"")
++		{
++			return;
++		}
+ 
+-			if (g_useDarkMode)
++		std::wstring iniPath = getIniPath(g_iniName);
++		if (fileExists(iniPath))
++		{
++			DarkMode::setDarkModeTypeConfig(::GetPrivateProfileInt(L"main", L"mode", 1, iniPath.c_str()));
++			const bool useDark = g_dmType == DarkModeType::dark;
++
++			std::wstring sectionBase = useDark ? L"dark" : L"light";
++			std::wstring sectionColorsView = sectionBase + L".colors.view";
++			std::wstring sectionColors = sectionBase + L".colors";
++
++			DarkMode::setMicaConfig(::GetPrivateProfileInt(sectionBase.c_str(), L"mica", 0, iniPath.c_str()));
++			DarkMode::setRoundCornerConfig(::GetPrivateProfileInt(sectionBase.c_str(), L"roundCorner", 0, iniPath.c_str()));
++			setClrFromIni(sectionBase, L"borderColor", iniPath, &g_borderColor);
++			if (g_borderColor == 0xFFFFFF)
++				g_borderColor = DWMWA_COLOR_DEFAULT;
++
++			if (useDark)
+ 			{
+ 				int tone = ::GetPrivateProfileInt(sectionBase.c_str(), L"tone", 0, iniPath.c_str());
+-				if (tone > 6)
++				if (tone > 6 || tone < 0)
+ 					tone = 0;
+ 
+ 				DarkMode::setDarkCustomColors(static_cast<DarkMode::ColorTone>(tone));
+@@ -809,7 +858,7 @@ namespace DarkMode
+ 			setClrFromIni(sectionColorsView, L"edgeHeader", iniPath, &DarkMode::getThemeView()._clrView.headerEdge);
+ 
+ 			setClrFromIni(sectionColors, L"background", iniPath, &DarkMode::getTheme()._colors.background);
+-			setClrFromIni(sectionColors, L"backgroundInteractive", iniPath, &DarkMode::getTheme()._colors.ctrlBackground);
++			setClrFromIni(sectionColors, L"backgroundCtrl", iniPath, &DarkMode::getTheme()._colors.ctrlBackground);
+ 			setClrFromIni(sectionColors, L"backgroundHot", iniPath, &DarkMode::getTheme()._colors.hotBackground);
+ 			setClrFromIni(sectionColors, L"backgroundDlg", iniPath, &DarkMode::getTheme()._colors.dlgBackground);
+ 			setClrFromIni(sectionColors, L"backgroundError", iniPath, &DarkMode::getTheme()._colors.errorBackground);
+@@ -827,6 +876,7 @@ namespace DarkMode
+ 			DarkMode::updateBrushesAndPensView();
+ 		}
+ 	}
++#endif // !defined(_DARKMODELIB_NO_INI_CONFIG)
+ 
+ 	static void initExperimentalDarkMode()
+ 	{
+@@ -848,7 +898,7 @@ namespace DarkMode
+ 		::RefreshTitleBarThemeColor(hWnd);
+ 	}
+ 
+-	void initDarkMode()
++	void initDarkMode([[maybe_unused]] const wchar_t* iniName)
+ 	{
+ 		if (!g_isInit)
+ 		{
+@@ -858,10 +908,12 @@ namespace DarkMode
+ 				g_isInitExperimental = true;
+ 			}
+ 
+-			DarkMode::initOptions();
++#if !defined(_DARKMODELIB_NO_INI_CONFIG)
++			DarkMode::initOptions(iniName);
++#endif
+ 
+ 			DarkMode::calculateTreeViewStyle();
+-			DarkMode::setDarkMode(g_useDarkMode, true);
++			DarkMode::setDarkMode(g_dmType == DarkModeType::dark, true);
+ 
+ 			DarkMode::setSysColor(COLOR_WINDOW, DarkMode::getBackgroundColor());
+ 			DarkMode::setSysColor(COLOR_WINDOWTEXT, DarkMode::getTextColor());
+@@ -871,9 +923,14 @@ namespace DarkMode
+ 		}
+ 	}
+ 
++	void initDarkMode()
++	{
++		DarkMode::initDarkMode(L"");
++	}
++
+ 	bool isEnabled()
+ 	{
+-		return DarkMode::isWindows10();
++		return DarkMode::isWindows10() && g_dmType != DarkModeType::classic;
+ 	}
+ 
+ 	bool isExperimentalActive()
+@@ -4834,7 +4891,7 @@ namespace DarkMode
+ 			{
+ 				if (DarkMode::handleSettingChange(lParam))
+ 				{
+-					DarkMode::setDarkTitleBar(hWnd);
++					DarkMode::setDarkTitleBarEx(hWnd, true);
+ 					DarkMode::autoThemeChildControls(hWnd);
+ 					::RedrawWindow(hWnd, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_UPDATENOW);
+ 				}
+@@ -4852,7 +4909,7 @@ namespace DarkMode
+ 		}
+ 	}
+ 
+-	void setDarkTitleBar(HWND hWnd)
++	void setDarkTitleBarEx(HWND hWnd, bool win11Features)
+ 	{
+ 		constexpr DWORD win10Build2004 = 19041;
+ 		constexpr DWORD win11Mica = 22621;
+@@ -4861,15 +4918,21 @@ namespace DarkMode
+ 			BOOL value = DarkMode::isExperimentalActive() ? TRUE : FALSE;
+ 			::DwmSetWindowAttribute(hWnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &value, sizeof(value));
+ 
+-			if (DarkMode::getWindowsBuildNumber() >= win11Mica)
++			if (win11Features && DarkMode::isWindows11())
+ 			{
+-				if (g_micaExtend && g_mica != DWMSBT_AUTO && !g_enableWindowsMode && g_useDarkMode)
++				::DwmSetWindowAttribute(hWnd, DWMWA_WINDOW_CORNER_PREFERENCE, &g_roundCorner, sizeof(g_roundCorner));
++				::DwmSetWindowAttribute(hWnd, DWMWA_BORDER_COLOR, &g_borderColor, sizeof(g_borderColor));
++
++				if (DarkMode::getWindowsBuildNumber() >= win11Mica)
+ 				{
+-					constexpr MARGINS margins{ -1, 0, 0, 0 };
+-					::DwmExtendFrameIntoClientArea(hWnd, &margins);
+-				}
++					if (g_micaExtend && g_mica != DWMSBT_AUTO && !g_enableWindowsMode && (g_dmType == DarkModeType::dark))
++					{
++						constexpr MARGINS margins{ -1, 0, 0, 0 };
++						::DwmExtendFrameIntoClientArea(hWnd, &margins);
++					}
+ 
+-				::DwmSetWindowAttribute(hWnd, DWMWA_SYSTEMBACKDROP_TYPE, &g_mica, sizeof(g_mica));
++					::DwmSetWindowAttribute(hWnd, DWMWA_SYSTEMBACKDROP_TYPE, &g_mica, sizeof(g_mica));
++				}
+ 			}
+ 		}
+ 		else
+@@ -4879,6 +4942,11 @@ namespace DarkMode
+ 		}
+ 	}
+ 
++	void setDarkTitleBar(HWND hWnd)
++	{
++		DarkMode::setDarkTitleBarEx(hWnd, false);
++	}
++
+ 	void setDarkExplorerTheme(HWND hWnd)
+ 	{
+ 		::SetWindowTheme(hWnd, DarkMode::isExperimentalActive() ? L"DarkMode_Explorer" : nullptr, nullptr);
+@@ -5208,3 +5276,5 @@ namespace DarkMode
+ 		return DarkMode::onCtlColor(hdc);
+ 	}
+ }
++
++#endif // !defined(_DARKMODELIB_NOT_USED)
+diff --git a/DarkMode/DarkModeSubclass.h b/DarkMode/DarkModeSubclass.h
+index 2c7abcf50..d0e393203 100644
+--- a/DarkMode/DarkModeSubclass.h
++++ b/DarkMode/DarkModeSubclass.h
+@@ -17,10 +17,12 @@
+ // with modification from Notepad++ team.
+ // Heavily modified by ozone10 (contributor of Notepad++)
+ 
++
+ #pragma once
+ 
+ #include <windows.h>
+ 
++#if (NTDDI_VERSION >= NTDDI_VISTA)
+ 
+ namespace DarkMode
+ {
+@@ -79,6 +81,18 @@ namespace DarkMode
+ 		dark    = 2
+ 	};
+ 
++	int* getDarkModeLibVersion();
++
++	// enum DarkModeType { light = 0, dark = 1, windows = 2, classic = 3 }; values
++	void setDarkModeTypeConfig(int dmType);
++	// DWM_WINDOW_CORNER_PREFERENCE values
++	void setRoundCornerConfig(int roundCornerStyle);
++	void setBorderColorConfig(COLORREF clr);
++	// DWM_SYSTEMBACKDROP_TYPE values
++	void setMicaConfig(int mica);
++	void setMicaExtendedConfig(bool extendMica);
++
++	void initDarkMode(const wchar_t* iniName);
+ 	void initDarkMode();
+ 
+ 	bool isEnabled();
+@@ -204,6 +218,7 @@ namespace DarkMode
+ 	void autoSubclassWindowMenuBar(HWND hWnd);
+ 	void autoSubclassWindowSettingChange(HWND hWnd);
+ 
++	void setDarkTitleBarEx(HWND hWnd, bool win11Features);
+ 	void setDarkTitleBar(HWND hWnd);
+ 	void setDarkExplorerTheme(HWND hWnd);
+ 	void setDarkScrollBar(HWND hWnd);
+@@ -229,3 +244,7 @@ namespace DarkMode
+ 	LRESULT onCtlColorDlgLinkText(HDC hdc, bool isTextEnabled = true);
+ 	LRESULT onCtlColorListbox(WPARAM wParam, LPARAM lParam);
+ }
++
++#else
++#define _DARKMODELIB_NOT_USED
++#endif // (NTDDI_VERSION >= NTDDI_VISTA)
+diff --git a/DarkMode/Version.h b/DarkMode/Version.h
+index 0cc63b5a3..827ca293a 100644
+--- a/DarkMode/Version.h
++++ b/DarkMode/Version.h
+@@ -1,2 +1,22 @@
+-#define DM_VERSION "Dark mode v0.4.4.0"
++// Copyright (C)2024-2025 ozone10
++
++// This program is free software: you can redistribute it and/or modify
++// it under the terms of the GNU General Public License as published by
++// the Free Software Foundation, either version 3 of the License, or
++// at your option any later version.
++//
++// This program is distributed in the hope that it will be useful,
++// but WITHOUT ANY WARRANTY; without even the implied warranty of
++// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
++// GNU General Public License for more details.
++//
++// You should have received a copy of the GNU General Public License
++// along with this program. If not, see <https://www.gnu.org/licenses/>.
++
++
++#define DM_VERSION_MAJOR    0
++#define DM_VERSION_MINOR    6
++#define DM_VERSION_REVISION 0
++#define DM_VERSION_BUILD    0
++#define DM_VERSION "Dark mode v0.6.0.0"
+ #define DM_COPYRIGHT "Copyright (c) 2024-2025 ozone10"
+

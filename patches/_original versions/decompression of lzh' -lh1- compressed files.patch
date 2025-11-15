@@ -1,0 +1,520 @@
+Index: CPP/7zip/7zip_gcc.mak
+===================================================================
+--- CPP/7zip/7zip_gcc.mak	(revision 267)
++++ CPP/7zip/7zip_gcc.mak	(working copy)
+@@ -636,6 +636,10 @@
+ 	$(CXX) $(CXXFLAGS) $<
+ $O/LzhDecoder.o: ../../Compress/LzhDecoder.cpp
+ 	$(CXX) $(CXXFLAGS) $<
++$O/Lzh1Decoder.o: ../../Compress/Lzh1Decoder.cpp
++	$(CXX) $(CXXFLAGS) $<
++$O/Lzh1Decoder.o: ../../Compress/Lzh1Decoder.cpp
++	$(CXX) $(CXXFLAGS) $<
+ $O/Lzma2Decoder.o: ../../Compress/Lzma2Decoder.cpp
+ 	$(CXX) $(CXXFLAGS) $<
+ $O/Lzma2Encoder.o: ../../Compress/Lzma2Encoder.cpp
+Index: CPP/7zip/Archive/LzhHandler.cpp
+===================================================================
+--- CPP/7zip/Archive/LzhHandler.cpp	(revision 267)
++++ CPP/7zip/Archive/LzhHandler.cpp	(working copy)
+@@ -21,6 +21,7 @@
+ 
+ #include "../Compress/CopyCoder.h"
+ #include "../Compress/LzhDecoder.h"
++#include "../Compress/Lzh1Decoder.h"
+ 
+ #include "IArchive.h"
+ 
+@@ -627,8 +628,9 @@
+   UInt64 currentItemUnPacked, currentItemPacked;
+   
+   NCompress::NLzh::NDecoder::CCoder *lzhDecoderSpec = 0;
++  NCompress::NLzh1::NDecoder::CCoder *lzh1DecoderSpec = 0;
+   CMyComPtr<ICompressCoder> lzhDecoder;
+-  // CMyComPtr<ICompressCoder> lzh1Decoder;
++  CMyComPtr<ICompressCoder> lzh1Decoder;
+   // CMyComPtr<ICompressCoder> arj2Decoder;
+ 
+   NCompress::CCopyCoder *copyCoderSpec = new NCompress::CCopyCoder();
+@@ -710,7 +712,6 @@
+         if (res == S_OK && lzhDecoderSpec->GetInputProcessedSize() != item.PackSize)
+           res = S_FALSE;
+       }
+-      /*
+       else if (item.IsLh1GroupMethod())
+       {
+         if (!lzh1Decoder)
+@@ -718,10 +719,8 @@
+           lzh1DecoderSpec = new NCompress::NLzh1::NDecoder::CCoder;
+           lzh1Decoder = lzh1DecoderSpec;
+         }
+-        lzh1DecoderSpec->SetDictionary(item.GetNumDictBits());
+         res = lzh1Decoder->Code(inStream, outStream, NULL, &currentItemUnPacked, progress);
+       }
+-      */
+       else
+         opRes = NExtract::NOperationResult::kUnsupportedMethod;
+ 
+Index: CPP/7zip/Bundles/Format7zF/Arc.mak
+===================================================================
+--- CPP/7zip/Bundles/Format7zF/Arc.mak	(revision 267)
++++ CPP/7zip/Bundles/Format7zF/Arc.mak	(working copy)
+@@ -202,6 +202,7 @@
+   $O\ImplodeDecoder.obj \
+   $O\LzfseDecoder.obj \
+   $O\LzhDecoder.obj \
++  $O\Lzh1Decoder.obj \
+   $O\Lzma2Decoder.obj \
+   $O\Lzma2Encoder.obj \
+   $O\Lzma2Register.obj \
+Index: CPP/7zip/Bundles/Format7zF/Arc_gcc.mak
+===================================================================
+--- CPP/7zip/Bundles/Format7zF/Arc_gcc.mak	(revision 267)
++++ CPP/7zip/Bundles/Format7zF/Arc_gcc.mak	(working copy)
+@@ -231,6 +231,7 @@
+   $O/ImplodeDecoder.o \
+   $O/LzfseDecoder.o \
+   $O/LzhDecoder.o \
++  $O/Lzh1Decoder.o \
+   $O/Lzma2Decoder.o \
+   $O/Lzma2Encoder.o \
+   $O/Lzma2Register.o \
+Index: CPP/7zip/Bundles/Format7zF/Format7z.dsp
+===================================================================
+--- CPP/7zip/Bundles/Format7zF/Format7z.dsp	(revision 267)
++++ CPP/7zip/Bundles/Format7zF/Format7z.dsp	(working copy)
+@@ -999,6 +999,14 @@
+ # End Source File
+ # Begin Source File
+ 
++SOURCE=..\..\Compress\Lzh1Decoder.cpp
++# End Source File
++# Begin Source File
++
++SOURCE=..\..\Compress\Lzh1Decoder.h
++# End Source File
++# Begin Source File
++
+ SOURCE=..\..\Compress\LzmsDecoder.cpp
+ 
+ !IF  "$(CFG)" == "7z - Win32 Release"
+Index: CPP/7zip/Compress/Lzh1Decoder.cpp
+===================================================================
+--- CPP/7zip/Compress/Lzh1Decoder.cpp	(nonexistent)
++++ CPP/7zip/Compress/Lzh1Decoder.cpp	(working copy)
+@@ -0,0 +1,331 @@
++// Lzh1Decoder.cpp
++/**************************************************************
++  Based LzhDecoder.cpp from 7zip 
++  and on lzhuf.c
++	written by Haruyasu Yoshizaki 11/20/1988
++	some minor changes 4/6/1989
++	comments translated by Haruhiko Okumura 4/7/1989
++	MSX-C PROFI adaptation by MaxWolf, Aug-Sep 1992
++	            EOF bugfix 1st April 1993
++	7z adaptation by MaxWolf 4th December 2021
++
++**************************************************************/
++
++/*
++ LZHUF.C (c)1989 by Haruyasu Yoshizaki, Haruhiko Okumura, and Kenji Rikitake.
++ All rights reserved. Permission granted for non-commercial use.
++*/
++
++#include "StdAfx.h"
++
++#include "Lzh1Decoder.h"
++
++namespace NCompress{
++namespace NLzh1 {
++namespace NDecoder {
++
++typedef unsigned char uchar;
++
++/* table for encoding and decoding the upper 6 bits of position */
++
++/* for encoding */
++static uchar p_len[64] = {
++	0x03, 0x04, 0x04, 0x04, 0x05, 0x05, 0x05, 0x05,
++	0x05, 0x05, 0x05, 0x05, 0x06, 0x06, 0x06, 0x06,
++	0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06,
++	0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07,
++	0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07,
++	0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07,
++	0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08,
++	0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08
++};
++
++static uchar p_code[64] = {
++	0x00, 0x20, 0x30, 0x40, 0x50, 0x58, 0x60, 0x68,
++	0x70, 0x78, 0x80, 0x88, 0x90, 0x94, 0x98, 0x9C,
++	0xA0, 0xA4, 0xA8, 0xAC, 0xB0, 0xB4, 0xB8, 0xBC,
++	0xC0, 0xC2, 0xC4, 0xC6, 0xC8, 0xCA, 0xCC, 0xCE,
++	0xD0, 0xD2, 0xD4, 0xD6, 0xD8, 0xDA, 0xDC, 0xDE,
++	0xE0, 0xE2, 0xE4, 0xE6, 0xE8, 0xEA, 0xEC, 0xEE,
++	0xF0, 0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7,
++	0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF
++};
++
++/* for decoding */
++static uchar d_code[256] = {
++	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++	0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
++	0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
++	0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
++	0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
++	0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
++	0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
++	0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
++	0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,
++	0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06,
++	0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07,
++	0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08,
++	0x09, 0x09, 0x09, 0x09, 0x09, 0x09, 0x09, 0x09,
++	0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A,
++	0x0B, 0x0B, 0x0B, 0x0B, 0x0B, 0x0B, 0x0B, 0x0B,
++	0x0C, 0x0C, 0x0C, 0x0C, 0x0D, 0x0D, 0x0D, 0x0D,
++	0x0E, 0x0E, 0x0E, 0x0E, 0x0F, 0x0F, 0x0F, 0x0F,
++	0x10, 0x10, 0x10, 0x10, 0x11, 0x11, 0x11, 0x11,
++	0x12, 0x12, 0x12, 0x12, 0x13, 0x13, 0x13, 0x13,
++	0x14, 0x14, 0x14, 0x14, 0x15, 0x15, 0x15, 0x15,
++	0x16, 0x16, 0x16, 0x16, 0x17, 0x17, 0x17, 0x17,
++	0x18, 0x18, 0x19, 0x19, 0x1A, 0x1A, 0x1B, 0x1B,
++	0x1C, 0x1C, 0x1D, 0x1D, 0x1E, 0x1E, 0x1F, 0x1F,
++	0x20, 0x20, 0x21, 0x21, 0x22, 0x22, 0x23, 0x23,
++	0x24, 0x24, 0x25, 0x25, 0x26, 0x26, 0x27, 0x27,
++	0x28, 0x28, 0x29, 0x29, 0x2A, 0x2A, 0x2B, 0x2B,
++	0x2C, 0x2C, 0x2D, 0x2D, 0x2E, 0x2E, 0x2F, 0x2F,
++	0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37,
++	0x38, 0x39, 0x3A, 0x3B, 0x3C, 0x3D, 0x3E, 0x3F,
++};
++
++static uchar d_len[256] = {
++	0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
++	0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
++	0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
++	0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
++	0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
++	0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
++	0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
++	0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
++	0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
++	0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
++	0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,
++	0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,
++	0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,
++	0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,
++	0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,
++	0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,
++	0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,
++	0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,
++	0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06,
++	0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06,
++	0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06,
++	0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06,
++	0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06,
++	0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06,
++	0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07,
++	0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07,
++	0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07,
++	0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07,
++	0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07,
++	0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07,
++	0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08,
++	0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08,
++};
++
++
++
++void CCoder::StartHuff() {
++	int i, j;
++
++	for (i = 0; i < N_CHAR; i++) {
++		freq[i] = 1;
++		son[i] = i + T;
++		prnt[i + T] = i;
++	}
++	i = 0; j = N_CHAR;
++	while (j <= R) {
++		freq[j] = freq[i] + freq[i + 1];
++		son[j] = i;
++		prnt[i] = prnt[i + 1] = j;
++		i += 2; j++;
++	}
++	freq[T] = 0xffff;
++	prnt[R] = 0;
++}
++
++
++/* reconstruction of tree */
++
++void CCoder::reconst() {
++	int i, j, k;
++	unsigned int f, l;
++
++	/* collect leaf nodes in the first half of the table */
++	/* and replace the freq by (freq + 1) / 2. */
++	j = 0;
++	for (i = 0; i < T; i++) {
++		if (son[i] >= T) {
++			freq[j] = (freq[i] + 1) / 2;
++			son[j] = son[i];
++			j++;
++		}
++	}
++	/* begin constructing tree by connecting sons */
++	for (i = 0, j = N_CHAR; j < T; i += 2, j++) {
++		k = i + 1;
++		f = freq[j] = freq[i] + freq[k];
++		for (k = j - 1; f < freq[k]; k--);
++		k++;
++		l = (j - k) * 2;
++		memmove(&freq[k + 1], &freq[k], l);
++		freq[k] = f;
++		memmove(&son[k + 1], &son[k], l);
++		son[k] = i;
++	}
++	/* connect prnt */
++	for (i = 0; i < T; i++) {
++		if ((k = son[i]) >= T) {
++			prnt[k] = i;
++		} else {
++			prnt[k] = prnt[k + 1] = i;
++		}
++	}
++}
++
++/* increment frequency of given code by one, and update tree */
++
++void CCoder::update(int c) {
++	int i, j, l;
++	unsigned int k;
++
++	if (freq[R] == MAX_FREQ) {
++		reconst();
++	}
++	c = prnt[c + T];
++	do {
++		k = ++freq[c];
++
++		/* if the order is disturbed, exchange nodes */
++		if (k > freq[l = c + 1]) {
++			while (k > freq[++l]);
++			l--;
++			freq[c] = freq[l];
++			freq[l] = k;
++
++			i = son[c];
++			prnt[i] = l;
++			if (i < T) prnt[i + 1] = l;
++
++			j = son[l];
++			son[l] = i;
++
++			prnt[j] = c;
++			if (j < T) prnt[j + 1] = c;
++			son[c] = j;
++
++			c = l;
++		}
++	} while ((c = prnt[c]) != 0);	/* repeat up to root */
++}
++
++
++int CCoder::DecodeChar() {
++	unsigned int c;
++
++	c = son[R];
++
++	/* travel from root to leaf, */
++	/* choosing the smaller child node (son[]) if the read bit is 0, */
++	/* the bigger (son[]+1} if 1 */
++	while (c < T) {
++		c += _inBitStream.ReadBits(1);
++		c = son[c];
++	}
++	c -= T;
++	update(c);
++	return c;
++}
++
++
++int CCoder::DecodePosition() {
++	unsigned i, j, c;
++
++	/* recover upper 6 bits from table */
++	i = _inBitStream.ReadBits(8);
++	c = (unsigned)d_code[i] << 6;
++	j = d_len[i] - 2;
++
++	/* read lower 6 bits verbatim */
++	while (j--) {
++		i = (i << 1) + _inBitStream.ReadBits(1);
++	}
++	c |= (i & 0x3f);
++	return c;
++}
++
++HRESULT CCoder::CodeReal(UInt64 rem, ICompressProgressInfo *progress)
++{
++  int  i, j, k, r, c;
++  StartHuff();
++  for (i = 0; i < N - F; i++)
++  	text_buf[i] = ' ';
++  r = N - F;
++
++  while (rem != 0)
++  {
++    if (progress)
++    {
++      UInt64 packSize = _inBitStream.GetProcessedSize();
++      UInt64 pos = _outWindow.GetProcessedSize();
++      RINOK(progress->SetRatioInfo(&packSize, &pos));
++    }
++    c = DecodeChar();
++    if (c < 256) {
++    	_outWindow.PutByte((Byte)c);
++    	rem--;
++    	text_buf[r++] = (char)c;
++    	r &= (N - 1);
++    } else {
++    	i = (r - DecodePosition() - 1) & (N - 1);
++    	j = c - 255 + THRESHOLD;
++    	for (k = 0; k < j; k++) {
++    		c = text_buf[(i + k) & (N - 1)];
++    		_outWindow.PutByte((Byte)c);
++    		rem--;
++    		text_buf[r++] = (char)c;
++    		r &= (N - 1);
++    	}
++    }
++  }
++
++  if (_inBitStream.ReadAlignBits() != 0)
++    return S_FALSE;
++
++  if (_inBitStream.ExtraBitsWereRead())
++    return S_FALSE;
++
++  return S_OK;
++}
++
++
++STDMETHODIMP CCoder::Code(ISequentialInStream *inStream, ISequentialOutStream *outStream,
++    const UInt64 * /* inSize */, const UInt64 *outSize, ICompressProgressInfo *progress)
++{
++  try
++  {
++    if (!outSize)
++      return E_INVALIDARG;
++    
++    if (!_outWindow.Create(2 * N))
++      return E_OUTOFMEMORY;
++    if (!_inBitStream.Create(1 << 17))
++      return E_OUTOFMEMORY;
++    
++    _outWindow.SetStream(outStream);
++    _outWindow.Init(false);
++    _inBitStream.SetStream(inStream);
++    _inBitStream.Init();
++    
++    CCoderReleaser coderReleaser(this);
++    
++    RINOK(CodeReal(*outSize, progress));
++
++    coderReleaser.Disable();
++    return _outWindow.Flush();
++  }
++  catch(const CInBufferException &e) { return e.ErrorCode; }
++  catch(const CLzOutWindowException &e) { return e.ErrorCode; }
++  catch(...) { return S_FALSE; }
++}
++
++}}}
+Index: CPP/7zip/Compress/Lzh1Decoder.h
+===================================================================
+--- CPP/7zip/Compress/Lzh1Decoder.h	(nonexistent)
++++ CPP/7zip/Compress/Lzh1Decoder.h	(working copy)
+@@ -0,0 +1,79 @@
++// Lzh1Decoder.h
++
++#ifndef __COMPRESS_LZH1_DECODER_H
++#define __COMPRESS_LZH1_DECODER_H
++
++#include "../../Common/MyCom.h"
++
++#include "../ICoder.h"
++
++#include "../Common/InBuffer.h"
++
++#include "BitmDecoder.h"
++#include "LzOutWindow.h"
++
++namespace NCompress {
++namespace NLzh1 {
++namespace NDecoder {
++
++class CCoder:
++  public ICompressCoder,
++  public CMyUnknownImp
++{
++  CLzOutWindow _outWindow;
++  NBitm::CDecoder<CInBuffer> _inBitStream;
++#define N		4096	/* buffer size */
++#define F		60	/* lookahead buffer size */
++#define THRESHOLD	2
++#define NIL		N	/* leaf of tree */
++/* Huffman coding */
++#define N_CHAR  	(256 - THRESHOLD + F)
++				/* kinds of characters (character code = 0..N_CHAR-1) */
++#define T 		(N_CHAR * 2 - 1)	/* size of table */
++#define R 		(T - 1)			/* position of root */
++#define MAX_FREQ	0x8000		/* updates tree when the */
++
++  char text_buf[N + F - 1];
++  int	matchposition, matchlength;
++  int lson[N + 1], rson[N + 257], dad[N + 1];
++  unsigned int freq[T + 1];	/* frequency table */
++  int prnt[T + N_CHAR];	/* pointers to parent nodes, except for the */
++			/* elements [T..T + N_CHAR - 1] which are used to get */
++			/* the positions of leaves corresponding to the codes. */
++  int son[T];		/* pointers to child nodes (son[], son[] + 1) */
++
++  void StartHuff();
++  void reconst();
++  void update(int c);
++  int DecodeChar();
++  int DecodePosition();
++  char Decode();
++
++
++  class CCoderReleaser
++  {
++    CCoder *_coder;
++  public:
++    CCoderReleaser(CCoder *coder): _coder(coder) {}
++    void Disable() { _coder = NULL; }
++    ~CCoderReleaser() { if (_coder) _coder->_outWindow.Flush(); }
++  };
++  friend class CCoderReleaser;
++
++
++  HRESULT CodeReal(UInt64 outSize, ICompressProgressInfo *progress);
++public:
++  MY_UNKNOWN_IMP
++
++
++  STDMETHOD(Code)(ISequentialInStream *inStream, ISequentialOutStream *outStream,
++      const UInt64 *inSize, const UInt64 *outSize, ICompressProgressInfo *progress);
++
++  CCoder() {}
++
++  UInt64 GetInputProcessedSize() const { return _inBitStream.GetProcessedSize(); }
++};
++
++}}}
++
++#endif

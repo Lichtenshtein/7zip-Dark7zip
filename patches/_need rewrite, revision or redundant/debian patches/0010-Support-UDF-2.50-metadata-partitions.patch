@@ -1,0 +1,273 @@
+From: Rom Cyncynatus <rom.cyncynatus@gmail.com>
+Date: Tue, 14 Jun 2022 10:00:00 +0300
+Subject: Support UDF 2.50 (metadata partitions)
+
+---
+ CPP/7zip/Archive/Udf/UdfIn.cpp | 97 ++++++++++++++++++++++++++----------------
+ CPP/7zip/Archive/Udf/UdfIn.h   | 12 +++---
+ 2 files changed, 67 insertions(+), 42 deletions(-)
+
+diff --git a/CPP/7zip/Archive/Udf/UdfIn.cpp b/CPP/7zip/Archive/Udf/UdfIn.cpp
+index 5d48149..c184413 100755
+--- a/CPP/7zip/Archive/Udf/UdfIn.cpp
++++ b/CPP/7zip/Archive/Udf/UdfIn.cpp
+@@ -37,6 +37,7 @@ static const unsigned kNumRefsMax = 1 << 28;
+ static const UInt32 kNumExtentsMax = (UInt32)1 << 30;
+ static const UInt64 kFileNameLengthTotalMax = (UInt64)1 << 33;
+ static const UInt64 kInlineExtentsSizeMax = (UInt64)1 << 33;
++static const char kEntityIdentifierMetadata[] = "*UDF Metadata Partition";
+ 
+ #define CRC16_INIT_VAL 0
+ // #define CRC16_GET_DIGEST(crc) (crc)
+@@ -126,14 +127,17 @@ UString CDString::GetString() const { return ParseDString(Data, (unsigned)Data.S
+ 
+ void CTime::Parse(const Byte *buf) { memcpy(Data, buf, sizeof(Data)); }
+ 
+-/*
+ void CRegId::Parse(const Byte *buf)
+ {
+   Flags = buf[0];
+   memcpy(Id, buf + 1, sizeof(Id));
+   memcpy(Suffix, buf + 24, sizeof(Suffix));
+ }
+-*/
++
++bool CRegId::Compare(const char *otherId)
++{
++  return !memcmp(otherId, Id, strlen(otherId));
++}
+ 
+ void CExtent::Parse(const Byte *buf)
+ {
+@@ -220,14 +224,20 @@ void CLongAllocDesc::Parse(const Byte *buf)
+   // adImpUse.Parse(ImplUse);
+ }
+ 
++bool CInArchive::CheckExtent(int volIndex, const CPartition &partition, UInt32 blockPos, UInt32 len) const
++{
++  const CLogVol& vol = LogVols[volIndex];
++  UInt64 offset = ((UInt64)partition.Pos << SecLogSize) + (UInt64)blockPos * vol.BlockSize;
++  return (offset + len) <= (((UInt64)partition.Pos + partition.Len) << SecLogSize);
++}
++
+ bool CInArchive::CheckExtent(int volIndex, int partitionRef, UInt32 blockPos, UInt32 len) const
+ {
+   const CLogVol &vol = LogVols[volIndex];
+   if (partitionRef >= (int)vol.PartitionMaps.Size())
+     return false;
+   const CPartition &partition = Partitions[vol.PartitionMaps[partitionRef].PartitionIndex];
+-  UInt64 offset = ((UInt64)partition.Pos << SecLogSize) + (UInt64)blockPos * vol.BlockSize;
+-  return (offset + len) <= (((UInt64)partition.Pos + partition.Len) << SecLogSize);
++  return CInArchive::CheckExtent(volIndex, partition, blockPos, len);
+ }
+ 
+ bool CInArchive::CheckItemExtents(int volIndex, const CItem &item) const
+@@ -241,12 +251,11 @@ bool CInArchive::CheckItemExtents(int volIndex, const CItem &item) const
+   return true;
+ }
+ 
+-HRESULT CInArchive::Read(int volIndex, int partitionRef, UInt32 blockPos, UInt32 len, Byte *buf)
++HRESULT CInArchive::Read(int volIndex, const CPartition& partition, UInt32 blockPos, UInt32 len, Byte *buf)
+ {
+-  if (!CheckExtent(volIndex, partitionRef, blockPos, len))
++  if (!CheckExtent(volIndex, partition, blockPos, len))
+     return S_FALSE;
+   const CLogVol &vol = LogVols[volIndex];
+-  const CPartition &partition = Partitions[vol.PartitionMaps[partitionRef].PartitionIndex];
+   UInt64 offset = ((UInt64)partition.Pos << SecLogSize) + (UInt64)blockPos * vol.BlockSize;
+   RINOK(_stream->Seek(offset, STREAM_SEEK_SET, NULL));
+   HRESULT res = ReadStream_FALSE(_stream, buf, len);
+@@ -257,6 +266,13 @@ HRESULT CInArchive::Read(int volIndex, int partitionRef, UInt32 blockPos, UInt32
+   return S_OK;
+ }
+ 
++HRESULT CInArchive::Read(int volIndex, int partitionRef, UInt32 blockPos, UInt32 len, Byte* buf)
++{
++  const CLogVol& vol = LogVols[volIndex];
++  const CPartition& partition = Partitions[vol.PartitionMaps[partitionRef].PartitionIndex];
++  return CInArchive::Read(volIndex, partition, blockPos, len, buf);
++}
++
+ HRESULT CInArchive::Read(int volIndex, const CLongAllocDesc &lad, Byte *buf)
+ {
+   return Read(volIndex, lad.Location.PartitionRef, lad.Location.Pos, lad.GetLen(), (Byte *)buf);
+@@ -305,7 +321,8 @@ HRESULT CItem::Parse(const Byte *p, const size_t size, const int curPartitionRef
+ 
+   IcbTag.Parse(p + 16);
+   if (IcbTag.FileType != ICB_FILE_TYPE_DIR &&
+-      IcbTag.FileType != ICB_FILE_TYPE_FILE)
++      IcbTag.FileType != ICB_FILE_TYPE_FILE &&
++      IcbTag.FileType != ICB_FILE_TYPE_METADATA)
+     return S_FALSE;
+ 
+   bool isExtendedFile = DescTag.Id == DESC_TYPE_ExtendedFile;
+@@ -766,20 +783,20 @@ HRESULT CInArchive::Open2()
+           /* ECMA 10.7.3 / Type 2 Partition Map
+              62 bytes: Partition Identifier. */
+ 
+-          /* UDF 2.6
+-             2.2.8 Virtual Partition Map
+-             This is an extension of ECMA 167 to expand its scope to include
+-             sequentially written media (eg. CD-R).  This extension is for a
+-             Partition Map entry to describe a virtual space.   */
+-
+-          // It's not implemented still.
+           if (Get16(buf + pos + 2) != 0)
+             return S_FALSE;
++
++          CRegId partitionTypeIdentifier;
++          partitionTypeIdentifier.Parse(buf + pos + 4);
++
++          // Currently support only UDF 2.2.10 Metadata Partition Map
++          if (!partitionTypeIdentifier.Compare(kEntityIdentifierMetadata))
++            return S_FALSE;
++
+           // pm.VolSeqNumber = Get16(buf + pos + 36);
+           pm.PartitionNumber = Get16(buf + pos + 38);
++          pm.MetadataFilePos = Get32(buf + pos + 40);
+           PRF(printf("\nPartitionMap type 2 PartitionNumber = %2d", pm.PartitionNumber));
+-          // Unsupported = true;
+-          return S_FALSE;
+         }
+         else
+           return S_FALSE;
+@@ -799,27 +816,42 @@ HRESULT CInArchive::Open2()
+     FOR_VECTOR (pmIndex, vol.PartitionMaps)
+     {
+       CPartitionMap &pm = vol.PartitionMaps[pmIndex];
+-      unsigned i;
+-      for (i = 0; i < Partitions.Size(); i++)
++      unsigned partIndex;
++      for (partIndex = 0; partIndex < Partitions.Size(); partIndex++)
+       {
+-        CPartition &part = Partitions[i];
++        CPartition &part = Partitions[partIndex];
+         if (part.Number == pm.PartitionNumber)
+         {
+-          if (part.VolIndex >= 0)
++          if (pm.Type == 1)
+           {
+-            // it's for 2.60. Fix it
+-            if (part.VolIndex != (int)volIndex)
++            pm.PartitionIndex = partIndex;
++            totalSize += (UInt64)part.Len << SecLogSize;
++          }
++          else if (pm.Type == 2)
++          {
++            CByteBuffer bufMetadataFile(vol.BlockSize);
++            CItem metadataFile;
++            CPartition metadataPartition;
++
++            RINOK(CInArchive::Read(volIndex, part, pm.MetadataFilePos, vol.BlockSize, bufMetadataFile));
++            RINOK(metadataFile.Parse(bufMetadataFile, vol.BlockSize, -1));
++
++            // Assume that metadata partition file is not fragmented, and then represent it as another regular partition
++            if (metadataFile.Extents.Size() != 1 || metadataFile.Extents[0].PartitionRef != -1)
+               return S_FALSE;
+-            // return S_FALSE;
++
++            metadataPartition.Number = part.Number;
++            metadataPartition.Pos = part.Pos + metadataFile.Extents[0].Pos;
++            metadataPartition.Len = metadataFile.Extents[0].GetLen() >> SecLogSize;
++            pm.PartitionIndex = Partitions.Add(metadataPartition);
+           }
+-          pm.PartitionIndex = i;
+-          part.VolIndex = volIndex;
++          else
++            return S_FALSE;
+ 
+-          totalSize += (UInt64)part.Len << SecLogSize;
+           break;
+         }
+       }
+-      if (i == Partitions.Size())
++      if (partIndex == Partitions.Size())
+         return S_FALSE;
+     }
+   }
+@@ -848,16 +880,9 @@ HRESULT CInArchive::Open2()
+       CTag tag;
+       RINOK(tag.Parse(p, size));
+ 
+-      if (tag.Id == DESC_TYPE_ExtendedFile)
+-      {
+-        // ECMA 4 / 14.17
+-        // 2.60 ??
+-        return S_FALSE;
+-      }
+-
+       if (tag.Id != DESC_TYPE_FileSet)
+         return S_FALSE;
+-      
++
+       PRF(printf("\n FileSet", volIndex));
+       CFileSet fs;
+       fs.RecodringTime.Parse(p + 16);
+diff --git a/CPP/7zip/Archive/Udf/UdfIn.h b/CPP/7zip/Archive/Udf/UdfIn.h
+index 7e86832..42ca1cf 100755
+--- a/CPP/7zip/Archive/Udf/UdfIn.h
++++ b/CPP/7zip/Archive/Udf/UdfIn.h
+@@ -67,7 +67,6 @@ struct CTime
+ 
+ // ECMA 1/7.4
+ 
+-/*
+ struct CRegId
+ {
+   Byte Flags;
+@@ -75,8 +74,8 @@ struct CRegId
+   char Suffix[8];
+ 
+   void Parse(const Byte *buf);
++  bool Compare(const char *otherId);
+ };
+-*/
+ 
+ // ---------- ECMA Part 3: Volume Structure ----------
+ 
+@@ -96,11 +95,8 @@ struct CPartition
+   // CRegId ImplId;
+   // Byte ImplUse[128];
+ 
+-  int VolIndex;
+   CMap32 Map;
+ 
+-  CPartition(): VolIndex(-1) {}
+-
+   // bool IsNsr() const { return (strncmp(ContentsId.Id, "+NSR0", 5) == 0); }
+   // bool IsAllocated() const { return ((Flags & 1) != 0); }
+ };
+@@ -164,6 +160,7 @@ struct CPartitionMap
+   // Type - 1
+   // UInt16 VolSeqNumber;
+   UInt16 PartitionNumber;
++  UInt32 MetadataFilePos;
+ 
+   // Byte Data[256];
+ 
+@@ -175,7 +172,8 @@ struct CPartitionMap
+ enum EIcbFileType
+ {
+   ICB_FILE_TYPE_DIR = 4,
+-  ICB_FILE_TYPE_FILE = 5
++  ICB_FILE_TYPE_FILE = 5,
++  ICB_FILE_TYPE_METADATA = 250
+ };
+ 
+ enum EIcbDescriptorType
+@@ -364,6 +362,7 @@ class CInArchive
+   IInStream *_stream;
+   CProgressVirt *_progress;
+ 
++  HRESULT Read(int volIndex, const CPartition& partition, UInt32 blockPos, UInt32 len, Byte* buf);
+   HRESULT Read(int volIndex, int partitionRef, UInt32 blockPos, UInt32 len, Byte *buf);
+   HRESULT Read(int volIndex, const CLongAllocDesc &lad, Byte *buf);
+   HRESULT ReadFromFile(int volIndex, const CItem &item, CByteBuffer &buf);
+@@ -380,6 +379,7 @@ class CInArchive
+   unsigned _numRefs;
+   UInt32 _numExtents;
+   UInt64 _inlineExtentsSize;
++  bool CheckExtent(int volIndex, const CPartition& partition, UInt32 blockPos, UInt32 len) const;
+   bool CheckExtent(int volIndex, int partitionRef, UInt32 blockPos, UInt32 len) const;
+ 
+ public:

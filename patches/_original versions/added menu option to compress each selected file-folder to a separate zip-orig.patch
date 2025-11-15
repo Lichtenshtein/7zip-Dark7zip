@@ -1,0 +1,167 @@
+From fa9bdf91d543f128f0c89910e08f3f61e013cc39 Mon Sep 17 00:00:00 2001
+From: work <rh>
+Date: Thu, 10 Sep 2020 17:18:12 +0200
+Subject: [PATCH] -added menu option to compress each selected file/folder to a
+ separate zip
+
+---
+ CPP/7zip/UI/Explorer/ContextMenu.cpp    | 39 +++++++++++++++++++++++++
+ CPP/7zip/UI/Explorer/ContextMenu.h      |  1 +
+ CPP/7zip/UI/Explorer/ContextMenuFlags.h |  1 +
+ CPP/7zip/UI/Explorer/resource.h         |  3 +-
+ CPP/7zip/UI/Explorer/resource2.rc       |  1 +
+ CPP/7zip/UI/FileManager/MenuPage.cpp    |  1 +
+ README.md                               | 11 ++++---
+ 7 files changed, 52 insertions(+), 5 deletions(-)
+
+diff --git a/CPP/7zip/UI/Explorer/ContextMenu.cpp b/CPP/7zip/UI/Explorer/ContextMenu.cpp
+index 4c8e9e3..67e7d58 100644
+--- a/CPP/7zip/UI/Explorer/ContextMenu.cpp
++++ b/CPP/7zip/UI/Explorer/ContextMenu.cpp
+@@ -211,6 +211,12 @@ static const CContextMenuCommand g_Commands[] =
+     "CompressTo7zEmail",
+     IDS_CONTEXT_COMPRESS_TO_EMAIL
+   },
++  {
++    NContextMenuFlags::kCompressToSeparate,
++    CZipContextMenu::kCompressToSeparate,
++    "CompressToSeparate",
++    IDS_CONTEXT_COMPRESS_TO_SEPARATE
++  },
+   {
+     NContextMenuFlags::kCompressToZip,
+     CZipContextMenu::kCompressToZip,
+@@ -668,6 +674,23 @@ STDMETHODIMP CZipContextMenu::QueryContextMenu(HMENU hMenu, UINT indexMenu,
+     }
+     #endif
+     
++    // CompressToSeparate
++    if (contextMenuFlags & NContextMenuFlags::kCompressToSeparate)
++    {
++      CCommandMapItem commandMapItem;
++      UString s;
++      FillCommand(kCompressToSeparate, s, commandMapItem);
++      if (_dropMode)
++        commandMapItem.Folder = _dropPath;
++      else
++        commandMapItem.Folder = fs2us(folderPrefix);
++      commandMapItem.ArcName = arcNameZip;
++      commandMapItem.ArcType = "zip";
++      MyFormatNew_ReducedName(s, arcNameZip);
++      MyInsertMenu(popupMenu, subIndex++, currentCommandID++, s, bitmap);
++      _commandMap.Add(commandMapItem);
++    }
++    
+     // CompressToZip
+     if (contextMenuFlags & NContextMenuFlags::kCompressToZip &&
+         !arcNameZip.IsEqualTo_NoCase(fs2us(fi0.Name)))
+@@ -973,6 +996,22 @@ STDMETHODIMP CZipContextMenu::InvokeCommand(LPCMINVOKECOMMANDINFO commandInfo)
+         break;
+       }
+       
++      case kCompressToSeparate:
++      {
++        for (UInt32 i = 0; i < _fileNames.Size(); i++) {
++          UString fileName = _fileNames[i];
++          UStringVector filePaths;
++          filePaths.Add(fileName);
++          
++          UString arcName = CreateArchiveName(filePaths, NULL);
++          arcName += L"." + commandMapItem.ArcType;
++          
++          CompressFiles(commandMapItem.Folder, arcName, commandMapItem.ArcType, false,
++            filePaths, false, false, false);
++        }
++        break;
++      }
++      
+       case kHash_CRC32:
+       case kHash_CRC64:
+       case kHash_SHA1:
+diff --git a/CPP/7zip/UI/Explorer/ContextMenu.h b/CPP/7zip/UI/Explorer/ContextMenu.h
+index fbca5ec..de3e372 100644
+--- a/CPP/7zip/UI/Explorer/ContextMenu.h
++++ b/CPP/7zip/UI/Explorer/ContextMenu.h
+@@ -30,6 +30,7 @@ class CZipContextMenu:
+     kCompressEmail,
+     kCompressTo7z,
+     kCompressTo7zEmail,
++    kCompressToSeparate,
+     kCompressToZip,
+     kCompressToZipEmail,
+     kHash_CRC32,
+diff --git a/CPP/7zip/UI/Explorer/ContextMenuFlags.h b/CPP/7zip/UI/Explorer/ContextMenuFlags.h
+index d0beb6c..a9e42e6 100644
+--- a/CPP/7zip/UI/Explorer/ContextMenuFlags.h
++++ b/CPP/7zip/UI/Explorer/ContextMenuFlags.h
+@@ -19,6 +19,7 @@ namespace NContextMenuFlags
+   const UInt32 kCompressTo7zEmail = 1 << 11;
+   const UInt32 kCompressToZip = 1 << 12;
+   const UInt32 kCompressToZipEmail = 1 << 13;
++  const UInt32 kCompressToSeparate = 1 << 21;
+ 
+   const UInt32 kCRC = (UInt32)1 << 31;
+   
+diff --git a/CPP/7zip/UI/Explorer/resource.h b/CPP/7zip/UI/Explorer/resource.h
+index 0fe2106..0d35f98 100644
+--- a/CPP/7zip/UI/Explorer/resource.h
++++ b/CPP/7zip/UI/Explorer/resource.h
+@@ -11,6 +11,7 @@
+ #define IDS_CONTEXT_COMPRESS_TO_EMAIL   2330
+ 
+ #define IDS_CONTEXT_EXTRACT_TO_FOLDER_OR_PLAIN  23270
+-#define IDS_CONTEXT_COMPRESS_TO_ZIP             23280
++#define IDS_CONTEXT_COMPRESS_TO_SEPARATE           23280
++#define IDS_CONTEXT_COMPRESS_TO_ZIP             23290
+ 
+ #define IDB_MENU_LOGO  190
+diff --git a/CPP/7zip/UI/Explorer/resource2.rc b/CPP/7zip/UI/Explorer/resource2.rc
+index 61fd3c1..c732d5b 100644
+--- a/CPP/7zip/UI/Explorer/resource2.rc
++++ b/CPP/7zip/UI/Explorer/resource2.rc
+@@ -7,6 +7,7 @@ BEGIN
+   IDS_CONTEXT_OPEN        "Open archive"
+   IDS_CONTEXT_COMPRESS    "Add to archive..."
+   IDS_CONTEXT_COMPRESS_TO "Add to {0}"
++  IDS_CONTEXT_COMPRESS_TO_SEPARATE    "Compress to *"
+   IDS_CONTEXT_COMPRESS_TO_ZIP "1-Add to ZIP {0}"
+   IDS_CONTEXT_COMPRESS_EMAIL "Compress and email..."
+   IDS_CONTEXT_COMPRESS_TO_EMAIL "Compress to {0} and email"
+diff --git a/CPP/7zip/UI/FileManager/MenuPage.cpp b/CPP/7zip/UI/FileManager/MenuPage.cpp
+index 99ddb33..abc900e 100644
+--- a/CPP/7zip/UI/FileManager/MenuPage.cpp
++++ b/CPP/7zip/UI/FileManager/MenuPage.cpp
+@@ -55,6 +55,7 @@ static const CContextMenuItem kMenuItems[] =
+   { IDS_CONTEXT_TEST, kTest },
+ 
+   { IDS_CONTEXT_COMPRESS, kCompress },
++  { IDS_CONTEXT_COMPRESS_TO_SEPARATE, kCompressToSeparate },
+   { IDS_CONTEXT_COMPRESS_TO, kCompressTo7z },
+   { IDS_CONTEXT_COMPRESS_TO_ZIP, kCompressToZip },
+ 
+diff --git a/README.md b/README.md
+index 5989062..82b7774 100644
+--- a/README.md
++++ b/README.md
+@@ -12,14 +12,17 @@ Based on **7zip build 1900**: https://www.7-zip.org/a/7z1900-src.7z.
+ ## Build
+ 
+ - Visual Studio 2017
+-- open **VS Dev Console**
+-  - Start -> Visual Studio 2017 -> Visual Studio Tools -> VC -> x64 Native Tools Command Prompt for VS 2017
+-  - %comspec% /k "[PROGRAM_FILES]\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvars64.bat"
++- open **VS Dev Console**: `Start -> Visual Studio 2017 -> Visual Studio Tools -> VC -> x64 Native Tools Command Prompt for VS 2017`
++- or execute the next command from the default console to load VS build environment:
++  ```
++  %comspec% /k "[PROGRAM_FILES]\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvars64.bat"
++  ```
+ - execute commands inside the command prompt:
+   ```
+-  cd 7z-src\CPP\7zip\UI\Explorer
++  cd [PATH_TO_7Z_SOURCE]\CPP\7zip\UI\Explorer
+   nmake PLATFORM=x64
+   ```
++- there are also `.bat` scripts inside the **CPP** folder to build **FileManager** and **Explorer** modules
+ 
+ ## Installation
+ 

@@ -1,0 +1,123 @@
+From 0a99384c9a4c23fed88dd86803544919bfbae261 Mon Sep 17 00:00:00 2001
+From: ironyman <ironyman13@gmail.com>
+Date: Wed, 3 Jan 2024 17:27:07 -0800
+Subject: [PATCH] Improve Ctrl L experience
+
+---
+ CPP/7zip/UI/FileManager/App.cpp               | 12 +++++++++++-
+ CPP/7zip/UI/FileManager/App.h                 |  2 +-
+ CPP/7zip/UI/FileManager/MultiPanel.cpp        | 13 ++++++++++++-
+ CPP/7zip/UI/FileManager/Panel.h               |  5 ++++-
+ CPP/7zip/UI/FileManager/PanelFolderChange.cpp |  8 +++++++-
+ 5 files changed, 35 insertions(+), 5 deletions(-)
+
+diff --git a/CPP/7zip/UI/FileManager/App.cpp b/CPP/7zip/UI/FileManager/App.cpp
+index c53154c..931aa35 100644
+--- a/CPP/7zip/UI/FileManager/App.cpp
++++ b/CPP/7zip/UI/FileManager/App.cpp
+@@ -60,7 +60,17 @@ void CPanelCallbackImp::SetFocusToPath(unsigned index)
+ void CPanelCallbackImp::SetFocusToPathNoDropDown()
+ {
+   _app->RefreshTitle();
+-  _app->Panels[g_App.LastFocusedPanel]._headerComboBox.SetFocus();
++
++  if (_app->MultiPanelMode == 0)
++  {
++    _app->Panels[g_App.LastFocusedPanel]._headerComboBox.SetFocus();
++  }
++  else
++  {
++    UString text = _app->Panels[1].GetFsPath();
++    _app->Panels[0]._headerComboBox.SetText(text);
++    _app->Panels[0]._headerComboBox.SetFocus();
++  }
+ }
+ 
+ void CPanelCallbackImp::OnCopy(bool move, bool copyToSame) { _app->OnCopy(move, copyToSame, _index); }
+diff --git a/CPP/7zip/UI/FileManager/App.h b/CPP/7zip/UI/FileManager/App.h
+index 054b709..35cb403 100644
+--- a/CPP/7zip/UI/FileManager/App.h
++++ b/CPP/7zip/UI/FileManager/App.h
+@@ -56,7 +56,7 @@ class CPanelCallbackImp Z7_final: public CPanelCallback
+   virtual HRESULT OnRefreshList(bool& shouldReturn) Z7_override;
+   virtual HRESULT OnBind(bool& shouldReturn) Z7_override;
+   virtual HRESULT OnSelectedItemChanged() Z7_override;
+-  virtual HRESULT OnOpenFolder() Z7_override;
++  virtual HRESULT OnOpenFolder(std::optional<std::reference_wrapper<bool>> shouldReturn = std::nullopt) Z7_override;
+   virtual HRESULT OnOpenParentFolder() Z7_override;
+   virtual UString OnSetComboText(UString const& text) Z7_override;
+ };
+diff --git a/CPP/7zip/UI/FileManager/MultiPanel.cpp b/CPP/7zip/UI/FileManager/MultiPanel.cpp
+index 5e182b7..b2bdc5d 100644
+--- a/CPP/7zip/UI/FileManager/MultiPanel.cpp
++++ b/CPP/7zip/UI/FileManager/MultiPanel.cpp
+@@ -186,7 +186,7 @@ HRESULT CPanelCallbackImp::OnSelectedItemChanged()
+   return S_OK;
+ }
+ 
+-HRESULT CPanelCallbackImp::OnOpenFolder()
++HRESULT CPanelCallbackImp::OnOpenFolder(std::optional<std::reference_wrapper<bool>> shouldReturn)
+ {
+   if (_app->MultiPanelMode == 0)
+   {
+@@ -197,6 +197,17 @@ HRESULT CPanelCallbackImp::OnOpenFolder()
+   {
+     auto cwd = _app->Panels[_index].GetFsPath();
+     _app->Panels[1].BindToPathAndRefresh(cwd);
++    if (shouldReturn.has_value())
++    {
++      shouldReturn->get() = true;
++    }
++  }
++  else
++  {
++    if (shouldReturn.has_value())
++    {
++      shouldReturn->get() = false;
++    }
+   }
+ 
+   _app->SyncMultiPanel();
+diff --git a/CPP/7zip/UI/FileManager/Panel.h b/CPP/7zip/UI/FileManager/Panel.h
+index 3953f75..b74875a 100644
+--- a/CPP/7zip/UI/FileManager/Panel.h
++++ b/CPP/7zip/UI/FileManager/Panel.h
+@@ -43,6 +43,9 @@
+ #include "ProgressDialog2.h"
+ #include "SysIconUtils.h"
+ 
++#include <optional>
++#include <functional>
++
+ #ifdef UNDER_CE
+ #define NON_CE_VAR(_v_)
+ #else
+@@ -77,7 +80,7 @@ DECLARE_INTERFACE(CPanelCallback)
+   virtual HRESULT OnRefreshList(bool& shouldReturn) = 0;
+   virtual HRESULT OnBind(bool& shouldReturn) = 0;
+   virtual HRESULT OnSelectedItemChanged() = 0;
+-  virtual HRESULT OnOpenFolder() = 0;
++  virtual HRESULT OnOpenFolder(std::optional<std::reference_wrapper<bool>> shouldReturn = std::nullopt) = 0;
+   virtual HRESULT OnOpenParentFolder() = 0;
+   virtual UString OnSetComboText(UString const& text) = 0;
+ 
+diff --git a/CPP/7zip/UI/FileManager/PanelFolderChange.cpp b/CPP/7zip/UI/FileManager/PanelFolderChange.cpp
+index a870860..2092496 100644
+--- a/CPP/7zip/UI/FileManager/PanelFolderChange.cpp
++++ b/CPP/7zip/UI/FileManager/PanelFolderChange.cpp
+@@ -442,8 +442,14 @@ LRESULT CPanel::OnNotifyComboBoxEnter(const UString &s)
+   auto path = ExpandEnvironmentStringsWrapper(std::wstring(s == L"~" ? L"%USERPROFILE%" : (const wchar_t *)s));
+   if (path && BindToPathAndRefresh(GetUnicodeString(UString((*path).data()))) == S_OK)
+   {
++    bool shouldReturn;
++    _panelCallback->OnOpenFolder(shouldReturn);
++    if (shouldReturn)
++    {
++      return TRUE;
++    }
++
+     PostMsg(kSetFocusToListView);
+-    _panelCallback->OnOpenFolder();
+     return TRUE;
+   }
+   return FALSE;

@@ -1,0 +1,26 @@
+From ea6457b4ba78a863837cd8afe63f091d55f5abfc Mon Sep 17 00:00:00 2001
+From: Nobody <36154203+PopuriAO29@users.noreply.github.com>
+Date: Sun, 14 Jan 2024 03:40:09 +0000
+Subject: [PATCH]: Build mak more optimization flags
+
+---
+diff --git a/CPP/Build.mak b/CPP/Build.mak
+index cb37ae47..60c99c91 100644
+--- a/CPP/Build.mak
++++ b/CPP/Build.mak
+@@ -71,7 +71,7 @@ CFLAGS_WARN_LEVEL = -Wall
+ !ENDIF
+ 
+ # CFLAGS = $(CFLAGS) -nologo -c -Fo$O/ $(CFLAGS_WARN_LEVEL) -WX -EHsc -Gy -MT -MP -GR- -GL -Gw
+-CFLAGS = $(CFLAGS) -nologo -c -Fo$O/ -W4 -WX -EHsc -Gy -MT -MP -GR- -GL -Gw -std:c++20
++CFLAGS = $(CFLAGS) -nologo -c -Fo$O/ -W4 -WX -EHsc -Gy -MT -MP -GR- -GL -Gw -std:c++20 -GF
+ 
+ !IF "$(CC)" == "clang-cl"
+ 
+@@ -142,5 +142,5 @@ CFLAGS = $(CFLAGS) -D_ARM_WINAPI_PARTITION_DESKTOP_SDK_AVAILABLE
+ 
+-LFLAGS = $(LFLAGS) -nologo -OPT:REF -OPT:ICF -INCREMENTAL:NO
++LFLAGS = $(LFLAGS) -nologo -OPT:REF -OPT:ICF -INCREMENTAL:NO -LTCG
+ 
+ !IFNDEF UNDER_CE
+ LFLAGS = $(LFLAGS) /LTCG /LARGEADDRESSAWARE /DEPENDENTLOADFLAG:0x800

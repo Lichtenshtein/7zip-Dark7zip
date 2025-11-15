@@ -1,0 +1,120 @@
+From 59aa7d8f159a2a08f0bf2608d3891d310c3b2436 Mon Sep 17 00:00:00 2001
+From: ironyman <ironyman13@gmail.com>
+Date: Mon, 19 Feb 2024 14:52:43 -0800
+Subject: [PATCH] Fix warnings
+
+---
+ CPP/7zip/UI/FileManager/Debounce.h        | 37 ++++++++++++++++++++++-
+ CPP/7zip/UI/FileManager/FM.mak            |  1 -
+ CPP/7zip/UI/FileManager/PanelFind.cpp     |  1 +
+ CPP/7zip/UI/FileManager/RegistryUtils.cpp |  1 +
+ CPP/Windows/Shell.cpp                     |  1 +
+ 5 files changed, 39 insertions(+), 2 deletions(-)
+
+diff --git a/CPP/7zip/UI/FileManager/Debounce.h b/CPP/7zip/UI/FileManager/Debounce.h
+index 6957462..0b39e17 100644
+--- a/CPP/7zip/UI/FileManager/Debounce.h
++++ b/CPP/7zip/UI/FileManager/Debounce.h
+@@ -2,9 +2,17 @@
+ #define ZIP7_INC_DEBOUNCE_H
+ #include "../../../Common/MyWindows.h"
+ #include <queue>
++// Disable noisy stl warnings. https://developercommunity.visualstudio.com/t/stl-header-causes-c4355-and-c5204/1046989
++#pragma warning( disable  : 4355 )
++#pragma warning( disable  : 5204 )
++#pragma warning( disable  : 5204 )
++#pragma warning( disable  : 5220 )
+ #include <future>
+ #include <mutex>
+ #include <tuple>
++#include <functional>
++#include <chrono>
++#include <thread>
+ 
+ template<typename F>
+ struct Debounce
+@@ -73,7 +81,34 @@ struct Debounce
+         std::apply(callContext->callback, callContext->arguments);
+     }
+ 
+-    void operator()(auto&&... args);
++    void operator()(auto... args)
++    {
++        std::lock_guard<std::mutex> guard(this->selfDeletionMutex);
++
++        if (this->timer == nullptr)
++        {
++            this->timer = CreateThreadpoolTimer((PTP_TIMER_CALLBACK)TimerCallback<F, decltype(args)...>, (PVOID)&this->context, NULL);
++        }
++        if (this->context != nullptr)
++        {
++            contextDeletionFutures.emplace(std::async(std::launch::async, [](Debounce *parent, CallbackContext<F, decltype(args)...> *callContext)
++            {
++                // Avoid deleting the context while it's being used.
++                std::this_thread::sleep_for(std::chrono::milliseconds(2*parent->delayMs));
++                delete callContext;
++            }, this, (CallbackContext<F, decltype(args)...> *)this->context));
++        }
++
++        auto callContext = new CallbackContext<F, decltype(args)...>{std::tuple<decltype(args)...>(std::forward<decltype(args)>(args)...), this->callback};
++
++        this->context = (PVOID)callContext;
++        SetThreadpoolTimer(this->timer, &this->delay, 0, 0);
++
++        while (!contextDeletionFutures.empty() && contextDeletionFutures.front().wait_for(std::chrono::nanoseconds(1)) == std::future_status::ready)
++        {
++            contextDeletionFutures.pop();
++        }
++    }
+ };
+ 
+ #endif
+\ No newline at end of file
+diff --git a/CPP/7zip/UI/FileManager/FM.mak b/CPP/7zip/UI/FileManager/FM.mak
+index 1fbde41..389956d 100644
+--- a/CPP/7zip/UI/FileManager/FM.mak
++++ b/CPP/7zip/UI/FileManager/FM.mak
+@@ -14,7 +14,6 @@ FM_OBJS = \
+   $O\App.obj \
+   $O\BrowseDialog.obj \
+   $O\ClassDefs.obj \
+-  $O\Debounce.obj \
+   $O\EnumFormatEtc.obj \
+   $O\ExtractCallback.obj \
+   $O\FileFolderPluginOpen.obj \
+diff --git a/CPP/7zip/UI/FileManager/PanelFind.cpp b/CPP/7zip/UI/FileManager/PanelFind.cpp
+index b50f771..6532136 100644
+--- a/CPP/7zip/UI/FileManager/PanelFind.cpp
++++ b/CPP/7zip/UI/FileManager/PanelFind.cpp
+@@ -2,6 +2,7 @@
+ #include <windowsx.h>
+ #include "PanelFind.h"
+ #include "Panel.h"
++#include "Debounce.h"
+ #include "../../../Windows/Window.h"
+ 
+ bool CPanelFind::Create(PCWSTR text, HINSTANCE hInstance, CPanel *panel, HWND hwndParent, UINT id)
+diff --git a/CPP/7zip/UI/FileManager/RegistryUtils.cpp b/CPP/7zip/UI/FileManager/RegistryUtils.cpp
+index 4bc697b..dd785e5 100644
+--- a/CPP/7zip/UI/FileManager/RegistryUtils.cpp
++++ b/CPP/7zip/UI/FileManager/RegistryUtils.cpp
+@@ -108,6 +108,7 @@ static void ReadOption(CKey &key, LPCTSTR value, bool &dest)
+     dest = enabled;
+ }
+ 
++[[maybe_unused]]
+ static void ReadOption(CKey &key, LPCTSTR value, UInt32 &dest)
+ {
+   UInt32 data = false;
+diff --git a/CPP/Windows/Shell.cpp b/CPP/Windows/Shell.cpp
+index 6a6b64a..4d60f9d 100644
+--- a/CPP/Windows/Shell.cpp
++++ b/CPP/Windows/Shell.cpp
+@@ -182,6 +182,7 @@ HRESULT DataObject_SetData_HGLOBAL(IDataObject *dataObject, CLIPFORMAT cf, NCOM:
+ {
+   FORMATETC etc = INIT_FORMATETC_HGLOBAL(cf);
+   RINOK(dataObject->SetData(&etc, &medium, TRUE));
++  return S_OK;
+ }
+ 
+ static HRESULT DataObject_GetData_HDROP_Names(IDataObject *dataObject, UStringVector &names)

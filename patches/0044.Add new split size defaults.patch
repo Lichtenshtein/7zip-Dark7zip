@@ -1,0 +1,32 @@
+From 29e24e660275606d7dae1182276d6e14d98f2b61 Mon Sep 17 00:00:00 2001
+From: Jevil7452 <98893064+Jevil7452@users.noreply.github.com>
+Date: Sun, 16 Apr 2023 17:09:25 +0200
+Subject: [PATCH] Add new split size defaults
+
+These are the maximum file sizes allowed by Discord.
+8MB - old default, use if your client doesn't support 25MB free uploads
+25MB - new default
+50MB - Nitro Basic file upload limit
+500MB - Nitro file upload limit
+---
+ CPP/7zip/UI/FileManager/SplitUtils.cpp | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/CPP/7zip/UI/FileManager/SplitUtils.cpp b/CPP/7zip/UI/FileManager/SplitUtils.cpp
+index 4b6235b..2dfb0c3 100644
+--- a/CPP/7zip/UI/FileManager/SplitUtils.cpp
++++ b/CPP/7zip/UI/FileManager/SplitUtils.cpp
+@@ -60,8 +60,12 @@ bool ParseVolumeSizes(const UString &s, CRecordVector<UInt64> &values)
+ 
+ static const char * const k_Sizes[] =
+ {
+-    "10M"
++    "8M"
++  , "10M"
++  , "25M"
++  , "50M"
+   , "100M"
++  , "500M"
+   , "1000M"
+   , "650M - CD"
+   , "700M - CD"

@@ -1,0 +1,109 @@
+From 2a92412bde0b77b4e6fea06c0b2d9418a3db6586 Mon Sep 17 00:00:00 2001
+From: js6pak <me@6pak.dev>
+Date: Thu, 1 Aug 2024 01:01:06 +0200
+Subject: [PATCH] Add barebones support for extracting NSISBI
+
+---
+ CPP/7zip/Archive/Nsis/NsisIn.cpp | 48 ++++++++++++++++++++++++--------
+ CPP/7zip/Archive/Nsis/NsisIn.h   |  7 ++---
+ 2 files changed, 38 insertions(+), 17 deletions(-)
+
+diff --git a/CPP/7zip/Archive/Nsis/NsisIn.cpp b/CPP/7zip/Archive/Nsis/NsisIn.cpp
+index c9e2c01..94b2a76 100755
+--- a/CPP/7zip/Archive/Nsis/NsisIn.cpp
++++ b/CPP/7zip/Archive/Nsis/NsisIn.cpp
+@@ -22,9 +22,9 @@ static const size_t kInputBufSize = 1 << 20;
+ const Byte kSignature[kSignatureSize] = NSIS_SIGNATURE;
+ static const UInt32 kMask_IsCompressed = (UInt32)1 << 31;
+ static const UInt64 kMask_IsCompressed64 = ((UInt64)1 << 63);
+ 
+-static const unsigned kNumCommandParams = 6;
+-static const unsigned kCmdSize = 4 + kNumCommandParams * 4;
++unsigned kNumCommandParams = 6;
++unsigned kCmdSize = 4 + kNumCommandParams * 4;
+ 
+ #ifdef NSIS_SCRIPT
+ #define CR_LF "\x0D\x0A"
+@@ -72,6 +72,11 @@ enum
+   EW_SEARCHPATH,        // SearchPath
+   EW_GETTEMPFILENAME,   // GetTempFileName
+   EW_EXTRACTFILE,       // File
++
++  // // NSISBI
++  // EW_EXTRACTSTUBFILE,
++  // EW_VERIFYEXTERNALFILE,
++
+   EW_DELETEFILE,        // Delete
+   EW_MESSAGEBOX,        // MessageBox
+   EW_RMDIR,             // RMDir
+@@ -3259,6 +3264,12 @@ HRESULT CInArchive::ReadEntries(const CBlockHeader &bh)
+     UInt32 commandId;
+     UInt32 params[kNumCommandParams];
+     commandId = GetCmd(Get32(p));
++    if (IsNSISBI && commandId > EW_EXTRACTFILE)
++    {
++      // ignore EW_EXTRACTSTUBFILE and EW_VERIFYEXTERNALFILE
++      if (commandId <= EW_EXTRACTFILE + 2) continue;
++      commandId -= 2;
++    }
+     {
+       for (unsigned i = 0; i < kNumCommandParams; i++)
+       {
+@@ -3486,10 +3497,11 @@ HRESULT CInArchive::ReadEntries(const CBlockHeader &bh)
+         UInt32 par1 = params[1];
+ 
+         SetItemName(item, par1);
+-          
+-        item.Pos = params[2];
+-        item.MTime.dwLowDateTime = params[3];
+-        item.MTime.dwHighDateTime = params[4];
++
++        item.Pos = IsNSISBI ? (((UInt64)params[3] << 32) | params[2]) : params[2];
++
++        item.MTime.dwLowDateTime = params[IsNSISBI ? 4 : 3];
++        item.MTime.dwHighDateTime = params[IsNSISBI ? 5 : 4];
+         
+         #ifdef NSIS_SCRIPT
+         
+@@ -3670,10 +3682,10 @@ HRESULT CInArchive::ReadEntries(const CBlockHeader &bh)
+ 
+         SetItemName(item, params[0]);
+ 
+-        item.Pos = params[1];
+-        item.PatchSize = params[2];
++        item.Pos = IsNSISBI ? (((UInt64)params[2] << 32) | params[1]) : params[1];
++        item.PatchSize = params[IsNSISBI ? 3 : 2];
+         item.IsUninstaller = true;
+-        const UInt32 param3 = params[3];
++        const UInt32 param3 = params[IsNSISBI ? 4 : 3];
+         if (param3 != 0 && item.Prefix != -1)
+         {
+           /* (item.Prefix != -1) case means that param[0] path was not absolute.
+diff --git a/CPP/7zip/Archive/Nsis/NsisIn.h b/CPP/7zip/Archive/Nsis/NsisIn.h
+index 1f8c967..59ac7be 100755
+--- a/CPP/7zip/Archive/Nsis/NsisIn.h
++++ b/CPP/7zip/Archive/Nsis/NsisIn.h
+@@ -36,11 +36,7 @@ namespace NFlags
+   const UInt32 kSilent = 2;
+   const UInt32 kNoCrc = 4;
+   const UInt32 kForceCrc = 8;
+-  // NSISBI fork flags:
+-  const UInt32 k_BI_LongOffset = 16;
+-  const UInt32 k_BI_ExternalFileSupport = 32;
+-  const UInt32 k_BI_ExternalFile = 64;
+-  const UInt32 k_BI_IsStubInstaller = 128;
++  // NSISBI fork has it's flags here but they changed in a breaking manner over time so they can't be relied upon
+ }
+ 
+ struct CFirstHeader
+@@ -233,6 +229,7 @@ public:
+   bool UseFilter;
+   bool FilterFlag;
+   
++  bool IsNSISBI;
+   bool IsInstaller;
+   AString Name;
+   AString BrandingText;
+-- 
+2.45.2
+

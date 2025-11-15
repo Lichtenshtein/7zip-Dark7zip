@@ -1,0 +1,22 @@
+From: YOKOTA Hiroshi <yokota.hgml@gmail.com>
+Date: Tue, 31 Aug 2021 19:20:33 +0900
+Subject: Use GCC 10 warning options
+
+Forwarded: not-needed
+---
+ CPP/7zip/warn_gcc.mak | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/CPP/7zip/warn_gcc.mak b/CPP/7zip/warn_gcc.mak
+index afc0c9d..230d2f0 100755
+--- a/CPP/7zip/warn_gcc.mak
++++ b/CPP/7zip/warn_gcc.mak
+@@ -50,7 +50,7 @@ CFLAGS_WARN_GCC_PPMD_UNALIGNED = \
+ CFLAGS_WARN = $(CFLAGS_WARN_GCC_6)
+ CFLAGS_WARN = $(CFLAGS_WARN_GCC_7)
+ CFLAGS_WARN = $(CFLAGS_WARN_GCC_8)
+-CFLAGS_WARN = $(CFLAGS_WARN_GCC_9)
++CFLAGS_WARN = $(CFLAGS_WARN_GCC_10)
+ 
+ # CXX_STD_FLAGS = -std=c++11
+ # CXX_STD_FLAGS =

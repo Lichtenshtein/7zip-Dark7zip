@@ -1,0 +1,22 @@
+From 8ceb9bd5fd1bbcb96aa1957f8f3cdd3c3bb0c3e1 Mon Sep 17 00:00:00 2001
+From: ironyman <ironyman13@gmail.com>
+Date: Thu, 4 Jan 2024 17:34:12 -0800
+Subject: [PATCH] Path needs to be quoted in case of spaces
+
+---
+ CPP/7zip/UI/FileManager/PanelItems.cpp | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/CPP/7zip/UI/FileManager/PanelItems.cpp b/CPP/7zip/UI/FileManager/PanelItems.cpp
+index aa59494..ff1c1fc 100644
+--- a/CPP/7zip/UI/FileManager/PanelItems.cpp
++++ b/CPP/7zip/UI/FileManager/PanelItems.cpp
+@@ -1081,6 +1081,8 @@ void CPanel::OpenSelectedItem(UString const& command, UString const& operation,
+   {
+     path = GetItemFullPath(indices[0]).Ptr();
+   }
++  path.InsertAtFront(L'\"');
++  path += L"\"";
+ 
+   NWindows::CProcess process;
+   StartApplication(cwd, command, operation, path, NULL, process, nShow);

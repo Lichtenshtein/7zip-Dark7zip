@@ -1,0 +1,100 @@
+From afe9d9756b65cc04359c5ae184aeed5b6cefa178 Mon Sep 17 00:00:00 2001
+From: ironyman <ironyman13@gmail.com>
+Date: Thu, 4 Jan 2024 22:20:27 -0800
+Subject: [PATCH] Include hidden files in fzf
+
+---
+ CPP/7zip/UI/FileManager/PanelKey.cpp |  9 ++++++++-
+ CPP/Windows/ProcessUtils.cpp         | 30 +++++++++++++++++++++++++---
+ CPP/Windows/ProcessUtils.h           |  2 +-
+ 3 files changed, 36 insertions(+), 5 deletions(-)
+
+diff --git a/CPP/7zip/UI/FileManager/PanelKey.cpp b/CPP/7zip/UI/FileManager/PanelKey.cpp
+index 0823d79..8cc9184 100644
+--- a/CPP/7zip/UI/FileManager/PanelKey.cpp
++++ b/CPP/7zip/UI/FileManager/PanelKey.cpp
+@@ -376,7 +376,14 @@ bool CPanel::OnKeyDown(LPNMLVKEYDOWN keyDownInfo, LRESULT &result)
+         auto findProc = new CProcess();
+         findProc->_overlapWindow = TRUE;
+         findProc->_readStdout = TRUE;
+-        findProc->Create(L"fzf", L"", cwd);
++
++        // Doubly null terminated string, last null is for list of null terminated strings.
++        // If you're setting this in shell it would be
++        // $env:FZF_DEFAULT_COMMAND = 'rg --hidden --no-ignore -l --max-depth 5 ""'
++        UString env = L"FZF_DEFAULT_COMMAND=rg --hidden --no-ignore -l --max-depth 5 \"\"\0\0";
++        findProc->Create(L"fzf.exe", L"", cwd, (LPVOID)env.Ptr());
++        // to test
++        // findProc->Create(L"cmd.exe", L"", cwd, (LPVOID)env.Ptr());
+         // findProc->Create(L"conhost", L"fzf.exe", cwd);
+         // findProc->Create(L"conhost", L"powershell -noexit -command fzf.exe", cwd);
+ 
+diff --git a/CPP/Windows/ProcessUtils.cpp b/CPP/Windows/ProcessUtils.cpp
+index d309247..aea7ee7 100644
+--- a/CPP/Windows/ProcessUtils.cpp
++++ b/CPP/Windows/ProcessUtils.cpp
+@@ -139,7 +139,7 @@ static UString GetQuotedString(const UString &s)
+ }
+ #endif
+ 
+-WRes CProcess::Create(LPCWSTR imageName, const UString &params, LPCWSTR curDir)
++WRes CProcess::Create(LPCWSTR imageName, const UString &params, LPCWSTR curDir, LPVOID additionalEnvVar)
+ {
+   /*
+   OutputDebugStringW(L"CProcess::Create");
+@@ -195,7 +195,7 @@ WRes CProcess::Create(LPCWSTR imageName, const UString &params, LPCWSTR curDir)
+       sizeof(SECURITY_ATTRIBUTES), NULL, TRUE
+     };
+ 
+-
++    CRecordVector<WCHAR> env;
+     STARTUPINFOW si{};
+     si.cb = sizeof(si);
+ 
+@@ -237,8 +237,32 @@ WRes CProcess::Create(LPCWSTR imageName, const UString &params, LPCWSTR curDir)
+       curDir = NULL;
+     }
+ 
++    if (additionalEnvVar != NULL)
++    {
++      PWCHAR envBlock = GetEnvironmentStrings();
++      PWCHAR envBlockEnd = envBlock;
++
++      // Could probably just SetEnvironmentVariable instead.
++      while (*envBlockEnd != 0)
++      {
++        envBlockEnd += wcslen(envBlockEnd) + 1;
++      }
++
++      PWCHAR additionalEnvVarEnd = (PWCHAR)additionalEnvVar;
++      while (*additionalEnvVarEnd != 0)
++      {
++        additionalEnvVarEnd += wcslen(additionalEnvVarEnd) + 1;
++      }
++      ++additionalEnvVarEnd;
++
++      env = CRecordVector<WCHAR>(envBlock, envBlockEnd);
++      env += CRecordVector<WCHAR>((PWCHAR)additionalEnvVar, additionalEnvVarEnd);
++    }
++
+     result = CreateProcessW(imageName, params2.Ptr_non_const(),
+-        NULL, NULL, _readStdout, 0, NULL, curDir, &si, &pi);
++        NULL, NULL, _readStdout, CREATE_UNICODE_ENVIRONMENT,
++        additionalEnvVar != NULL ? (LPVOID)env.begin() : NULL,
++        curDir, &si, &pi);
+ 
+     // Child process will have this handle, we don't need it. When child process
+     // exits they will close their instance of this handle and our _hStdoutRead
+diff --git a/CPP/Windows/ProcessUtils.h b/CPP/Windows/ProcessUtils.h
+index e146954..93a770b 100644
+--- a/CPP/Windows/ProcessUtils.h
++++ b/CPP/Windows/ProcessUtils.h
+@@ -165,7 +165,7 @@ class CProcess: public CHandle
+ 
+   #endif
+ 
+-  WRes Create(LPCWSTR imageName, const UString &params, LPCWSTR curDir);
++  WRes Create(LPCWSTR imageName, const UString &params, LPCWSTR curDir, LPVOID additionalEnvVar = NULL);
+ 
+   DWORD Wait()
+   {

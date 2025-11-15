@@ -1,0 +1,162 @@
+From 1e8fa9064832cbaa7d4152b893019e899432a034 Mon Sep 17 00:00:00 2001
+From: Florin9doi <Florin9doi@users.noreply.github.com> & Lichtenshtein
+Date: Mon, 22 Jan 2024 23:13:45 +0200
+Subject: [PATCH] Reorganize some keyboard shortcuts to well known variants + Add Ctrl-O for options menu
+
+[-] Remap "Open same folder" from Alt+Up to Alt+Down
+[-] Remap "Open current folder" from Alt+Left/Alt+Right to Ctrl+Enter
+[-] Changed "Grey" to "NUM"
+[-] CTRL+LEFT and CTRL+RIGHT to provide the function of synchronizing the panel path
+[+] Map "Options" to Ctrl+O
+[+] Map "Go Back" to Alt+Left
+[+] Map "Go Forward" to Alt+Right
+[+] Map "Go Up" to Alt+Up
+---
+ CPP/7zip/UI/FileManager/PanelKey.cpp        | 10 ++++++----
+ CPP/7zip/UI/FileManager/PanelListNotify.cpp |  2 ++
+ CPP/7zip/UI/FileManager/resource.rc         |  4 ++--
+ 3 files changed, 10 insertions(+), 6 deletions(-)
+
+diff --git a/CPP/7zip/UI/FileManager/PanelKey.cpp b/CPP/7zip/UI/FileManager/PanelKey.cpp
+index a4ea489a..42925678 100644
+--- a/CPP/7zip/UI/FileManager/PanelKey.cpp
++++ b/CPP/7zip/UI/FileManager/PanelKey.cpp
+@@ -7,6 +7,8 @@
+ 
+ #include "../../PropID.h"
+ #include "App.h"
++#include "MyLoadMenu.h"
++#include "resource.h"
+ 
+ using namespace NWindows;
+ 
+@@ -193,14 +194,16 @@ bool CPanel::OnKeyDown(LPNMLVKEYDOWN keyDownInfo, LRESULT &result)
+     }
+     case VK_DOWN:
+     {
+-      if (shift)
++      if (alt)
++        _panelCallback->OnSetSameFolder();
++      else if (shift)
+         OnArrowWithShift();
+       return false;
+     }
+     case VK_UP:
+     {
+       if (alt)
+-        OpenParentFolder();
++        OpenParentFolder();
+       else if (shift)
+         OnArrowWithShift();
+       return false;
+@@ -209,6 +209,8 @@ bool CPanel::OnKeyDown(LPNMLVKEYDOWN keyDownInfo, LRESULT &result)
+         _panelCallback->OnSetSubFolder();
+       else if (shift)
+         OnArrowWithShift();
++      else if (ctrl)
++        _panelCallback->OnSetSameFolder();
+       return false;
+     }
+     case VK_LEFT:
+@@ -217,6 +219,8 @@ bool CPanel::OnKeyDown(LPNMLVKEYDOWN keyDownInfo, LRESULT &result)
+         _panelCallback->OnSetSubFolder();
+       else if (shift)
+         OnArrowWithShift();
++      else if (ctrl)
++        _panelCallback->OnSetSameFolder();
+       return false;
+     }
+     case VK_NEXT:
+@@ -208,7 +210,7 @@ bool CPanel::OnKeyDown(LPNMLVKEYDOWN keyDownInfo, LRESULT &result)
+     case VK_RIGHT:
+     {
+       if (alt)
+-        _panelCallback->OnSetSubFolder();
++        MoveForward();
+       else if (shift)
+         OnArrowWithShift();
+       else if (ctrl)
+@@ -216,7 +218,7 @@ bool CPanel::OnKeyDown(LPNMLVKEYDOWN keyDownInfo, LRESULT &result)
+     case VK_LEFT:
+     {
+       if (alt)
+-        _panelCallback->OnSetSubFolder();
++        MoveBackward();
+       else if (shift)
+         OnArrowWithShift();
+       else if (ctrl)
+@@ -305,6 +305,17 @@ bool CPanel::OnKeyDown(LPNMLVKEYDOWN keyDownInfo, LRESULT &result)
+         return true;
+       }
+       return false;
++  
++  
++ //ctrl O is options dialog
++ case 'O':
++      if (ctrl)
++      {
++        OnMenuCommand(g_HWND, IDM_OPTIONS);
++        return true;
++      }
++      return false;
++ 
+     case 'N':
+       if (ctrl)
+       {
+diff --git a/CPP/7zip/UI/FileManager/PanelListNotify.cpp b/CPP/7zip/UI/FileManager/PanelListNotify.cpp
+index 05ab36bc..faf6fe31 100644
+--- a/CPP/7zip/UI/FileManager/PanelListNotify.cpp
++++ b/CPP/7zip/UI/FileManager/PanelListNotify.cpp
+@@ -542,6 +542,8 @@ void CPanel::OnNotifyActivateItems()
+   bool shift = IsKeyDown(VK_SHIFT);
+   if (!shift && alt && !ctrl)
+     Properties();
++  else if (ctrl)
++    g_App.OnSetSubFolder(g_App.LastFocusedPanel);
+   else
+     OpenSelectedItems(!shift || alt || ctrl);
+ }
+diff --git a/CPP/7zip/UI/FileManager/resource.rc b/CPP/7zip/UI/FileManager/resource.rc
+index e074e0f9..3872cdfd 100644
+--- a/CPP/7zip/UI/FileManager/resource.rc
++++ b/CPP/7zip/UI/FileManager/resource.rc
+@@ -89,14 +89,14 @@ BEGIN
+     // MENUITEM "&Copy\tCtrl+C",               IDM_EDIT_COPY, GRAYED
+     // MENUITEM "&Paste\tCtrl+V",              IDM_EDIT_PASTE, GRAYED
+     // MY_MENUITEM_SEPARATOR
+-    MENUITEM "Select &All\tShift+[Grey +]", IDM_SELECT_ALL
+-    MENUITEM "Deselect All\tShift+[Grey -]", IDM_DESELECT_ALL
+-    MENUITEM "&Invert Selection\tGrey *",   IDM_INVERT_SELECTION
+-    MENUITEM "Select...\tGrey +",           IDM_SELECT
+-    MENUITEM "Deselect...\tGrey -",         IDM_DESELECT
++    MENUITEM "Select &All\tShift+[NUM +]", IDM_SELECT_ALL
++    MENUITEM "Deselect All\tShift+[NUM -]", IDM_DESELECT_ALL
++    MENUITEM "&Invert Selection\t[NUM *]",   IDM_INVERT_SELECTION
++    MENUITEM "Select...\t[NUM +]",           IDM_SELECT
++    MENUITEM "Deselect...\t[NUM -]",         IDM_DESELECT
+     MENUITEM "", 0, MY_MFT_MENUBARBREAK
+-    MENUITEM "Select by Type\tAlt+[Grey+]", IDM_SELECT_BY_TYPE
+-    MENUITEM "Deselect by Type\tAlt+[Grey -]", IDM_DESELECT_BY_TYPE
++    MENUITEM "Select by Type\tAlt+[NUM +]", IDM_SELECT_BY_TYPE
++    MENUITEM "Deselect by Type\tAlt+[NUM -]", IDM_DESELECT_BY_TYPE
+   END
+   POPUP "&View" MY_MENUITEM_ID(IDM_VIEW)
+   BEGIN
+@@ -106,8 +106,8 @@ BEGIN
+     MENUITEM "Unsorted\tCtrl+F7",           IDM_VIEW_ARANGE_NO_SORT
+     MY_MENUITEM_SEPARATOR
+     // consider to create a dedicated "GoTo" menu... or remove
+-    MENUITEM "Back",                        IDM_OPEN_BACK_FOLDER
+-    MENUITEM "Forward",                     IDM_OPEN_FORWARD_FOLDER
++    MENUITEM "Back\tAlt+Left",              IDM_OPEN_BACK_FOLDER
++    MENUITEM "Forward\tAlt+Right",          IDM_OPEN_FORWARD_FOLDER
+     MENUITEM "Up One Level\tBackspace",     IDM_OPEN_PARENT_FOLDER
+     MENUITEM "Open Root Folder\t\\",        IDM_OPEN_ROOT_FOLDER
+     MY_MENUITEM_SEPARATOR
+@@ -147,5 +147,5 @@ BEGIN
+   END
+   POPUP "&Tools" MY_MENUITEM_ID(IDM_TOOLS)
+   BEGIN
+-    MENUITEM "&Options...",                 IDM_OPTIONS
++    MENUITEM "&Options...\t Ctrl+O",                 IDM_OPTIONS
+     MY_MENUITEM_SEPARATOR

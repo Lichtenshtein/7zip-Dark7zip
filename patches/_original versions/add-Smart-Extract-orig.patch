@@ -1,0 +1,130 @@
+From 5b37583485c05703a1f001f96d9f2bb5299522ef Mon Sep 17 00:00:00 2001
+From: Michael Van Buren <mike64221@gmail.com>
+Date: Mon, 8 Jan 2018 01:10:49 -0800
+Subject: [PATCH] add Smart Extract
+
+---
+ CPP/7zip/UI/Explorer/ContextMenu.cpp    | 29 +++++++++++++++++++++++++++++
+ CPP/7zip/UI/Explorer/ContextMenu.h      |  1 +
+ CPP/7zip/UI/Explorer/ContextMenuFlags.h |  1 +
+ CPP/7zip/UI/Explorer/resource.h         |  1 +
+ CPP/7zip/UI/Explorer/resource2.rc       |  1 +
+ CPP/7zip/UI/FileManager/MenuPage.cpp    |  1 +
+ 6 files changed, 34 insertions(+)
+
+diff --git a/CPP/7zip/UI/Explorer/ContextMenu.cpp b/CPP/7zip/UI/Explorer/ContextMenu.cpp
+index 21de12a..eacb6c9 100644
+--- a/CPP/7zip/UI/Explorer/ContextMenu.cpp
++++ b/CPP/7zip/UI/Explorer/ContextMenu.cpp
+@@ -168,6 +168,12 @@ static const CContextMenuCommand g_Commands[] =
+     "ExtractTo",
+     IDS_CONTEXT_EXTRACT_TO
+   },
++  {
++    NContextMenuFlags::kExtractSmart,
++    CZipContextMenu::kExtractSmart,
++    "ExtractSmart",
++    IDS_CONTEXT_EXTRACT_SMART
++  },
+   {
+     NContextMenuFlags::kTest,
+     CZipContextMenu::kTest,
+@@ -627,6 +633,28 @@ STDMETHODIMP CZipContextMenu::QueryContextMenu(HMENU hMenu, UINT indexMenu,
+           MyInsertMenu(popupMenu, subIndex++, currentCommandID++, s, bitmap);
+           _commandMap.Add(commandMapItem);
+         }
++
++        if ((contextMenuFlags & NContextMenuFlags::kExtractSmart) != 0)
++        {
++          if (_fileNames.Size() == 1)
++          {
++            // Extract Here
++            CCommandMapItem commandMapItem;
++            FillCommand(kExtractSmart, mainString, commandMapItem);
++            commandMapItem.Folder = baseFolder;
++            MyInsertMenu(popupMenu, subIndex++, currentCommandID++, mainString, bitmap);
++            _commandMap.Add(commandMapItem);
++          }
++          else
++          {
++            // Extract To
++            CCommandMapItem commandMapItem;
++            FillCommand(kExtractSmart, mainString, commandMapItem);
++            commandMapItem.Folder = baseFolder + specFolder;
++            MyInsertMenu(popupMenu, subIndex++, currentCommandID++, mainString, bitmap);
++            _commandMap.Add(commandMapItem);
++          }
++        }
+       }
+ 
+       if ((contextMenuFlags & NContextMenuFlags::kTest) != 0)
+@@ -885,6 +913,7 @@ STDMETHODIMP CZipContextMenu::InvokeCommand(LPCMINVOKECOMMANDINFO commandInfo)
+       case kExtract:
+       case kExtractHere:
+       case kExtractTo:
++      case kExtractSmart:
+       {
+         ExtractArchives(_fileNames, commandMapItem.Folder,
+             (cmdID == kExtract), // showDialog
+diff --git a/CPP/7zip/UI/Explorer/ContextMenu.h b/CPP/7zip/UI/Explorer/ContextMenu.h
+index 3a0eacc..ffac2cc 100644
+--- a/CPP/7zip/UI/Explorer/ContextMenu.h
++++ b/CPP/7zip/UI/Explorer/ContextMenu.h
+@@ -25,6 +25,7 @@ public:
+     kExtract,
+     kExtractHere,
+     kExtractTo,
++    kExtractSmart,
+     kTest,
+     kCompress,
+     kCompressEmail,
+diff --git a/CPP/7zip/UI/Explorer/ContextMenuFlags.h b/CPP/7zip/UI/Explorer/ContextMenuFlags.h
+index f739cdc..bbb68fa 100644
+--- a/CPP/7zip/UI/Explorer/ContextMenuFlags.h
++++ b/CPP/7zip/UI/Explorer/ContextMenuFlags.h
+@@ -8,6 +8,7 @@ namespace NContextMenuFlags
+   const UInt32 kExtract = 1 << 0;
+   const UInt32 kExtractHere = 1 << 1;
+   const UInt32 kExtractTo = 1 << 2;
++  const UInt32 kExtractSmart = 1 << 3;
+ 
+   const UInt32 kTest = 1 << 4;
+   const UInt32 kOpen = 1 << 5;
+diff --git a/CPP/7zip/UI/Explorer/resource.h b/CPP/7zip/UI/Explorer/resource.h
+index 8bb8210..bda314e 100644
+--- a/CPP/7zip/UI/Explorer/resource.h
++++ b/CPP/7zip/UI/Explorer/resource.h
+@@ -9,5 +9,6 @@
+ #define IDS_CONTEXT_COMPRESS_TO         2328
+ #define IDS_CONTEXT_COMPRESS_EMAIL      2329
+ #define IDS_CONTEXT_COMPRESS_TO_EMAIL   2330
++#define IDS_CONTEXT_EXTRACT_SMART       2331
+ 
+ #define IDB_MENU_LOGO  190
+diff --git a/CPP/7zip/UI/Explorer/resource2.rc b/CPP/7zip/UI/Explorer/resource2.rc
+index c07148f..cde11a0 100644
+--- a/CPP/7zip/UI/Explorer/resource2.rc
++++ b/CPP/7zip/UI/Explorer/resource2.rc
+@@ -13,6 +13,7 @@ BEGIN
+   IDS_CONTEXT_COMPRESS_TO "Add to {0}"
+   IDS_CONTEXT_COMPRESS_EMAIL "Compress and email..."
+   IDS_CONTEXT_COMPRESS_TO_EMAIL "Compress to {0} and email"
++  IDS_CONTEXT_EXTRACT_SMART "Smart Extract"
+ END
+ 
+ IDB_MENU_LOGO  BITMAP  "../../UI/Explorer/MenuLogo.bmp"
+diff --git a/CPP/7zip/UI/FileManager/MenuPage.cpp b/CPP/7zip/UI/FileManager/MenuPage.cpp
+index 4067ad7..d3a8eeb 100644
+--- a/CPP/7zip/UI/FileManager/MenuPage.cpp
++++ b/CPP/7zip/UI/FileManager/MenuPage.cpp
+@@ -50,6 +50,7 @@ static const CContextMenuItem kMenuItems[] =
+   { IDS_CONTEXT_EXTRACT, kExtract },
+   { IDS_CONTEXT_EXTRACT_HERE, kExtractHere },
+   { IDS_CONTEXT_EXTRACT_TO, kExtractTo },
++  { IDS_CONTEXT_EXTRACT_SMART, kExtractSmart },
+ 
+   { IDS_CONTEXT_TEST, kTest },
+ 
+-- 
+2.15.0.windows.1
+

@@ -1,0 +1,132 @@
+From faf31a1e85a81935081a0200eb788571405a78b9 Mon Sep 17 00:00:00 2001
+From: ozone10 <positronix10@gmail.com>
+Date: Sun, 20 Apr 2025 15:47:21 +0200
+Subject: [PATCH] Tweaks
+
+---
+ DarkMode/DarkModeSubclass.cpp | 46 ++++++++++++++++++-----------------
+ DarkMode/DarkModeSubclass.h   |  5 ++--
+ 2 files changed, 27 insertions(+), 24 deletions(-)
+
+diff --git a/DarkMode/DarkModeSubclass.cpp b/DarkMode/DarkModeSubclass.cpp
+index f5b717f04..ddbe6ee9f 100644
+--- a/DarkMode/DarkModeSubclass.cpp
++++ b/DarkMode/DarkModeSubclass.cpp
+@@ -1,4 +1,4 @@
+-﻿// Copyright (C)2024 - 2025 ozone10
++﻿// Copyright (C)2024-2025 ozone10
+ 
+ // This program is free software: you can redistribute it and/or modify
+ // it under the terms of the GNU General Public License as published by
+@@ -180,14 +180,14 @@ namespace DarkMode
+ 		~Brushes()
+ 		{
+ 			::DeleteObject(background);         background = nullptr;
+-			::DeleteObject(ctrlBackground);  ctrlBackground = nullptr;
++			::DeleteObject(ctrlBackground);     ctrlBackground = nullptr;
+ 			::DeleteObject(hotBackground);      hotBackground = nullptr;
+-			::DeleteObject(dlgBackground);     dlgBackground = nullptr;
++			::DeleteObject(dlgBackground);      dlgBackground = nullptr;
+ 			::DeleteObject(errorBackground);    errorBackground = nullptr;
+ 
+-			::DeleteObject(edge);          edge = nullptr;
+-			::DeleteObject(hotEdge);       hotEdge = nullptr;
+-			::DeleteObject(disabledEdge);  disabledEdge = nullptr;
++			::DeleteObject(edge);               edge = nullptr;
++			::DeleteObject(hotEdge);            hotEdge = nullptr;
++			::DeleteObject(disabledEdge);       disabledEdge = nullptr;
+ 		}
+ 
+ 		void change(const Colors& colors)
+@@ -792,7 +792,7 @@ namespace DarkMode
+ 	COLORREF getDisabledEdgeColor()       { return getTheme()._colors.disabledEdge; }
+ 
+ 	HBRUSH getBackgroundBrush()           { return getTheme()._brushes.background; }
+-	HBRUSH getCtrlBackgroundBrush()    { return getTheme()._brushes.ctrlBackground; }
++	HBRUSH getCtrlBackgroundBrush()       { return getTheme()._brushes.ctrlBackground; }
+ 	HBRUSH getHotBackgroundBrush()        { return getTheme()._brushes.hotBackground; }
+ 	HBRUSH getDlgBackgroundBrush()        { return getTheme()._brushes.dlgBackground; }
+ 	HBRUSH getErrorBackgroundBrush()      { return getTheme()._brushes.errorBackground; }
+@@ -4420,7 +4420,7 @@ namespace DarkMode
+ 					mii.dwTypeData = menuString;
+ 					mii.cch = (sizeof(menuString) / 2) - 1;
+ 
+-					GetMenuItemInfo(pUDMI->um.hmenu, pUDMI->umi.iPosition, TRUE, &mii);
++					::GetMenuItemInfo(pUDMI->um.hmenu, pUDMI->umi.iPosition, TRUE, &mii);
+ 				}
+ 
+ 				// get the item state for drawing
+@@ -4813,25 +4813,14 @@ namespace DarkMode
+ 		return g_treeViewStyle == TreeViewStyle::dark;
+ 	}
+ 
+-	void setBorder(HWND hWnd, bool border, long borderStyle)
++	void setBorder(HWND hWnd, bool setBorder, LONG_PTR borderStyle)
+ 	{
+ 		auto nStyle = ::GetWindowLongPtr(hWnd, GWL_STYLE);
+ 		const bool hasBorder = (nStyle & borderStyle) == borderStyle;
+-		bool change = false;
+ 
+-		if (!hasBorder && border)
+-		{
+-			nStyle |= borderStyle;
+-			change = true;
+-		}
+-		else if (hasBorder && !border)
+-		{
+-			nStyle &= ~borderStyle;
+-			change = true;
+-		}
+-
+-		if (change)
++		if (setBorder != hasBorder)
+ 		{
++			nStyle ^= borderStyle;
+ 			::SetWindowLongPtr(hWnd, GWL_STYLE, nStyle);
+ 			::SetWindowPos(hWnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+ 		}
+@@ -4898,6 +4887,19 @@ namespace DarkMode
+ 		return reinterpret_cast<LRESULT>(DarkMode::getDlgBackgroundBrush());
+ 	}
+ 
++	LRESULT onCtlColorDlgLinkText(HDC hdc, bool isTextEnabled)
++	{
++		if (!DarkMode::isEnabled())
++		{
++			::SetTextColor(hdc, ::GetSysColor(isTextEnabled ? COLOR_HOTLIGHT : COLOR_GRAYTEXT));
++			return FALSE;
++		}
++
++		::SetTextColor(hdc, isTextEnabled ? DarkMode::getLinkTextColor() : DarkMode::getDisabledTextColor());
++		::SetBkColor(hdc, DarkMode::getDlgBackgroundColor());
++		return reinterpret_cast<LRESULT>(DarkMode::getDlgBackgroundBrush());
++	}
++
+ 	LRESULT onCtlColorListbox(WPARAM wParam, LPARAM lParam)
+ 	{
+ 		auto hdc = reinterpret_cast<HDC>(wParam);
+diff --git a/DarkMode/DarkModeSubclass.h b/DarkMode/DarkModeSubclass.h
+index e64125d11..2ca447a06 100644
+--- a/DarkMode/DarkModeSubclass.h
++++ b/DarkMode/DarkModeSubclass.h
+@@ -1,4 +1,4 @@
+-// Copyright (C)2024 - 2025 ozone10
++// Copyright (C)2024-2025 ozone10
+ 
+ // This program is free software: you can redistribute it and/or modify
+ // it under the terms of the GNU General Public License as published by
+@@ -202,12 +202,13 @@ namespace DarkMode
+ 	TreeViewStyle getTreeViewStyle();
+ 	void setTreeViewStyle(HWND hWnd, bool force = false);
+ 	bool isThemeDark();
+-	void setBorder(HWND hWnd, bool border = true, long borderStyle = WS_BORDER);
++	void setBorder(HWND hWnd, bool border = true, LONG_PTR borderStyle = WS_BORDER);
+ 
+ 	LRESULT onCtlColor(HDC hdc);
+ 	LRESULT onCtlColorCtrl(HDC hdc);
+ 	LRESULT onCtlColorDlg(HDC hdc);
+ 	LRESULT onCtlColorError(HDC hdc);
+ 	LRESULT onCtlColorDlgStaticText(HDC hdc, bool isTextEnabled);
++	LRESULT onCtlColorDlgLinkText(HDC hdc, bool isTextEnabled = true);
+ 	LRESULT onCtlColorListbox(WPARAM wParam, LPARAM lParam);
+ }

@@ -1,0 +1,332 @@
+From b0e2696015b8c01a733205f9685f3daf09ee0328 Mon Sep 17 00:00:00 2001
+From: ozone10 <positronix10@gmail.com>
+Date: Thu, 8 May 2025 11:08:32 +0200
+Subject: [PATCH] Tweaks
+
+---
+ DarkMode/DarkMode.cpp         |  7 ++++
+ DarkMode/DarkMode.h           |  7 ++++
+ DarkMode/DarkModeSubclass.cpp | 78 +++++++++++++++++++++--------------
+ DarkMode/DarkModeSubclass.h   | 23 +++++++++--
+ DarkMode/IatHook.h            |  3 ++
+ LICENSE-MIT.md                | 21 ++++++++++
+ README.md                     |  3 +-
+ 7 files changed, 107 insertions(+), 35 deletions(-)
+ create mode 100644 LICENSE-MIT.md
+
+diff --git a/DarkMode/DarkMode.cpp b/DarkMode/DarkMode.cpp
+index 0c7f61c3f..e5f2a1bbe 100644
+--- a/DarkMode/DarkMode.cpp
++++ b/DarkMode/DarkMode.cpp
+@@ -1,3 +1,10 @@
++// MIT license
++// Copyright(c) 2024-2025 ozone10
++
++// Parts of code based on the win32-darkmode project
++// https://github.com/ysc3839/win32-darkmode
++// which is licensed under the MIT License. Copyright (c) 2019 Richard Yu
++
+ #include "StdAfx.h"
+ 
+ #ifndef WIN32_LEAN_AND_MEAN
+diff --git a/DarkMode/DarkMode.h b/DarkMode/DarkMode.h
+index 034092a60..7845e04cb 100644
+--- a/DarkMode/DarkMode.h
++++ b/DarkMode/DarkMode.h
+@@ -1,3 +1,10 @@
++// MIT license
++// Copyright(c) 2024-2025 ozone10
++
++// Parts of code based on the win32-darkmode project
++// https://github.com/ysc3839/win32-darkmode
++// which is licensed under the MIT License. Copyright (c) 2019 Richard Yu
++
+ #pragma once
+ 
+ #include <windows.h>
+diff --git a/DarkMode/DarkModeSubclass.cpp b/DarkMode/DarkModeSubclass.cpp
+index c2057dbca..ad062561a 100644
+--- a/DarkMode/DarkModeSubclass.cpp
++++ b/DarkMode/DarkModeSubclass.cpp
+@@ -2482,25 +2482,27 @@ namespace DarkMode
+ 				auto lpRect = reinterpret_cast<LPRECT>(lParam);
+ 				::InflateRect(lpRect, -(pBorderMetricsData->_xEdge), -(pBorderMetricsData->_yEdge));
+ 
+-				const auto nStyle = ::GetWindowLongPtr(hWnd, GWL_STYLE);
+-				const bool hasVerScrollbar = (nStyle & WS_VSCROLL) == WS_VSCROLL;
+-				if (hasVerScrollbar)
+-				{
+-					lpRect->right -= pBorderMetricsData->_xScroll;
+-				}
++				break;
+ 
+-				const bool hasHorScrollbar = (nStyle & WS_HSCROLL) == WS_HSCROLL;
+-				if (hasHorScrollbar)
+-				{
+-					lpRect->bottom -= pBorderMetricsData->_yScroll;
+-				}
++				//const auto nStyle = ::GetWindowLongPtr(hWnd, GWL_STYLE);
++				//const bool hasVerScrollbar = (nStyle & WS_VSCROLL) == WS_VSCROLL;
++				//if (hasVerScrollbar)
++				//{
++				//	lpRect->right -= pBorderMetricsData->_xScroll;
++				//}
+ 
+-				return 0;
++				//const bool hasHorScrollbar = (nStyle & WS_HSCROLL) == WS_HSCROLL;
++				//if (hasHorScrollbar)
++				//{
++				//	lpRect->bottom -= pBorderMetricsData->_yScroll;
++				//}
++
++				//return 0;
+ 			}
+ 
+ 			case WM_DPICHANGED:
+ 			{
+-				::SetWindowPos(hWnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
++				DarkMode::redrawWindowFrame(hWnd);
+ 				return 0;
+ 			}
+ 
+@@ -2526,7 +2528,7 @@ namespace DarkMode
+ 				if (!pBorderMetricsData->_isHot)
+ 				{
+ 					pBorderMetricsData->_isHot = true;
+-					::SetWindowPos(hWnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
++					DarkMode::redrawWindowFrame(hWnd);
+ 				}
+ 				break;
+ 			}
+@@ -2541,7 +2543,7 @@ namespace DarkMode
+ 				if (pBorderMetricsData->_isHot)
+ 				{
+ 					pBorderMetricsData->_isHot = false;
+-					::SetWindowPos(hWnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
++					DarkMode::redrawWindowFrame(hWnd);
+ 				}
+ 
+ 				TRACKMOUSEEVENT tme{};
+@@ -2588,11 +2590,7 @@ namespace DarkMode
+ 		if (::GetWindowSubclass(hWnd, CustomBorderSubclass, g_customBorderSubclassID, nullptr) == TRUE)
+ 		{
+ 			const bool enableClientEdge = !DarkMode::isEnabled();
+-			if (enableClientEdge != hasClientEdge)
+-			{
+-				::SetWindowLongPtr(hWnd, GWL_EXSTYLE, nExStyle ^ WS_EX_CLIENTEDGE);
+-				::SetWindowPos(hWnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+-			}
++			DarkMode::setWindowExStyle(hWnd, enableClientEdge, WS_EX_CLIENTEDGE);
+ 		}
+ 	}
+ 
+@@ -3089,7 +3087,6 @@ namespace DarkMode
+ 				}
+ 				break;
+ 			}
+-			break;
+ 		}
+ 		return ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
+ 	}
+@@ -5212,7 +5209,7 @@ namespace DarkMode
+ 
+ 	void enableThemeDialogTexture(HWND hWnd, bool theme)
+ 	{
+-		::EnableThemeDialogTexture(hWnd, theme && (g_dmType == DarkModeType::light) ? ETDT_ENABLETAB : ETDT_DISABLE);
++		::EnableThemeDialogTexture(hWnd, theme && (g_dmType == DarkModeType::classic) ? ETDT_ENABLETAB : ETDT_DISABLE);
+ 	}
+ 
+ 	void disableVisualStyle(HWND hWnd, bool doDisable)
+@@ -5351,22 +5348,43 @@ namespace DarkMode
+ 		return g_treeViewStyle == TreeViewStyle::dark;
+ 	}
+ 
+-	void setBorder(HWND hWnd, bool setBorder, LONG_PTR borderStyle)
++	void redrawWindowFrame(HWND hWnd)
++	{
++		::SetWindowPos(hWnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
++	}
++
++	static int setWindowLongPtrStyle(HWND hWnd, bool setFlag, LONG_PTR dwFlag, int gwlIdx)
+ 	{
+-		auto nStyle = ::GetWindowLongPtr(hWnd, GWL_STYLE);
+-		const bool hasBorder = (nStyle & borderStyle) == borderStyle;
++		if ((gwlIdx != GWL_STYLE) && (gwlIdx != GWL_EXSTYLE))
++			return -1;
++
++		auto nStyle = ::GetWindowLongPtr(hWnd, gwlIdx);
++		const bool hasFlag = (nStyle & dwFlag) == dwFlag;
+ 
+-		if (setBorder != hasBorder)
++		if (setFlag != hasFlag)
+ 		{
+-			nStyle ^= borderStyle;
+-			::SetWindowLongPtr(hWnd, GWL_STYLE, nStyle);
+-			::SetWindowPos(hWnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
++			nStyle ^= dwFlag;
++			::SetWindowLongPtr(hWnd, gwlIdx, nStyle);
++			return TRUE;
+ 		}
++		return FALSE;
++	}
++
++	void setWindowStyle(HWND hWnd, bool setStyle, LONG_PTR styleFlag)
++	{
++		if (DarkMode::setWindowLongPtrStyle(hWnd, setStyle, styleFlag, GWL_STYLE) == TRUE)
++			DarkMode::redrawWindowFrame(hWnd);
++	}
++
++	void setWindowExStyle(HWND hWnd, bool setExStyle, LONG_PTR exStyleFlag)
++	{
++		if (DarkMode::setWindowLongPtrStyle(hWnd, setExStyle, exStyleFlag, GWL_EXSTYLE) == TRUE)
++			DarkMode::redrawWindowFrame(hWnd);
+ 	}
+ 
+ 	void setProgressBarClassicTheme(HWND hWnd)
+ 	{
+-		DarkMode::setBorder(hWnd, DarkMode::isEnabled(), WS_DLGFRAME);
++		DarkMode::setWindowStyle(hWnd, DarkMode::isEnabled(), WS_DLGFRAME);
+ 		DarkMode::disableVisualStyle(hWnd, DarkMode::isEnabled());
+ 		if (DarkMode::isEnabled())
+ 		{
+diff --git a/DarkMode/DarkModeSubclass.h b/DarkMode/DarkModeSubclass.h
+index b231196ff..25e9b10b4 100644
+--- a/DarkMode/DarkModeSubclass.h
++++ b/DarkMode/DarkModeSubclass.h
+@@ -22,7 +22,9 @@
+ 
+ #include <windows.h>
+ 
+-#if (NTDDI_VERSION >= NTDDI_VISTA)
++#if (NTDDI_VERSION >= NTDDI_VISTA)/* && \
++	(defined(__x86_64__) || defined(_M_X64) || \
++	 defined(__arm64__) || defined(__arm64) || defined(_M_ARM64))*/
+ 
+ namespace DarkMode
+ {
+@@ -119,18 +121,22 @@ namespace DarkMode
+ 	DWORD getWindowsBuildNumber();
+ 
+ 	// handle events
++
+ 	bool handleSettingChange(LPARAM lParam);
+ 	bool isDarkModeReg();
+ 
+ 	// from DarkMode.h
++
+ 	void setSysColor(int nIndex, COLORREF color);
+ 	bool hookSysColor();
+ 	void unhookSysColor();
+ 
+ 	// enhancements to DarkMode.h
++
+ 	void enableDarkScrollBarForWindowAndChildren(HWND hWnd);
+ 
+ 	// colors
++
+ 	void setDarkCustomColors(ColorTone colorTone);
+ 	ColorTone getColorTone();
+ 
+@@ -209,10 +215,12 @@ namespace DarkMode
+ 	HPEN getHeaderEdgePen();
+ 
+ 	// paint helper
++
+ 	void paintRoundRect(HDC hdc, const RECT rect, const HPEN hpen, const HBRUSH hBrush, int width = 0, int height = 0);
+ 	inline void paintRoundFrameRect(HDC hdc, const RECT rect, const HPEN hpen, int width = 0, int height = 0);
+ 
+ 	// control subclassing
++
+ 	void setCheckboxOrRadioBtnCtrlSubclass(HWND hWnd);
+ 	void removeCheckboxOrRadioBtnCtrlSubclass(HWND hWnd);
+ 
+@@ -249,10 +257,12 @@ namespace DarkMode
+ 	void removeStaticTextCtrlSubclass(HWND hWnd);
+ 
+ 	// child subclassing
++
+ 	void setChildCtrlsSubclassAndTheme(HWND hParent, bool subclass = true, bool theme = true);
+ 	void setChildCtrlsTheme(HWND hParent);
+ 
+ 	// window, parent, and other subclassing
++
+ 	void setWindowEraseBgSubclass(HWND hWnd);
+ 	void removeWindowEraseBgSubclass(HWND hWnd);
+ 
+@@ -269,6 +279,7 @@ namespace DarkMode
+ 	void removeWindowSettingChangeSubclass(HWND hWnd);
+ 
+ 	// theme and helper
++
+ 	void setDarkTitleBarEx(HWND hWnd, bool useWin11Features);
+ 	void setDarkTitleBar(HWND hWnd);
+ 	void setDarkExplorerTheme(HWND hWnd);
+@@ -281,7 +292,8 @@ namespace DarkMode
+ 	void setDarkDlgSafe(HWND hWnd, bool useWin11Features = true);
+ 	void setDarkDlgNotifySafe(HWND hWnd, bool useWin11Features = true);
+ 
+-	void enableThemeDialogTexture(HWND hWnd, bool theme);
++	// only if g_dmType == DarkModeType::classic
++	inline void enableThemeDialogTexture(HWND hWnd, bool theme);
+ 	void disableVisualStyle(HWND hWnd, bool doDisable);
+ 	double calculatePerceivedLightness(COLORREF clr);
+ 	void calculateTreeViewStyle();
+@@ -289,10 +301,13 @@ namespace DarkMode
+ 	TreeViewStyle getTreeViewStyle();
+ 	void setTreeViewStyle(HWND hWnd, bool force = false);
+ 	bool isThemeDark();
+-	void setBorder(HWND hWnd, bool border = true, LONG_PTR borderStyle = WS_BORDER);
++	inline void redrawWindowFrame(HWND hWnd);
++	void setWindowStyle(HWND hWnd, bool setStyle, LONG_PTR styleFlag);
++	void setWindowExStyle(HWND hWnd, bool setExStyle, LONG_PTR exStyleFlag);
+ 	void setProgressBarClassicTheme(HWND hWnd);
+ 
+ 	// ctl color
++
+ 	LRESULT onCtlColor(HDC hdc);
+ 	LRESULT onCtlColorCtrl(HDC hdc);
+ 	LRESULT onCtlColorDlg(HDC hdc);
+@@ -304,4 +319,4 @@ namespace DarkMode
+ 
+ #else
+ #define _DARKMODELIB_NOT_USED
+-#endif // (NTDDI_VERSION >= NTDDI_VISTA)
++#endif // (NTDDI_VERSION >= NTDDI_VISTA) //&& (x64 or arm64)
+diff --git a/DarkMode/IatHook.h b/DarkMode/IatHook.h
+index af4dc63bd..e738388b1 100644
+--- a/DarkMode/IatHook.h
++++ b/DarkMode/IatHook.h
+@@ -1,3 +1,6 @@
++// This file is a modified version of IatHook.h from the win32-darkmode project
++// https://github.com/ysc3839/win32-darkmode
++
+ // This file contains code from
+ // https://github.com/stevemk14ebr/PolyHook_2_0/blob/master/sources/IatHook.cpp
+ // which is licensed under the MIT License.
+diff --git a/LICENSE-MIT.md b/LICENSE-MIT.md
+new file mode 100644
+index 000000000..82d5e59d7
+--- /dev/null
++++ b/LICENSE-MIT.md
+@@ -0,0 +1,21 @@
++### MIT License
++
++Copyright (c) 2024-2025 ozone10
++
++Permission is hereby granted, free of charge, to any person obtaining a copy
++of this software and associated documentation files (the "Software"), to deal
++in the Software without restriction, including without limitation the rights
++to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++copies of the Software, and to permit persons to whom the Software is
++furnished to do so, subject to the following conditions:
++
++The above copyright notice and this permission notice shall be included in all
++copies or substantial portions of the Software.
++
++THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
++AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
++SOFTWARE.

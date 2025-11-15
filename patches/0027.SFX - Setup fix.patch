@@ -1,0 +1,29 @@
+From 0616c0919e1f63f94598cd11c923326c5d992f83 Mon Sep 17 00:00:00 2001
+From: Ger Hobbelt <ger@hobbelt.com>
+Date: Sun, 4 May 2025 23:51:03 +0200
+Subject: [PATCH] sfx-SetupFix
+
+---
+diff --git a/CPP/7zip/Bundles/SFXSetup/SfxSetup.cpp b/CPP/7zip/Bundles/SFXSetup/SfxSetup.cpp
+index 0c09807..a151d90 100644
+--- a/CPP/7zip/Bundles/SFXSetup/SfxSetup.cpp
++++ b/CPP/7zip/Bundles/SFXSetup/SfxSetup.cpp
+@@ -38,6 +38,7 @@ bool g_DisableUserQuestions;
+ bool g_DisableUserQuestions;
+ 
+ static CFSTR const kTempDirPrefix = FTEXT("7zS");
++static char const volatile kSemicolon = ';';
+ 
+ #define MY_SHELL_EXECUTE
+ 
+@@ -109,8 +110,8 @@ static struct CInstallIDInit
+ {
+   CInstallIDInit()
+   {
+-    kStartID[0] = ';';
+-    kEndID[0] = ';';
++    kStartID[0] = kSemicolon;
++    kEndID[0] = kSemicolon;
+   }
+ } g_CInstallIDInit;
+ 

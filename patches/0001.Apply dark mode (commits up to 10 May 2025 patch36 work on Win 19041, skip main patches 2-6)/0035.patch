@@ -1,0 +1,301 @@
+From 845824505c17905917acaa81a3849aba94b97a79 Mon Sep 17 00:00:00 2001
+From: ozone10 <positronix10@gmail.com>
+Date: Fri, 9 May 2025 19:46:35 +0200
+Subject: [PATCH] Tweaks
+
+---
+ DarkMode/DarkMode.cpp         | 32 +++++++++++-----------
+ DarkMode/DarkModeSubclass.cpp | 50 ++++++++++++++++++++---------------
+ DarkMode/DarkModeSubclass.h   |  2 +-
+ 3 files changed, 45 insertions(+), 39 deletions(-)
+
+diff --git a/DarkMode/DarkMode.cpp b/DarkMode/DarkMode.cpp
+index e5f2a1bbe..9e785b44a 100644
+--- a/DarkMode/DarkMode.cpp
++++ b/DarkMode/DarkMode.cpp
+@@ -100,7 +100,7 @@ struct WINDOWCOMPOSITIONATTRIBDATA
+ };
+ 
+ template <typename P>
+-bool ptrFn(HMODULE handle, P& pointer, const char* name)
++static auto ptrFn(HMODULE handle, P& pointer, const char* name) -> bool
+ {
+ 	auto p = reinterpret_cast<P>(::GetProcAddress(handle, name));
+ 	if (p != nullptr)
+@@ -268,7 +268,7 @@ static bool IsWindowOrParentUsingDarkScrollBar(HWND hwnd)
+ static void FixDarkScrollBar()
+ {
+ 	HMODULE hComctl = LoadLibraryEx(L"comctl32.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+-	if (hComctl)
++	if (hComctl != nullptr)
+ 	{
+ 		auto addr = FindDelayLoadThunkInModule(hComctl, "uxtheme.dll", 49); // OpenNcThemeData
+ 		if (addr)
+@@ -333,12 +333,12 @@ void InitDarkMode()
+ 
+ 	fnRtlGetNtVersionNumbers RtlGetNtVersionNumbers = nullptr;
+ 	HMODULE hNtdllModule = GetModuleHandle(L"ntdll.dll");
+-	if (hNtdllModule)
++	if (hNtdllModule != nullptr)
+ 	{
+ 		ptrFn(hNtdllModule, RtlGetNtVersionNumbers, "RtlGetNtVersionNumbers");
+ 	}
+ 
+-	if (RtlGetNtVersionNumbers)
++	if (RtlGetNtVersionNumbers != nullptr)
+ 	{
+ 		DWORD major, minor;
+ 		RtlGetNtVersionNumbers(&major, &minor, &g_buildNumber);
+@@ -346,7 +346,7 @@ void InitDarkMode()
+ 		if (major == 10 && minor == 0 && CheckBuildNumber(g_buildNumber))
+ 		{
+ 			HMODULE hUxtheme = LoadLibraryEx(L"uxtheme.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+-			if (hUxtheme)
++			if (hUxtheme != nullptr)
+ 			{
+ 				ptrFn(hUxtheme, _OpenNcThemeData, 49);
+ 				ptrFn(hUxtheme, _RefreshImmersiveColorPolicyState, 104);
+@@ -363,20 +363,20 @@ void InitDarkMode()
+ 				ptrFn(hUxtheme, _IsDarkModeAllowedForWindow, 137);
+ 
+ 				HMODULE hUser32 = GetModuleHandleW(L"user32.dll");
+-				if (hUser32)
++				if (hUser32 != nullptr)
+ 				{
+ 					ptrFn(hUser32, _SetWindowCompositionAttribute, "SetWindowCompositionAttribute");
+ 				}
+ 
+ 				isInit = true;
+ 
+-				if (_OpenNcThemeData &&
+-					_RefreshImmersiveColorPolicyState &&
+-					_ShouldAppsUseDarkMode &&
+-					_AllowDarkModeForWindow &&
+-					(_AllowDarkModeForApp || _SetPreferredAppMode) &&
+-					_FlushMenuThemes &&
+-					_IsDarkModeAllowedForWindow)
++				if (_OpenNcThemeData != nullptr &&
++					_RefreshImmersiveColorPolicyState != nullptr &&
++					_ShouldAppsUseDarkMode != nullptr &&
++					_AllowDarkModeForWindow != nullptr &&
++					(_AllowDarkModeForApp != nullptr || _SetPreferredAppMode != nullptr) &&
++					_FlushMenuThemes != nullptr &&
++					_IsDarkModeAllowedForWindow != nullptr)
+ 				{
+ 					g_darkModeSupported = true;
+ 				}
+@@ -462,7 +462,7 @@ static DWORD WINAPI MyGetSysColor(int nIndex)
+ }
+ 
+ template <typename P>
+-P ReplaceFunction(IMAGE_THUNK_DATA* addr, P newFunction)
++static auto ReplaceFunction(IMAGE_THUNK_DATA* addr, P newFunction) -> P
+ {
+ 	DWORD oldProtect = 0;
+ 	if (!VirtualProtect(addr, sizeof(IMAGE_THUNK_DATA), PAGE_READWRITE, &oldProtect))
+@@ -476,7 +476,7 @@ P ReplaceFunction(IMAGE_THUNK_DATA* addr, P newFunction)
+ bool HookSysColor()
+ {
+ 	HMODULE hComctl = LoadLibraryEx(L"comctl32.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+-	if (hComctl)
++	if (hComctl != nullptr)
+ 	{
+ 		if (_GetSysColor == nullptr || !isGetSysColorHooked)
+ 		{
+@@ -507,7 +507,7 @@ bool HookSysColor()
+ void UnhookSysColor()
+ {
+ 	HMODULE hComctl = LoadLibraryEx(L"comctl32.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+-	if (hComctl)
++	if (hComctl != nullptr)
+ 	{
+ 		if (isGetSysColorHooked)
+ 		{
+diff --git a/DarkMode/DarkModeSubclass.cpp b/DarkMode/DarkModeSubclass.cpp
+index ad062561a..71ef81b5c 100644
+--- a/DarkMode/DarkModeSubclass.cpp
++++ b/DarkMode/DarkModeSubclass.cpp
+@@ -808,7 +808,8 @@ namespace DarkMode
+ 		const auto cornerStyle = static_cast<DWM_WINDOW_CORNER_PREFERENCE>(roundCornerStyle);
+ 		if (cornerStyle > DWMWCP_ROUNDSMALL) // || cornerStyle < DWMWCP_DEFAULT) // should never be < 0
+ 			g_roundCorner = DWMWCP_DEFAULT;
+-		g_roundCorner = cornerStyle;
++		else
++			g_roundCorner = cornerStyle;
+ 	}
+ 
+ 	void setBorderColorConfig(COLORREF clr)
+@@ -824,7 +825,8 @@ namespace DarkMode
+ 		const auto micaType = static_cast<DWM_SYSTEMBACKDROP_TYPE>(mica);
+ 		if (micaType > DWMSBT_TABBEDWINDOW) // || micaType < DWMSBT_AUTO)  // should never be < 0
+ 			g_mica = DWMSBT_AUTO;
+-		g_mica = micaType;
++		else
++			g_mica = micaType;
+ 	}
+ 
+ 	void setMicaExtendedConfig(bool extendMica)
+@@ -837,12 +839,12 @@ namespace DarkMode
+ 
+ 	static void initOptions(const std::wstring& iniName = L"")
+ 	{
+-		if (!iniName.empty() && iniName != L"")
++		if (!iniName.empty())
+ 		{
+ 			g_iniName = iniName;
+ 		}
+ 
+-		if (g_iniName.empty() || g_iniName == L"")
++		if (g_iniName.empty())
+ 		{
+ 			return;
+ 		}
+@@ -1010,7 +1012,7 @@ namespace DarkMode
+ 		if (DarkMode::isExperimentalSupported() && ::IsColorSchemeChangeMessage(lParam))
+ 		{
+ 			// ShouldAppsUseDarkMode() is not reliable from 1903+, use NppDarkMode::isDarkModeReg() instead
+-			bool isDarkModeUsed = DarkMode::isDarkModeReg() && !IsHighContrast();
++			const bool isDarkModeUsed = DarkMode::isDarkModeReg() && !IsHighContrast();
+ 			if (DarkMode::isExperimentalActive() != isDarkModeUsed)
+ 			{
+ 				if (g_isInit)
+@@ -1129,8 +1131,8 @@ namespace DarkMode
+ 
+ 		bool ensureBuffer(HDC hdc, const RECT& rcClient)
+ 		{
+-			int width = rcClient.right - rcClient.left;
+-			int height = rcClient.bottom - rcClient.top;
++			const int width = rcClient.right - rcClient.left;
++			const int height = rcClient.bottom - rcClient.top;
+ 
+ 			if (_szBuffer.cx != width || _szBuffer.cy != height)
+ 			{
+@@ -1188,22 +1190,22 @@ namespace DarkMode
+ 	};
+ 
+ 	template <typename T, typename Param>
+-	static int setSubclass(HWND hWnd, SUBCLASSPROC subclassProc, UINT_PTR subclassID, const Param& param)
++	static auto setSubclass(HWND hWnd, SUBCLASSPROC subclassProc, UINT_PTR subclassID, const Param& param) -> int
+ 	{
+ 		if (::GetWindowSubclass(hWnd, subclassProc, subclassID, nullptr) == FALSE)
+ 		{
+-			DWORD_PTR pData = reinterpret_cast<DWORD_PTR>(new T(param));
++			auto pData = reinterpret_cast<DWORD_PTR>(new T(param));
+ 			return ::SetWindowSubclass(hWnd, subclassProc, subclassID, pData);
+ 		}
+ 		return -1;
+ 	}
+ 
+ 	template <typename T>
+-	static int setSubclass(HWND hWnd, SUBCLASSPROC subclassProc, UINT_PTR subclassID)
++	static auto setSubclass(HWND hWnd, SUBCLASSPROC subclassProc, UINT_PTR subclassID) -> int
+ 	{
+ 		if (::GetWindowSubclass(hWnd, subclassProc, subclassID, nullptr) == FALSE)
+ 		{
+-			DWORD_PTR pData = reinterpret_cast<DWORD_PTR>(new T());
++			auto pData = reinterpret_cast<DWORD_PTR>(new T());
+ 			return ::SetWindowSubclass(hWnd, subclassProc, subclassID, pData);
+ 		}
+ 		return -1;
+@@ -1219,7 +1221,7 @@ namespace DarkMode
+ 	}
+ 
+ 	template <typename T = void>
+-	static int removeSubclass(HWND hWnd, SUBCLASSPROC subclassProc, UINT_PTR subclassID)
++	static auto removeSubclass(HWND hWnd, SUBCLASSPROC subclassProc, UINT_PTR subclassID) -> int
+ 	{
+ 		T* pData = nullptr;
+ 
+@@ -2340,7 +2342,7 @@ namespace DarkMode
+ 					case WM_CREATE:
+ 					{
+ 						auto hwndUpdown = reinterpret_cast<HWND>(lParam);
+-						if (cmpWndClassName(hWnd, UPDOWN_CLASS))
++						if (cmpWndClassName(hwndUpdown, UPDOWN_CLASS))
+ 						{
+ 							DarkMode::setUpDownCtrlSubclass(hwndUpdown);
+ 							return 0;
+@@ -3746,7 +3748,7 @@ namespace DarkMode
+ 
+ 		RECT rcFill{};
+ 		DarkMode::getProgressBarRects(hWnd, &rcClient, &rcFill);
+-		::DrawThemeBackground(hTheme, hdc, PP_FILL, progressBarData._iStateID, &rcFill, NULL);
++		::DrawThemeBackground(hTheme, hdc, PP_FILL, progressBarData._iStateID, &rcFill, nullptr);
+ 		::FillRect(hdc, &rcClient, DarkMode::getCtrlBackgroundBrush());
+ 	}
+ 
+@@ -4293,7 +4295,7 @@ namespace DarkMode
+ 					}
+ 
+ 					::FillRect(lptbcd->nmcd.hdc, &lptbcd->nmcd.rc, DarkMode::getDlgBackgroundBrush());
+-					lr |= CDRF_NOTIFYITEMDRAW;
++					lr |= CDRF_NOTIFYITEMDRAW | CDRF_NOTIFYPOSTPAINT;
+ 				}
+ 
+ 				return lr;
+@@ -4892,32 +4894,34 @@ namespace DarkMode
+ 				int iTextStateID = MBI_NORMAL;
+ 				int iBackgroundStateID = MBI_NORMAL;
+ 				{
+-					if (pUDMI->dis.itemState & ODS_SELECTED)
++					if ((pUDMI->dis.itemState & ODS_SELECTED) == ODS_SELECTED)
+ 					{
+ 						// clicked
+ 						iTextStateID = MBI_PUSHED;
+ 						iBackgroundStateID = MBI_PUSHED;
+ 					}
+-					else if (pUDMI->dis.itemState & ODS_HOTLIGHT)
++					else if ((pUDMI->dis.itemState & ODS_HOTLIGHT) == ODS_HOTLIGHT)
+ 					{
+ 						// hot tracking
+-						iTextStateID = (pUDMI->dis.itemState & ODS_INACTIVE) ? MBI_DISABLEDHOT : MBI_HOT;
++						iTextStateID = ((pUDMI->dis.itemState & ODS_INACTIVE) == ODS_INACTIVE) ? MBI_DISABLEDHOT : MBI_HOT;
+ 						iBackgroundStateID = MBI_HOT;
+ 					}
+-					else if ((pUDMI->dis.itemState & ODS_GRAYED) || (pUDMI->dis.itemState & ODS_DISABLED) || (pUDMI->dis.itemState & ODS_INACTIVE))
++					else if (((pUDMI->dis.itemState & ODS_GRAYED) == ODS_GRAYED)
++						|| ((pUDMI->dis.itemState & ODS_DISABLED) == ODS_DISABLED)
++						|| ((pUDMI->dis.itemState & ODS_INACTIVE) == ODS_INACTIVE))
+ 					{
+ 						// disabled / grey text / inactive
+ 						iTextStateID = MBI_DISABLED;
+ 						iBackgroundStateID = MBI_DISABLED;
+ 					}
+-					else if (pUDMI->dis.itemState & ODS_DEFAULT)
++					else if ((pUDMI->dis.itemState & ODS_DEFAULT) == ODS_DEFAULT)
+ 					{
+ 						// normal display
+ 						iTextStateID = MBI_NORMAL;
+ 						iBackgroundStateID = MBI_NORMAL;
+ 					}
+ 
+-					if (pUDMI->dis.itemState & ODS_NOACCEL)
++					if ((pUDMI->dis.itemState & ODS_NOACCEL) == ODS_NOACCEL)
+ 					{
+ 						dwFlags |= DT_HIDEPREFIX;
+ 					}
+@@ -5476,8 +5480,10 @@ namespace DarkMode
+ 		const bool isComboBox = (nStyle & LBS_COMBOBOX) == LBS_COMBOBOX;
+ 		if ((!isComboBox || !DarkMode::isExperimentalActive()))
+ 		{
+-			if (::IsWindowEnabled(hWnd))
++			if (::IsWindowEnabled(hWnd) == TRUE)
++			{
+ 				return DarkMode::onCtlColorCtrl(hdc);
++			}
+ 			return DarkMode::onCtlColorDlg(hdc);
+ 		}
+ 		return DarkMode::onCtlColor(hdc);
+diff --git a/DarkMode/DarkModeSubclass.h b/DarkMode/DarkModeSubclass.h
+index 25e9b10b4..714ab6c5a 100644
+--- a/DarkMode/DarkModeSubclass.h
++++ b/DarkMode/DarkModeSubclass.h
+@@ -22,7 +22,7 @@
+ 
+ #include <windows.h>
+ 
+-#if (NTDDI_VERSION >= NTDDI_VISTA)/* && \
++#if (NTDDI_VERSION >= NTDDI_VISTA) /* && \
+ 	(defined(__x86_64__) || defined(_M_X64) || \
+ 	 defined(__arm64__) || defined(__arm64) || defined(_M_ARM64))*/
+ 

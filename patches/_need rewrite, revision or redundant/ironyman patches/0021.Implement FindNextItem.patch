@@ -1,0 +1,118 @@
+From 23f2e4047fe492dcd8ce94f9205fae441eaeca92 Mon Sep 17 00:00:00 2001
+From: ironyman <ironyman13@gmail.com>
+Date: Mon, 19 Feb 2024 17:34:17 -0800
+Subject: [PATCH] Implement FindNextItem
+
+---
+ CPP/7zip/UI/FileManager/Debounce.h    | 18 ++++++++++----
+ CPP/7zip/UI/FileManager/PanelFind.cpp | 34 ++++++++++++++++++++++++---
+ CPP/Common/Debug.cpp                  |  2 ++
+ 3 files changed, 47 insertions(+), 7 deletions(-)
+
+diff --git a/CPP/7zip/UI/FileManager/Debounce.h b/CPP/7zip/UI/FileManager/Debounce.h
+index 0b39e17..2b39d0e 100644
+--- a/CPP/7zip/UI/FileManager/Debounce.h
++++ b/CPP/7zip/UI/FileManager/Debounce.h
+@@ -24,7 +24,6 @@ struct Debounce
+     };
+     F callback;
+     PTP_TIMER timer;
+-    FILETIME delay;
+     PVOID context;
+     int delayMs;
+     std::queue<std::future<void>> contextDeletionFutures;
+@@ -35,8 +34,6 @@ struct Debounce
+     Debounce(F callback, const int &delayMs)
+     {
+         this->delayMs = delayMs;
+-        this->delay.dwHighDateTime = 0;
+-        this->delay.dwLowDateTime = -delayMs*1000*10;
+         this->callback = callback;
+         this->timer = nullptr;
+         this->context = nullptr;
+@@ -102,7 +99,20 @@ struct Debounce
+         auto callContext = new CallbackContext<F, decltype(args)...>{std::tuple<decltype(args)...>(std::forward<decltype(args)>(args)...), this->callback};
+ 
+         this->context = (PVOID)callContext;
+-        SetThreadpoolTimer(this->timer, &this->delay, 0, 0);
++
++        FILETIME dueTime;
++        // GetSystemTimeAsFileTime(&dueTime);
++        // ULONGLONG ft = (ULONGLONG)dueTime.dwHighDateTime << 32 | dueTime.dwLowDateTime; // Convert to 64-bit integer
++        // ft += delayMs*1000*10; // Add 1 second in 100-nanosecond intervals
++        // dueTime.dwLowDateTime = (DWORD)ft;
++        // dueTime.dwHighDateTime = (DWORD)(ft >> 32);
++
++        ULARGE_INTEGER ulDueTime;
++        ulDueTime.QuadPart = -delayMs*1000*10LL;  // 1 second in 100-nanosecond intervals
++        dueTime.dwLowDateTime = ulDueTime.LowPart;
++        dueTime.dwHighDateTime = ulDueTime.HighPart;
++
++        SetThreadpoolTimer(this->timer, &dueTime, 0, 0);
+ 
+         while (!contextDeletionFutures.empty() && contextDeletionFutures.front().wait_for(std::chrono::nanoseconds(1)) == std::future_status::ready)
+         {
+diff --git a/CPP/7zip/UI/FileManager/PanelFind.cpp b/CPP/7zip/UI/FileManager/PanelFind.cpp
+index 6532136..7157bd3 100644
+--- a/CPP/7zip/UI/FileManager/PanelFind.cpp
++++ b/CPP/7zip/UI/FileManager/PanelFind.cpp
+@@ -121,14 +121,42 @@ void CPanel::OnPanelFindEditChange()
+ 
+ void CPanel::OnPanelFindEditChangeDebouncedHandler()
+ {
+-  int textLen = Edit_GetTextLength(this->_panelFind);
++  int textLen = Edit_GetTextLength(this->_panelFind) + 1;
+   UString text;
+-  Edit_GetText(this->_panelFind, text.GetBuf(textLen), textLen);
++  Edit_GetText(this->_panelFind, text.GetBuf_SetEnd(textLen), textLen);
+   FindNextItem(text);
+ }
+ 
+ void CPanel::FindNextItem(UString const& text)
+ {
+   // MessageBox(*this, (LPCWSTR)text.GetBuf(),  NULL, MB_OK);
+-  Z7DbgPrintW((LPCWSTR)text.GetBuf());
++  Z7DbgPrintW(L"FindNextItem %s\n", (LPCWSTR)text.GetBuf());
++
++  UString lowerCaseText(text);
++  lowerCaseText.MakeLower_Ascii();
++
++  int searchStart = 0;
++  for (unsigned i = 0; i < _selectedStatusVector.Size(); i++)
++  {
++    if (_selectedStatusVector[i])
++    {
++      searchStart = i;
++      SelectAll(false);
++      break;
++    }
++  }
++
++  UString itemName;
++  for (unsigned i = searchStart; i < _selectedStatusVector.Size(); i++)
++  {
++    GetItemName(i, itemName);
++    itemName.MakeLower_Ascii();
++    if (itemName.Find(lowerCaseText) != -1)
++    {
++      _selectedStatusVector[i] = true;
++      break;
++    }
++  }
++
++  UpdateSelection();
+ }
+\ No newline at end of file
+diff --git a/CPP/Common/Debug.cpp b/CPP/Common/Debug.cpp
+index b31a348..95606c5 100644
+--- a/CPP/Common/Debug.cpp
++++ b/CPP/Common/Debug.cpp
+@@ -46,6 +46,8 @@ void __cdecl Z7DbgPrintW(const wchar_t *format, ...)
+   // *p   = '\0';
+ 
+   OutputDebugStringW(buf);
++  // There's no terminal
++  //   wprintf(L"%s", buf);
+ }
+ 
+ 

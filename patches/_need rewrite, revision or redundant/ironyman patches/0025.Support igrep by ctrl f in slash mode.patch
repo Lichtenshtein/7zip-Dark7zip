@@ -1,0 +1,127 @@
+From 66e7352a50fd7b090b83e9d7c59be2b446ba7415 Mon Sep 17 00:00:00 2001
+From: ironyman <ironyman13@gmail.com>
+Date: Thu, 2 May 2024 00:36:52 -0700
+Subject: [PATCH] Support igrep by ctrl f in / mode
+
+---
+ CPP/7zip/UI/FileManager/App.h          |  2 +-
+ CPP/7zip/UI/FileManager/MyLoadMenu.cpp |  2 +-
+ CPP/7zip/UI/FileManager/Panel.h        |  2 +-
+ CPP/7zip/UI/FileManager/PanelFind.cpp  | 14 ++++++++++++++
+ CPP/7zip/UI/FileManager/PanelItems.cpp | 11 ++++++-----
+ CPP/7zip/UI/FileManager/PanelKey.cpp   |  7 +------
+ 6 files changed, 24 insertions(+), 14 deletions(-)
+
+diff --git a/CPP/7zip/UI/FileManager/App.h b/CPP/7zip/UI/FileManager/App.h
+index 0645a00..0f0c495 100644
+--- a/CPP/7zip/UI/FileManager/App.h
++++ b/CPP/7zip/UI/FileManager/App.h
+@@ -140,7 +140,7 @@ class CApp
+   void OpenItemTerminal() { GetFocusedPanel().OpenInSelectedItem(L"powershell.exe"); }
+   void OpenItemExplorer() { GetFocusedPanel().OpenInSelectedItem(L"", L"explore"); }
+   void FindFzf() { GetFocusedPanel().FindFzf(); }
+-  void FindIgrep() { GetFocusedPanel().FindIgrep(); }
++  // void FindIgrep() { GetFocusedPanel().FindIgrep(); }
+   void CopyItemPath() { GetFocusedPanel().CopyItemPath(); }
+   void EditItem(bool useEditor) { GetFocusedPanel().EditItem(useEditor); }
+   void Rename() { GetFocusedPanel().RenameFile(); }
+diff --git a/CPP/7zip/UI/FileManager/MyLoadMenu.cpp b/CPP/7zip/UI/FileManager/MyLoadMenu.cpp
+index 621cba1..470872c 100644
+--- a/CPP/7zip/UI/FileManager/MyLoadMenu.cpp
++++ b/CPP/7zip/UI/FileManager/MyLoadMenu.cpp
+@@ -734,7 +734,7 @@ bool ExecuteFileCommand(unsigned id)
+     case IDM_OPEN_EXPLORER: g_App.OpenItemExplorer(); break;
+     case IDM_COPY_PATH: g_App.CopyItemPath(); break;
+     case IDM_FIND_FZF: g_App.FindFzf(); break;
+-    case IDM_FIND_IGREP: g_App.FindIgrep(); break;
++    // case IDM_FIND_IGREP: g_App.FindIgrep(); break;
+ 
+     case IDM_OPEN_OUTSIDE: g_App.OpenItemOutside(); break;
+     case IDM_FILE_VIEW: g_App.EditItem(false); break;
+diff --git a/CPP/7zip/UI/FileManager/Panel.h b/CPP/7zip/UI/FileManager/Panel.h
+index bcfdb9a..3872377 100644
+--- a/CPP/7zip/UI/FileManager/Panel.h
++++ b/CPP/7zip/UI/FileManager/Panel.h
+@@ -881,7 +881,7 @@ class CPanel Z7_final: public NWindows::NControl::CWindow2
+   void OpenInSelectedItem(UString const& command, UString const& operation = L"");
+   void CopyItemPath();
+   void FindFzf();
+-  void FindIgrep();
++  void FindIgrep(UString text);
+ 
+   void OpenFolderExternal(unsigned index);
+ 
+diff --git a/CPP/7zip/UI/FileManager/PanelFind.cpp b/CPP/7zip/UI/FileManager/PanelFind.cpp
+index 4ba0f15..4fcb205 100644
+--- a/CPP/7zip/UI/FileManager/PanelFind.cpp
++++ b/CPP/7zip/UI/FileManager/PanelFind.cpp
+@@ -57,6 +57,17 @@ LRESULT CPanelFind::OnMessage(UINT message, WPARAM wParam, LPARAM lParam)
+             }
+             return 0;
+           }
++          break;
++        case 'F':
++          if (ctrl)
++          {
++            int textLen = Edit_GetTextLength(*this) + 1;
++            UString text;
++            Edit_GetText(*this, text.GetBuf_SetEnd(textLen), textLen);
++            _panel->FindIgrep(text);
++            return 0;
++          }
++          break;
+       }
+       break;
+     }
+@@ -80,6 +91,9 @@ LRESULT CPanelFind::OnMessage(UINT message, WPARAM wParam, LPARAM lParam)
+         case '\n':
+           // Prevent MessageBeep from ctrl enter.
+           return 0;
++        case 6:
++          // Prevent MessageBeep from ctrl f, which for some reasons triggers WM_CHAR with wParam == 6.
++          return 0;
+       }
+     }
+   }
+diff --git a/CPP/7zip/UI/FileManager/PanelItems.cpp b/CPP/7zip/UI/FileManager/PanelItems.cpp
+index df96cde..87c349b 100644
+--- a/CPP/7zip/UI/FileManager/PanelItems.cpp
++++ b/CPP/7zip/UI/FileManager/PanelItems.cpp
+@@ -1484,12 +1484,13 @@ void CPanel::FindFzf()
+   );
+ }
+ 
+-void CPanel::FindIgrep()
++void CPanel::FindIgrep(UString text)
+ {
+   auto cwd = GetFsPath();
+-  auto that = this;
++  // auto that = this;
+   auto findProc = NWindows::CProcess();
+-
+-  findProc.Create(L"conhost", L"ig", cwd, NULL);
+-  findProc.Wait();
++  findProc._overlapWindow = TRUE;
++  UString cmd = UString(L"ig \"") + text + L"\"";
++  findProc.Create(L"conhost", cmd.GetBuf(), cwd, NULL);
++  // findProc.Wait();
+ }
+\ No newline at end of file
+diff --git a/CPP/7zip/UI/FileManager/PanelKey.cpp b/CPP/7zip/UI/FileManager/PanelKey.cpp
+index a570a48..05ee43a 100644
+--- a/CPP/7zip/UI/FileManager/PanelKey.cpp
++++ b/CPP/7zip/UI/FileManager/PanelKey.cpp
+@@ -368,12 +368,7 @@ bool CPanel::OnKeyDown(LPNMLVKEYDOWN keyDownInfo, LRESULT &result)
+         return true;
+       }
+     case 'F':
+-      if (ctrl && shift)
+-      {
+-        FindIgrep();
+-        return true;
+-      }
+-      else if (ctrl)
++      if (ctrl)
+       {
+         FindFzf();
+         return true;

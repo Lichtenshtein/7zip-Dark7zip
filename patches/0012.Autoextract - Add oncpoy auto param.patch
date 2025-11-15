@@ -1,0 +1,96 @@
+From d4a8636a1596c008612af5df0b2f4434541ce8c8 Mon Sep 17 00:00:00 2001
+From: Himmelt <master@void-3.cn>
+Date: Mon, 17 Feb 2025 10:19:44 +0800
+Subject: [PATCH] Add OnCpoy _auto param
+
+---
+ CPP/7zip/UI/FileManager/App.cpp   | 6 +++---
+ CPP/7zip/UI/FileManager/App.h     | 4 ++--
+ CPP/7zip/UI/FileManager/Panel.cpp | 4 ++--
+ CPP/7zip/UI/FileManager/Panel.h   | 2 +-
+ 4 files changed, 8 insertions(+), 8 deletions(-)
+
+diff --git a/CPP/7zip/UI/FileManager/App.cpp b/CPP/7zip/UI/FileManager/App.cpp
+index ee5a7a1b..d740bc9e 100644
+--- a/CPP/7zip/UI/FileManager/App.cpp
++++ b/CPP/7zip/UI/FileManager/App.cpp
+@@ -57,7 +57,7 @@ void CPanelCallbackImp::SetFocusToPath(unsigned index)
+ }
+ 
+ 
+-void CPanelCallbackImp::OnCopy(bool move, bool copyToSame) { _app->OnCopy(move, copyToSame, _index); }
++void CPanelCallbackImp::OnCopy(bool move, bool copyToSame ,bool _auto) { _app->OnCopy(move, copyToSame, _index, _auto); }
+ void CPanelCallbackImp::OnSetSameFolder() { _app->OnSetSameFolder(_index); }
+ void CPanelCallbackImp::OnSetSubFolder()  { _app->OnSetSubFolder(_index); }
+ void CPanelCallbackImp::PanelWasFocused() { _app->SetFocusedPanel(_index); _app->RefreshTitlePanel(_index); }
+@@ -563,7 +563,7 @@ static bool IsFsPath(const FString &path)
+ }
+ */
+ 
+-void CApp::OnCopy(bool move, bool copyToSame, unsigned srcPanelIndex)
++void CApp::OnCopy(bool move, bool copyToSame, unsigned srcPanelIndex, bool _auto)
+ {
+   const unsigned destPanelIndex = (NumPanels <= 1) ? srcPanelIndex : (1 - srcPanelIndex);
+   CPanel &srcPanel = Panels[srcPanelIndex];
+@@ -615,7 +615,7 @@ void CApp::OnCopy(bool move, bool copyToSame, unsigned srcPanelIndex)
+   
+   const bool useFullItemPaths = srcPanel.Is_IO_FS_Folder(); // maybe we need flat also here ??
+ 
+-  {
++  if (!_auto) {
+     CCopyDialog copyDialog;
+ 
+     copyDialog.Strings = copyFolders;
+diff --git a/CPP/7zip/UI/FileManager/App.h b/CPP/7zip/UI/FileManager/App.h
+index bf41725e..96211e10 100644
+--- a/CPP/7zip/UI/FileManager/App.h
++++ b/CPP/7zip/UI/FileManager/App.h
+@@ -43,7 +43,7 @@ class CPanelCallbackImp Z7_final: public CPanelCallback
+   }
+   virtual void OnTab() Z7_override;
+   virtual void SetFocusToPath(unsigned index) Z7_override;
+-  virtual void OnCopy(bool move, bool copyToSame) Z7_override;
++  virtual void OnCopy(bool move, bool copyToSame, bool _auto = false) Z7_override;
+   virtual void OnSetSameFolder() Z7_override;
+   virtual void OnSetSubFolder() Z7_override;
+   virtual void PanelWasFocused() Z7_override;
+@@ -102,7 +102,7 @@ class CApp
+   void DragBegin(unsigned panelIndex);
+   void DragEnd();
+   
+-  void OnCopy(bool move, bool copyToSame, unsigned srcPanelIndex);
++  void OnCopy(bool move, bool copyToSame, unsigned srcPanelIndex, bool _auto = false);
+   void OnSetSameFolder(unsigned srcPanelIndex);
+   void OnSetSubFolder(unsigned srcPanelIndex);
+ 
+diff --git a/CPP/7zip/UI/FileManager/Panel.cpp b/CPP/7zip/UI/FileManager/Panel.cpp
+index c68be76f..8f1ba0c9 100644
+--- a/CPP/7zip/UI/FileManager/Panel.cpp
++++ b/CPP/7zip/UI/FileManager/Panel.cpp
+@@ -1005,11 +1005,11 @@ void CPanel::GetFilePaths(const CRecordVector<UInt32> &operatedIndices, UStringV
+ }
+ 
+ 
+-void CPanel::ExtractArchives(bool)
++void CPanel::ExtractArchives(bool _auto)
+ {
+   if (!_parentFolders.IsEmpty())
+   {
+-    _panelCallback->OnCopy(false, false);
++    _panelCallback->OnCopy(false, false, _auto);
+     return;
+   }
+   CRecordVector<UInt32> indices;
+diff --git a/CPP/7zip/UI/FileManager/Panel.h b/CPP/7zip/UI/FileManager/Panel.h
+index 575076ca..fcc1d488 100644
+--- a/CPP/7zip/UI/FileManager/Panel.h
++++ b/CPP/7zip/UI/FileManager/Panel.h
+@@ -71,7 +71,7 @@ DECLARE_INTERFACE(CPanelCallback)
+ {
+   virtual void OnTab() = 0;
+   virtual void SetFocusToPath(unsigned index) = 0;
+-  virtual void OnCopy(bool move, bool copyToSame) = 0;
++  virtual void OnCopy(bool move, bool copyToSame, bool _auto = false) = 0;
+   virtual void OnSetSameFolder() = 0;
+   virtual void OnSetSubFolder() = 0;
+   virtual void PanelWasFocused() = 0;

@@ -1,0 +1,105 @@
+From ea6457b4ba78a863837cd8afe63f091d55f5abfc Mon Sep 17 00:00:00 2001
+From: Nobody <36154203+PopuriAO29@users.noreply.github.com>
+Date: Sun, 14 Jan 2024 03:40:09 +0000
+Subject: [PATCH]: add-7z-command-prompt-menu-item
+
+---
+diff --git i/CPP/7zip/UI/FileManager/App.cpp w/CPP/7zip/UI/FileManager/App.cpp
+index 33d3191..6630dea 100644
+--- i/CPP/7zip/UI/FileManager/App.cpp
++++ w/CPP/7zip/UI/FileManager/App.cpp
+@@ -1105,6 +1105,36 @@ void CFolderHistory::AddString(const UString &s)
+   Normalize();
+ }
+ 
++/* Added by R0bur (begin). */
++void CApp::CommandPrompt ()
++{
++   const int BUFSIZE = 512;
++   TCHAR ComSpec[BUFSIZE];
++   CPanel FocusedPanel = g_App.GetFocusedPanel();
++   DWORD Ret = GetEnvironmentVariable(TEXT("ComSpec"), ComSpec, BUFSIZE);
++   if (0 == Ret)
++       FocusedPanel.MessageBoxMyError (TEXT("Can't acquire value of the environment variable \"ComSpec\"."));
++   else if (BUFSIZE < Ret)
++       FocusedPanel.MessageBoxMyError (TEXT("Out of memory."));
++   else {
++       UString path = g_App.GetFocusedPanel()._currentFolderPrefix;
++       ReducePathToRealFileSystemPath (path);
++       LPCTSTR CurDir = path.IsEmpty ()? NULL : (LPCTSTR)path;
++       PROCESS_INFORMATION pi;
++       STARTUPINFO si;
++       ZeroMemory (&si, sizeof (si));
++       si.cb = sizeof (si);
++       si.lpTitle = TEXT ("7-Zip Command Prompt");
++       si.dwX = (DWORD)CW_USEDEFAULT;
++       si.dwY = (DWORD)CW_USEDEFAULT;
++       si.dwXSize = (DWORD)CW_USEDEFAULT;
++       si.dwYSize = (DWORD)CW_USEDEFAULT;
++       if (!CreateProcess (ComSpec, NULL, NULL, NULL, FALSE, 0, NULL, CurDir, &si, &pi))
++          FocusedPanel.MessageBoxMyError (TEXT("Can't execute command prompt."));
++   }
++}
++/* Added by R0bur (end). */
++
+ void CFolderHistory::Push(const UString &s)
+ {
+   NSynchronization::CCriticalSectionLock lock(_criticalSection);
+diff --git a/CPP/7zip/UI/FileManager/App.h b/CPP/7zip/UI/FileManager/App.h
+index cf74d6a5..206a2c4d 100644
+--- a/CPP/7zip/UI/FileManager/App.h
++++ b/CPP/7zip/UI/FileManager/App.h
+@@ -309,6 +309,8 @@ public:
+   void RefreshTitlePanel(unsigned panelIndex, bool always = false);
+ 
+   void MoveSubWindows();
++
++  void CommandPrompt (); // Added by R0bur
+ };
+ 
+ #endif
+diff --git a/CPP/7zip/UI/FileManager/MyLoadMenu.cpp b/CPP/7zip/UI/FileManager/MyLoadMenu.cpp
+index 1b20cad0..0c31d91e 100644
+--- a/CPP/7zip/UI/FileManager/MyLoadMenu.cpp
++++ b/CPP/7zip/UI/FileManager/MyLoadMenu.cpp
+@@ -923,6 +923,7 @@ bool OnMenuCommand(HWND hWnd, unsigned id)
+     case IDM_BENCHMARK: MyBenchmark(false); break;
+     case IDM_BENCHMARK2: MyBenchmark(true); break;
+ 
++    case IDM_COMMAND_PROMPT: g_App.CommandPrompt (); break;
+     // Help
+     case IDM_HELP_CONTENTS:
+       ShowHelpWindow(kFMHelpTopic);
+diff --git a/CPP/7zip/UI/FileManager/resource.h b/CPP/7zip/UI/FileManager/resource.h
+index 858709f8..5b9b97b0 100644
+--- a/CPP/7zip/UI/FileManager/resource.h
++++ b/CPP/7zip/UI/FileManager/resource.h
+@@ -119,6 +119,7 @@
+ #define IDM_OPTIONS              900
+ #define IDM_BENCHMARK            901
+ #define IDM_BENCHMARK2           902
++#define IDM_COMMAND_PROMPT       903
+ #define IDM_TEMP_DIR             910
+ 
+ #define IDM_HELP_CONTENTS        960
+diff --git a/CPP/7zip/UI/FileManager/resource.rc b/CPP/7zip/UI/FileManager/resource.rc
+index 9892adf3..2a8e1c0e 100644
+--- a/CPP/7zip/UI/FileManager/resource.rc
++++ b/CPP/7zip/UI/FileManager/resource.rc
+@@ -9,6 +9,7 @@ BEGIN
+ //  "N",     IDM_CREATE_FILE,      VIRTKEY, CONTROL, NOINVERT
+   VK_F1,   IDM_HELP_CONTENTS,    VIRTKEY, NOINVERT
+   VK_F12,  IDM_FOLDERS_HISTORY,  VIRTKEY, ALT, NOINVERT
++  "V", IDM_COMMAND_PROMPT, VIRTKEY, ALT, NOINVERT
+ //  VK_F7,   IDM_CREATE_FOLDER,    VIRTKEY, NOINVERT
+ END
+ 
+@@ -156,6 +157,8 @@ BEGIN
+     MY_MENUITEM_SEPARATOR
+     MENUITEM "Delete Temporary Files...",   IDM_TEMP_DIR
+   #ifndef UNDER_CE
++    MENUITEM SEPARATOR
++    MENUITEM "Command prompt\tAlt+V",              IDM_COMMAND_PROMPT
+   END
+   POPUP "&Help" MY_MENUITEM_ID(IDM_HELP)
+   BEGIN

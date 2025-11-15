@@ -1,0 +1,298 @@
+From 93acc87f8d8c05b7a319d43dc4d919437107e5ac Mon Sep 17 00:00:00 2001
+From: ttonych <tonych.t@gmail.com>
+Date: Sun, 19 Oct 2025 12:49:51 -0500
+Subject: [PATCH] Add option to delete archives after extraction
+
+---
+ CPP/7zip/UI/Common/Extract.h       |  1 +
+ CPP/7zip/UI/Common/ZipRegistry.cpp |  3 ++
+ CPP/7zip/UI/Common/ZipRegistry.h   |  1 +
+ CPP/7zip/UI/GUI/Extract.rc         |  1 +
+ CPP/7zip/UI/GUI/ExtractDialog.cpp  | 17 ++++++++----
+ CPP/7zip/UI/GUI/ExtractDialog.h    |  4 ++-
+ CPP/7zip/UI/GUI/ExtractDialog.rc   |  8 ++++--
+ CPP/7zip/UI/GUI/ExtractDialogRes.h |  1 +
+ CPP/7zip/UI/GUI/ExtractGUI.cpp     |  4 ++-
+ CPP/7zip/UI/GUI/ExtractRes.h       |  1 +
+ CPP/7zip/UI/GUI/GUI.cpp            | 44 ++++++++++++++++++++++++++++++
+ 11 files changed, 75 insertions(+), 10 deletions(-)
+
+diff --git a/CPP/7zip/UI/Common/Extract.h b/CPP/7zip/UI/Common/Extract.h
+index defaa2709..05e6135bc 100644
+--- a/CPP/7zip/UI/Common/Extract.h
++++ b/CPP/7zip/UI/Common/Extract.h
+@@ -17,6 +17,7 @@
+ struct CExtractOptionsBase
+ {
+   CBoolPair ElimDup;
++  CBoolPair DeleteArchive;
+ 
+   bool ExcludeDirItems;
+   bool ExcludeFileItems;
+diff --git a/CPP/7zip/UI/Common/ZipRegistry.cpp b/CPP/7zip/UI/Common/ZipRegistry.cpp
+index 936b8881b..43450b937 100644
+--- a/CPP/7zip/UI/Common/ZipRegistry.cpp
++++ b/CPP/7zip/UI/Common/ZipRegistry.cpp
+@@ -96,6 +96,7 @@ static LPCTSTR const kShowPassword = TEXT("ShowPassword");
+ static LPCTSTR const kPathHistory = TEXT("PathHistory");
+ static LPCTSTR const kSplitDest = TEXT("SplitDest");
+ static LPCTSTR const kElimDup = TEXT("ElimDup");
++static LPCTSTR const kDeleteArchive = TEXT("DeleteArchive");
+ // static LPCTSTR const kAltStreams = TEXT("AltStreams");
+ static LPCTSTR const kNtSecur = TEXT("Security");
+ static LPCTSTR const kMemLimit = TEXT("MemLimit");
+@@ -113,6 +114,7 @@ void CInfo::Save() const
+ 
+   Key_Set_BoolPair(key, kSplitDest, SplitDest);
+   Key_Set_BoolPair(key, kElimDup, ElimDup);
++  Key_Set_BoolPair(key, kDeleteArchive, DeleteArchive);
+   // Key_Set_BoolPair(key, kAltStreams, AltStreams);
+   Key_Set_BoolPair(key, kNtSecur, NtSecurity);
+   Key_Set_BoolPair(key, kShowPassword, ShowPassword);
+@@ -169,6 +171,7 @@ void CInfo::Load()
+   Key_Get_BoolPair_true(key, kSplitDest, SplitDest);
+ 
+   Key_Get_BoolPair(key, kElimDup, ElimDup);
++  Key_Get_BoolPair(key, kDeleteArchive, DeleteArchive);
+   // Key_Get_BoolPair(key, kAltStreams, AltStreams);
+   Key_Get_BoolPair(key, kNtSecur, NtSecurity);
+   Key_Get_BoolPair(key, kShowPassword, ShowPassword);
+diff --git a/CPP/7zip/UI/Common/ZipRegistry.h b/CPP/7zip/UI/Common/ZipRegistry.h
+index ce084f4ea..fbdc2ff97 100644
+--- a/CPP/7zip/UI/Common/ZipRegistry.h
++++ b/CPP/7zip/UI/Common/ZipRegistry.h
+@@ -31,6 +31,7 @@ namespace NExtract
+     
+     CBoolPair SplitDest;
+     CBoolPair ElimDup;
++    CBoolPair DeleteArchive;
+     // CBoolPair AltStreams;
+     CBoolPair NtSecurity;
+     CBoolPair ShowPassword;
+diff --git a/CPP/7zip/UI/GUI/Extract.rc b/CPP/7zip/UI/GUI/Extract.rc
+index 36bfb0094..effaa7baa 100644
+--- a/CPP/7zip/UI/GUI/Extract.rc
++++ b/CPP/7zip/UI/GUI/Extract.rc
+@@ -31,6 +31,7 @@ BEGIN
+   IDS_EXTRACT_OVERWRITE_SKIP_EXISTING   "Skip existing files"
+   IDS_EXTRACT_OVERWRITE_RENAME          "Auto rename"
+   IDS_EXTRACT_OVERWRITE_RENAME_EXISTING "Auto rename existing files"
++  IDS_EXTRACT_DELETE_ARCHIVE_FAILED     "Cannot delete archive after extraction:"
+ 
+   IDS_EXTRACT_MESSAGE_UNSUPPORTED_METHOD   "Unsupported compression method for '{0}'."
+   IDS_EXTRACT_MESSAGE_DATA_ERROR           "Data error in '{0}'. File is broken"
+diff --git a/CPP/7zip/UI/GUI/ExtractDialog.cpp b/CPP/7zip/UI/GUI/ExtractDialog.cpp
+index 462848203..9c7e2a1ce 100644
+--- a/CPP/7zip/UI/GUI/ExtractDialog.cpp
++++ b/CPP/7zip/UI/GUI/ExtractDialog.cpp
+@@ -81,5 +81,6 @@ static const UInt32 kLangIDs[] =
+   // IDX_EXTRACT_ALT_STREAMS,
+   IDX_EXTRACT_NT_SECUR,
++  IDX_EXTRACT_DELETE_ARCHIVE,
+   IDX_EXTRACT_ELIM_DUP,
+   IDG_PASSWORD,
+   IDX_PASSWORD_SHOW
+@@ -162,12 +163,15 @@ bool CExtractDialog::OnInit()
+   #endif
+ 
+   #ifdef Z7_NO_REGISTRY
+-  
++
+   PathMode = NExtract::NPathMode::kFullPaths;
+   OverwriteMode = NExtract::NOverwriteMode::kAsk;
+-  
++
++  CheckButton(IDX_EXTRACT_ELIM_DUP, ElimDup.Val);
++  CheckButton(IDX_EXTRACT_DELETE_ARCHIVE, DeleteArchive.Val);
++
+   #else
+-  
++
+   _info.Load();
+ 
+   if (_info.PathMode == NExtract::NPathMode::kCurPaths)
+@@ -184,6 +188,7 @@ bool CExtractDialog::OnInit()
+   CheckButton_TwoBools(IDX_EXTRACT_NT_SECUR,    NtSecurity, _info.NtSecurity);
++  CheckButton_TwoBools(IDX_EXTRACT_DELETE_ARCHIVE, DeleteArchive, _info.DeleteArchive);
+   CheckButton_TwoBools(IDX_EXTRACT_ELIM_DUP,    ElimDup,    _info.ElimDup);
+-  
++  
+   CheckButton(IDX_PASSWORD_SHOW, _info.ShowPassword.Val);
+   UpdatePasswordControl();
+ 
+@@ -317,4 +322,5 @@ void CExtractDialog::OnOK()
+   GetButton_Bools(IDX_EXTRACT_NT_SECUR,    NtSecurity, _info.NtSecurity);
++  GetButton_Bools(IDX_EXTRACT_DELETE_ARCHIVE, DeleteArchive, _info.DeleteArchive);
+   GetButton_Bools(IDX_EXTRACT_ELIM_DUP,    ElimDup,    _info.ElimDup);
+ 
+   bool showPassword = IsShowPasswordChecked();
+@@ -343,8 +349,9 @@ void CExtractDialog::OnOK()
+ 
+ 
+   #else
+-  
++
+   ElimDup.Val = IsButtonCheckedBool(IDX_EXTRACT_ELIM_DUP);
++  DeleteArchive.Val = IsButtonCheckedBool(IDX_EXTRACT_DELETE_ARCHIVE);
+ 
+   #endif
+   
+diff --git a/CPP/7zip/UI/GUI/ExtractDialog.h b/CPP/7zip/UI/GUI/ExtractDialog.h
+index 1565fb8ab..cfbd84cf1 100644
+--- a/CPP/7zip/UI/GUI/ExtractDialog.h
++++ b/CPP/7zip/UI/GUI/ExtractDialog.h
+@@ -90,13 +90,14 @@ class CExtractDialog: public NWindows::NControl::CModalDialog
+   #endif
+ 
+   CBoolPair ElimDup;
++  CBoolPair DeleteArchive;
+ 
+   INT_PTR Create(HWND aWndParent = NULL)
+   {
+     #ifdef Z7_SFX
+     BIG_DIALOG_SIZE(240, 64);
+     #else
+-    BIG_DIALOG_SIZE(300, 160);
++    BIG_DIALOG_SIZE(300, 180);
+     #endif
+     return CModalDialog::Create(SIZED_DIALOG(IDD_EXTRACT), aWndParent);
+   }
+@@ -106,6 +107,7 @@ class CExtractDialog: public NWindows::NControl::CModalDialog
+     OverwriteMode_Force(false)
+   {
+     ElimDup.Val = true;
++    DeleteArchive.Val = false;
+   }
+ 
+ };
+diff --git a/CPP/7zip/UI/GUI/ExtractDialog.rc b/CPP/7zip/UI/GUI/ExtractDialog.rc
+index 3728b96d2..e05aa4ae9 100644
+--- a/CPP/7zip/UI/GUI/ExtractDialog.rc
++++ b/CPP/7zip/UI/GUI/ExtractDialog.rc
+@@ -2,7 +2,7 @@
+ #include "../../GuiCommon.rc"
+ 
+ #define xc 336
+-#define yc 168
++#define yc 180
+ 
+ #undef g1xs
+ #undef g2x
+@@ -40,7 +40,9 @@ BEGIN
+ 
+   CONTROL   "Eliminate duplication of root folder", IDX_EXTRACT_ELIM_DUP, MY_CHECKBOX,
+             m, m + 84, g1xs, 10
++  CONTROL   "Delete archive after extraction", IDX_EXTRACT_DELETE_ARCHIVE, MY_CHECKBOX,
++            m, m + 104, g1xs, 10
+ 
+-  LTEXT     "Overwrite mode:", IDT_EXTRACT_OVERWRITE_MODE, m, m + 104, g1xs, 8
+-  COMBOBOX  IDC_EXTRACT_OVERWRITE_MODE, m, m + 116, g1xs, 140, MY_COMBO
++  LTEXT     "Overwrite mode:", IDT_EXTRACT_OVERWRITE_MODE, m, m + 124, g1xs, 8
++  COMBOBOX  IDC_EXTRACT_OVERWRITE_MODE, m, m + 136, g1xs, 140, MY_COMBO
+ 
+diff --git a/CPP/7zip/UI/GUI/ExtractDialogRes.h b/CPP/7zip/UI/GUI/ExtractDialogRes.h
+index ed12bfb31..94054e12d 100644
+--- a/CPP/7zip/UI/GUI/ExtractDialogRes.h
++++ b/CPP/7zip/UI/GUI/ExtractDialogRes.h
+@@ -19,6 +19,7 @@
+ #define IDX_EXTRACT_ELIM_DUP        3430
+ #define IDX_EXTRACT_NT_SECUR        3431
+ // #define IDX_EXTRACT_ALT_STREAMS     3432
++#define IDX_EXTRACT_DELETE_ARCHIVE  3433
+ 
+ #define IDX_PASSWORD_SHOW           3803
+ #define IDG_PASSWORD                3807
+diff --git a/CPP/7zip/UI/GUI/ExtractGUI.cpp b/CPP/7zip/UI/GUI/ExtractGUI.cpp
+index bafff2bac..6b0bf5e0b 100644
+--- a/CPP/7zip/UI/GUI/ExtractGUI.cpp
++++ b/CPP/7zip/UI/GUI/ExtractGUI.cpp
+@@ -219,6 +219,7 @@ HRESULT ExtractGUI(
+       dialog.PathMode = options.PathMode;
+       dialog.PathMode_Force = options.PathMode_Force;
+       dialog.ElimDup = options.ElimDup;
++      dialog.DeleteArchive = options.DeleteArchive;
+ 
+       if (archivePathsFull.Size() == 1)
+         dialog.ArcPath = archivePathsFull[0];
+@@ -267,5 +267,6 @@ HRESULT ExtractGUI(
+       options.OverwriteMode = dialog.OverwriteMode;
+       options.PathMode = dialog.PathMode;
+       options.ElimDup = dialog.ElimDup;
+-      
++      options.DeleteArchive = dialog.DeleteArchive;
++
+       #ifndef Z7_SFX
+diff --git a/CPP/7zip/UI/GUI/ExtractRes.h b/CPP/7zip/UI/GUI/ExtractRes.h
+index 634ba6b5f..8e23afc8b 100644
+--- a/CPP/7zip/UI/GUI/ExtractRes.h
++++ b/CPP/7zip/UI/GUI/ExtractRes.h
+@@ -26,6 +26,7 @@
+ #define IDS_EXTRACT_OVERWRITE_SKIP_EXISTING   3423
+ #define IDS_EXTRACT_OVERWRITE_RENAME          3424
+ #define IDS_EXTRACT_OVERWRITE_RENAME_EXISTING 3425
++#define IDS_EXTRACT_DELETE_ARCHIVE_FAILED     3426
+ 
+ #define IDS_EXTRACT_MESSAGE_UNSUPPORTED_METHOD    3700
+ #define IDS_EXTRACT_MESSAGE_DATA_ERROR            3701
+diff --git a/CPP/7zip/UI/GUI/GUI.cpp b/CPP/7zip/UI/GUI/GUI.cpp
+index 6bb66936e..19a389fc9 100644
+--- a/CPP/7zip/UI/GUI/GUI.cpp
++++ b/CPP/7zip/UI/GUI/GUI.cpp
+@@ -20,6 +20,7 @@
+ #include "../../../Common/StringConvert.h"
+ 
+ #include "../../../Windows/FileDir.h"
++#include "../../../Windows/FileName.h"
+ #include "../../../Windows/NtCheck.h"
+ 
+ #include "../Common/ArchiveCommandLine.h"
+@@ -325,6 +326,49 @@ static int Main2()
+     }
+     if (!ecs->IsOK())
+       return NExitCode::kFatalError;
++
++    if (eo.DeleteArchive.Val && !eo.StdInMode)
++    {
++      UStringVector uniquePaths;
++      FOR_VECTOR (i, ArchivePathsFullSorted)
++      {
++        const UString &fullPath = ArchivePathsFullSorted[i];
++        bool already = false;
++        FOR_VECTOR (j, uniquePaths)
++          if (uniquePaths[j].IsEqualTo_NoCase(fullPath))
++          {
++            already = true;
++            break;
++          }
++        if (!already)
++          uniquePaths.Add(fullPath);
++      }
++
++      UStringVector failedPaths;
++      FOR_VECTOR (i, uniquePaths)
++      {
++        const FString fullPathFs = us2fs(uniquePaths[i]);
++        if (!NWindows::NFile::NDir::DeleteFileAlways(fullPathFs))
++        {
++          const DWORD error = ::GetLastError();
++          if (error != ERROR_FILE_NOT_FOUND && error != ERROR_PATH_NOT_FOUND)
++            failedPaths.Add(uniquePaths[i]);
++        }
++      }
++
++      if (!failedPaths.IsEmpty())
++      {
++        UString message = LangString(IDS_EXTRACT_DELETE_ARCHIVE_FAILED);
++        message.Add_LF();
++        FOR_VECTOR (i, failedPaths)
++        {
++          message += failedPaths[i];
++          if (i + 1 != failedPaths.Size())
++            message.Add_LF();
++        }
++        ErrorMessage(message);
++      }
++    }
+   }
+   else if (options.Command.IsFromUpdateGroup())
+   {

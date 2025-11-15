@@ -1,0 +1,793 @@
+From 3efb89fa908475c2eff2493f8d2a20ed2a7b0d45 Mon Sep 17 00:00:00 2001
+From: ozone10 <positronix10@gmail.com>
+Date: Mon, 5 May 2025 17:19:28 +0200
+Subject: [PATCH] Tweaks
+
+---
+ CPP/7zip/UI/FileManager/App.cpp      |   7 +-
+ CPP/Windows/Control/Dialog.cpp       |   4 +-
+ CPP/Windows/Control/PropertyPage.cpp |   6 +-
+ CPP/Windows/Shell.cpp                |   4 +-
+ DarkMode/DarkMode.cpp                |  54 +++++-----
+ DarkMode/DarkModeSubclass.cpp        | 150 ++++++++++++++++++++-------
+ DarkMode/DarkModeSubclass.h          |  30 ++++--
+ DarkMode/IatHook.h                   |  14 +--
+ DarkMode/UAHMenuBar.h                |  12 +--
+ DarkMode/Version.h                   |   6 +-
+ 10 files changed, 186 insertions(+), 101 deletions(-)
+
+diff --git a/CPP/7zip/UI/FileManager/App.cpp b/CPP/7zip/UI/FileManager/App.cpp
+index c8824002e..62833ac3f 100644
+--- a/CPP/7zip/UI/FileManager/App.cpp
++++ b/CPP/7zip/UI/FileManager/App.cpp
+@@ -355,17 +355,14 @@ HRESULT CApp::Create(HWND hwnd, const UString &mainPath, const UString &arcForma
+     }
+   }
+ 
+-  DarkMode::setDarkTitleBarEx(hwnd, true);
++  DarkMode::setDarkDlgNotifySafe(hwnd, true);
+   DarkMode::autoSubclassWindowMenuBar(hwnd);
+-  DarkMode::autoSubclassCtlColor(hwnd);
+-  DarkMode::autoSubclassNotifyCustomDraw(hwnd, true);
+ 
+   for (i = 0; i < kNumPanelsMax; i++)
+   {
+-    DarkMode::autoSubclassNotifyCustomDraw(Panels[i], false);
+     DarkMode::autoSubclassCtlColor(Panels[i]);
+     DarkMode::autoSubclassCtlColor(Panels[i]._headerReBar);
+-    DarkMode::autoSubclassCtlColor(Panels[i]._headerComboBox);
++    DarkMode::autoSubclassNotifyCustomDraw(Panels[i], false);
+   }
+ 
+   SetFocusedPanel(LastFocusedPanel);
+diff --git a/CPP/Windows/Control/Dialog.cpp b/CPP/Windows/Control/Dialog.cpp
+index 7659ef053..9a9a2c888 100644
+--- a/CPP/Windows/Control/Dialog.cpp
++++ b/CPP/Windows/Control/Dialog.cpp
+@@ -39,9 +39,7 @@ DialogProcedure(HWND dialogHWND, UINT message, WPARAM wParam, LPARAM lParam)
+     {
+       dialog->Attach(dialogHWND);
+       DarkMode::initDarkMode(L"7zDark");
+-      DarkMode::setDarkTitleBarEx(*dialog, true);
+-      DarkMode::autoSubclassCtlColor(*dialog);
+-      DarkMode::autoSubclassNotifyCustomDraw(*dialog, true);
++      DarkMode::setDarkDlgNotifySafe(*dialog, true);
+     }
+ 
+   /* MSDN: The dialog box procedure should return
+diff --git a/CPP/Windows/Control/PropertyPage.cpp b/CPP/Windows/Control/PropertyPage.cpp
+index 696976cec..f208e62e5 100644
+--- a/CPP/Windows/Control/PropertyPage.cpp
++++ b/CPP/Windows/Control/PropertyPage.cpp
+@@ -35,11 +35,9 @@ APIENTRY MyProperyPageProcedure(HWND dialogHWND, UINT message, WPARAM wParam, LP
+   if (message == WM_INITDIALOG)
+     {
+       dialog->Attach(dialogHWND);
+-      DarkMode::setDarkTitleBarEx(::GetParent(*dialog), true);
+-      DarkMode::autoSubclassCtlColor(::GetParent(*dialog));
+-      DarkMode::autoSubclassNotifyCustomDraw(::GetParent(*dialog), true);
+-      DarkMode::autoSubclassNotifyCustomDraw(*dialog, true);
++      DarkMode::setDarkDlgNotifySafe(::GetParent(*dialog), true);
+       DarkMode::autoSubclassCtlColor(*dialog);
++      DarkMode::autoSubclassNotifyCustomDraw(*dialog, true);
+     }
+   try { return BoolToBOOL(dialog->OnMessage(message, wParam, lParam)); }
+   catch(...) { return TRUE; }
+diff --git a/CPP/Windows/Shell.cpp b/CPP/Windows/Shell.cpp
+index e020b5323..5c74352b0 100644
+--- a/CPP/Windows/Shell.cpp
++++ b/CPP/Windows/Shell.cpp
+@@ -685,9 +685,7 @@ static int CALLBACK BrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM /* lp */, LP
+   {
+     case BFFM_INITIALIZED:
+     {
+-      DarkMode::setDarkTitleBar(hwnd);
+-      DarkMode::autoSubclassCtlColor(hwnd);
+-      DarkMode::autoSubclassNotifyCustomDraw(hwnd, true);
++      DarkMode::setDarkDlgNotifySafe(hwnd, false);
+       SendMessage(hwnd, BFFM_SETSELECTION, TRUE, data);
+       break;
+     }
+diff --git a/DarkMode/DarkMode.cpp b/DarkMode/DarkMode.cpp
+index cfe562c07..0c7f61c3f 100644
+--- a/DarkMode/DarkMode.cpp
++++ b/DarkMode/DarkMode.cpp
+@@ -12,8 +12,8 @@
+ #include <uxtheme.h>
+ #include <vssym32.h>
+ 
+-#include <unordered_set>
+ #include <mutex>
++#include <unordered_set>
+ 
+ #if !defined(_DARKMODELIB_EXTERNAL_IATHOOK)
+ #include "IatHook.h"
+@@ -110,21 +110,21 @@ bool ptrFn(HMODULE handle, P& pointer, WORD index)
+ 	return ptrFn(handle, pointer, MAKEINTRESOURCEA(index));
+ }
+ 
+-using fnRtlGetNtVersionNumbers = void (WINAPI *)(LPDWORD major, LPDWORD minor, LPDWORD build);
+-using fnSetWindowCompositionAttribute = BOOL (WINAPI *)(HWND hWnd, WINDOWCOMPOSITIONATTRIBDATA*);
++using fnRtlGetNtVersionNumbers = void (WINAPI*)(LPDWORD major, LPDWORD minor, LPDWORD build);
++using fnSetWindowCompositionAttribute = BOOL (WINAPI*)(HWND hWnd, WINDOWCOMPOSITIONATTRIBDATA*);
+ // 1809 17763
+-using fnShouldAppsUseDarkMode = bool (WINAPI *)(); // ordinal 132
+-using fnAllowDarkModeForWindow = bool (WINAPI *)(HWND hWnd, bool allow); // ordinal 133
+-using fnAllowDarkModeForApp = bool (WINAPI *)(bool allow); // ordinal 135, in 1809
+-using fnFlushMenuThemes = void (WINAPI *)(); // ordinal 136
+-using fnRefreshImmersiveColorPolicyState = void (WINAPI *)(); // ordinal 104
+-using fnIsDarkModeAllowedForWindow = bool (WINAPI *)(HWND hWnd); // ordinal 137
+-using fnGetIsImmersiveColorUsingHighContrast = bool (WINAPI *)(IMMERSIVE_HC_CACHE_MODE mode); // ordinal 106
+-using fnOpenNcThemeData = HTHEME (WINAPI *)(HWND hWnd, LPCWSTR pszClassList); // ordinal 49
++using fnShouldAppsUseDarkMode = bool (WINAPI*)(); // ordinal 132
++using fnAllowDarkModeForWindow = bool (WINAPI*)(HWND hWnd, bool allow); // ordinal 133
++using fnAllowDarkModeForApp = bool (WINAPI*)(bool allow); // ordinal 135, in 1809
++using fnFlushMenuThemes = void (WINAPI*)(); // ordinal 136
++using fnRefreshImmersiveColorPolicyState = void (WINAPI*)(); // ordinal 104
++using fnIsDarkModeAllowedForWindow = bool (WINAPI*)(HWND hWnd); // ordinal 137
++using fnGetIsImmersiveColorUsingHighContrast = bool (WINAPI*)(IMMERSIVE_HC_CACHE_MODE mode); // ordinal 106
++using fnOpenNcThemeData = HTHEME (WINAPI*)(HWND hWnd, LPCWSTR pszClassList); // ordinal 49
+ // 1903 18362
+-using fnShouldSystemUseDarkMode = bool (WINAPI *)(); // ordinal 138
+-using fnSetPreferredAppMode = PreferredAppMode (WINAPI *)(PreferredAppMode appMode); // ordinal 135, in 1903
+-using fnIsDarkModeAllowedForApp = bool (WINAPI *)(); // ordinal 139
++using fnShouldSystemUseDarkMode = bool (WINAPI*)(); // ordinal 138
++using fnSetPreferredAppMode = PreferredAppMode (WINAPI*)(PreferredAppMode appMode); // ordinal 135, in 1903
++using fnIsDarkModeAllowedForApp = bool (WINAPI*)(); // ordinal 139
+ 
+ static fnSetWindowCompositionAttribute _SetWindowCompositionAttribute = nullptr;
+ static fnShouldAppsUseDarkMode _ShouldAppsUseDarkMode = nullptr;
+@@ -175,7 +175,7 @@ void SetTitleBarThemeColor(HWND hWnd, BOOL dark)
+ 		SetPropW(hWnd, L"UseImmersiveDarkModeColors", reinterpret_cast<HANDLE>(static_cast<intptr_t>(dark)));
+ 	else if (_SetWindowCompositionAttribute)
+ 	{
+-		WINDOWCOMPOSITIONATTRIBDATA data = { WCA_USEDARKMODECOLORS, &dark, sizeof(dark) };
++		WINDOWCOMPOSITIONATTRIBDATA data{ WCA_USEDARKMODECOLORS, &dark, sizeof(dark) };
+ 		_SetWindowCompositionAttribute(hWnd, &data);
+ 	}
+ }
+@@ -246,13 +246,15 @@ static bool IsWindowOrParentUsingDarkScrollBar(HWND hwnd)
+ 	HWND hwndRoot = GetAncestor(hwnd, GA_ROOT);
+ 
+ 	std::lock_guard<std::mutex> lock(g_darkScrollBarMutex);
+-	if (g_darkScrollBarWindows.count(hwnd)) {
++	if (g_darkScrollBarWindows.count(hwnd))
++	{
+ 		return true;
+ 	}
+-	if (hwnd != hwndRoot && g_darkScrollBarWindows.count(hwndRoot)) {
++
++	if (hwnd != hwndRoot && g_darkScrollBarWindows.count(hwndRoot))
++	{
+ 		return true;
+ 	}
+-
+ 	return false;
+ }
+ 
+@@ -267,10 +269,12 @@ static void FixDarkScrollBar()
+ 			DWORD oldProtect = 0;
+ 			if (VirtualProtect(addr, sizeof(IMAGE_THUNK_DATA), PAGE_READWRITE, &oldProtect) && _OpenNcThemeData)
+ 			{
+-				auto MyOpenThemeData = [](HWND hWnd, LPCWSTR classList) WINAPI_LAMBDA_RETURN(HTHEME) {
++				auto MyOpenThemeData = [](HWND hWnd, LPCWSTR classList) WINAPI_LAMBDA_RETURN(HTHEME)
++				{
+ 					if (wcscmp(classList, WC_SCROLLBAR) == 0)
+ 					{
+-						if (IsWindowOrParentUsingDarkScrollBar(hWnd)) {
++						if (IsWindowOrParentUsingDarkScrollBar(hWnd))
++						{
+ 							hWnd = nullptr;
+ 							classList = L"Explorer::ScrollBar";
+ 						}
+@@ -347,7 +351,7 @@ void InitDarkMode()
+ 					ptrFn(hUxtheme, _AllowDarkModeForApp, 135);
+ 				else
+ 					ptrFn(hUxtheme, _SetPreferredAppMode, 135);
+-				
++
+ 				ptrFn(hUxtheme, _FlushMenuThemes, 136);
+ 				ptrFn(hUxtheme, _IsDarkModeAllowedForWindow, 137);
+ 
+@@ -431,20 +435,20 @@ void SetMySysColor(int nIndex, COLORREF clr)
+ 
+ static DWORD WINAPI MyGetSysColor(int nIndex)
+ {
+-	if( !(g_darkModeEnabled))
+-			return GetSysColor(nIndex);
++	if (!g_darkModeEnabled)
++		return GetSysColor(nIndex);
+ 
+ 	switch (nIndex)
+ 	{
+ 		case COLOR_WINDOW:
+ 			return _clrWindow;
+ 
+-		case COLOR_WINDOWTEXT: 
++		case COLOR_WINDOWTEXT:
+ 			return _clrText;
+ 
+ 		case COLOR_BTNFACE:
+ 			return _clrTGridlines;
+-		
++
+ 		default:
+ 			return GetSysColor(nIndex);
+ 	}
+diff --git a/DarkMode/DarkModeSubclass.cpp b/DarkMode/DarkModeSubclass.cpp
+index 9dd1d22bf..af66e84ef 100644
+--- a/DarkMode/DarkModeSubclass.cpp
++++ b/DarkMode/DarkModeSubclass.cpp
+@@ -80,7 +80,8 @@ constexpr int CP_DROPDOWNITEM = 9; // for some reason mingw use only enum up to
+ #pragma comment(lib, "Gdi32.lib")
+ #endif
+ 
+-static constexpr COLORREF HEXRGB(DWORD rrggbb) {
++static constexpr COLORREF HEXRGB(DWORD rrggbb)
++{
+ 	// from 0xRRGGBB like natural #RRGGBB
+ 	// to the little-endian 0xBBGGRR
+ 	return
+@@ -103,7 +104,7 @@ static bool cmpWndClassName(HWND hWnd, const wchar_t* classNameToCmp)
+ }
+ 
+ #if !defined(_DARKMODELIB_NO_INI_CONFIG)
+-static std::wstring getIniPath(std::wstring iniFilename)
++static std::wstring getIniPath(const std::wstring& iniFilename)
+ {
+ 	wchar_t buffer[MAX_PATH]{};
+ 	::GetModuleFileName(nullptr, buffer, MAX_PATH);
+@@ -122,13 +123,13 @@ static std::wstring getIniPath(std::wstring iniFilename)
+ 	return L"";
+ }
+ 
+-static bool fileExists(std::wstring filePath)
++static bool fileExists(const std::wstring& filePath)
+ {
+ 	DWORD dwAttrib = ::GetFileAttributes(filePath.c_str());
+ 	return (dwAttrib != INVALID_FILE_ATTRIBUTES && !(dwAttrib & FILE_ATTRIBUTE_DIRECTORY));
+ }
+ 
+-static bool setClrFromIni(std::wstring sectionName, std::wstring keyName, std::wstring iniFilePath, COLORREF* clr)
++static bool setClrFromIni(const std::wstring& sectionName, const std::wstring& keyName, const std::wstring& iniFilePath, COLORREF* clr)
+ {
+ 	constexpr size_t maxStringLength = 7;
+ 	wchar_t buffer[maxStringLength + 1]{};
+@@ -167,17 +168,51 @@ static bool setClrFromIni(std::wstring sectionName, std::wstring keyName, std::w
+ 
+ namespace DarkMode
+ {
+-	int* getDarkModeLibVersion()
++	int getLibInfo(LibInfoType libInfoType)
+ 	{
+-		std::array<int, 4> version{ DM_VERSION_MAJOR, DM_VERSION_MINOR, DM_VERSION_REVISION, DM_VERSION_BUILD };
+-		return version.data();
++		switch (libInfoType)
++		{
++			case LibInfoType::maxValue:
++			case LibInfoType::featureCheck:
++				return static_cast<int>(LibInfoType::maxValue);
++
++			case LibInfoType::verMajor:
++				return DM_VERSION_MAJOR;
++
++			case LibInfoType::verMinor:
++				return DM_VERSION_MINOR;
++
++			case LibInfoType::verRevision:
++				return DM_VERSION_REVISION;
++
++			case LibInfoType::iathookExternal:
++			{
++#if defined(_DARKMODELIB_EXTERNAL_IATHOOK)
++				return TRUE;
++#else
++				return FALSE;
++#endif
++			}
++
++			case LibInfoType::iniConfigUsed:
++			{
++#if !defined(_DARKMODELIB_NO_INI_CONFIG)
++				return TRUE;
++#else
++				return FALSE;
++#endif
++			}
++
++			default:
++				return -1;
++		}
+ 	}
+ 
+ 	enum class DarkModeType
+ 	{
+ 		light   = 0,
+ 		dark    = 1,
+-		windows = 2, // never used
++		//windows = 2, // never used
+ 		classic = 3
+ 	};
+ 
+@@ -221,7 +256,7 @@ namespace DarkMode
+ 		HBRUSH hotEdge = nullptr;
+ 		HBRUSH disabledEdge = nullptr;
+ 
+-		Brushes(const Colors& colors)
++		explicit Brushes(const Colors& colors)
+ 			: background(::CreateSolidBrush(colors.background))
+ 			, ctrlBackground(::CreateSolidBrush(colors.ctrlBackground))
+ 			, hotBackground(::CreateSolidBrush(colors.hotBackground))
+@@ -277,7 +312,7 @@ namespace DarkMode
+ 		HPEN hotEdgePen = nullptr;
+ 		HPEN disabledEdgePen = nullptr;
+ 
+-		Pens(const Colors& colors)
++		explicit Pens(const Colors& colors)
+ 			: darkerTextPen(::CreatePen(PS_SOLID, 1, colors.darkerText))
+ 			, edgePen(::CreatePen(PS_SOLID, 1, colors.edge))
+ 			, hotEdgePen(::CreatePen(PS_SOLID, 1, colors.hotEdge))
+@@ -509,7 +544,7 @@ namespace DarkMode
+ 		Brushes _brushes;
+ 		Pens _pens;
+ 
+-		Theme(const Colors& colors)
++		explicit Theme(const Colors& colors)
+ 			: _colors(colors)
+ 			, _brushes(colors)
+ 			, _pens(colors)
+@@ -559,7 +594,7 @@ namespace DarkMode
+ 
+ 		HPEN headerEdge = nullptr;
+ 
+-		BrushesAndPensView(const ColorsView& colors)
++		explicit BrushesAndPensView(const ColorsView& colors)
+ 			: background(::CreateSolidBrush(colors.background))
+ 			, gridlines(::CreateSolidBrush(colors.gridlines))
+ 			, headerBackground(::CreateSolidBrush(colors.headerBackground))
+@@ -606,7 +641,7 @@ namespace DarkMode
+ 			, _hbrPnView(_clrView)
+ 		{}
+ 
+-		ThemeView(const ColorsView& colorsView)
++		explicit ThemeView(const ColorsView& colorsView)
+ 			: _clrView(colorsView)
+ 			, _hbrPnView(_clrView)
+ 		{}
+@@ -623,7 +658,7 @@ namespace DarkMode
+ 		}
+ 	};
+ 
+-	static ThemeView tView{darkColorsView};
++	static ThemeView tView{ darkColorsView };
+ 
+ 	static ThemeView& getThemeView()
+ 	{
+@@ -799,7 +834,7 @@ namespace DarkMode
+ #if !defined(_DARKMODELIB_NO_INI_CONFIG)
+ 	static std::wstring g_iniName = L"";
+ 
+-	static void initOptions(std::wstring iniName = L"")
++	static void initOptions(const std::wstring& iniName = L"")
+ 	{
+ 		if (!iniName.empty() && iniName != L"")
+ 		{
+@@ -928,6 +963,12 @@ namespace DarkMode
+ 		DarkMode::initDarkMode(L"");
+ 	}
+ 
++	void setDarkMode(int dmType)
++	{
++		DarkMode::setDarkModeTypeConfig(dmType);
++		DarkMode::setDarkMode(g_dmType == DarkModeType::dark, true);
++	}
++
+ 	bool isEnabled()
+ 	{
+ 		return DarkMode::isWindows10() && g_dmType != DarkModeType::classic;
+@@ -971,7 +1012,6 @@ namespace DarkMode
+ 			bool isDarkModeUsed = DarkMode::isDarkModeReg() && !IsHighContrast();
+ 			if (DarkMode::isExperimentalActive() != isDarkModeUsed)
+ 			{
+-				g_darkModeEnabled = isDarkModeUsed;
+ 				if (g_isInit)
+ 				{
+ 					g_isInit = false;
+@@ -1038,9 +1078,9 @@ namespace DarkMode
+ 	struct ThemeData
+ 	{
+ 		HTHEME _hTheme = nullptr;
+-		const wchar_t *_themeClass;
++		const wchar_t* _themeClass;
+ 
+-		ThemeData(const wchar_t *themeClass)
++		explicit ThemeData(const wchar_t* themeClass)
+ 			: _themeClass(themeClass)
+ 		{}
+ 
+@@ -1159,8 +1199,8 @@ namespace DarkMode
+ 		{}
+ 
+ 		// Saves width and height from the resource file for use as restrictions.
+-		ButtonData(HWND hWnd)
+-		: _themeData(VSCLASS_BUTTON)
++		explicit ButtonData(HWND hWnd)
++			: _themeData(VSCLASS_BUTTON)
+ 		{
+ 			const auto nBtnStyle = ::GetWindowLongPtr(hWnd, GWL_STYLE);
+ 			switch (nBtnStyle & BS_TYPEMASK)
+@@ -1463,7 +1503,7 @@ namespace DarkMode
+ 		}
+ 	}
+ 
+-	static void paintGroupbox(HWND hWnd, HDC hdc, ButtonData& buttonData)
++	static void paintGroupbox(HWND hWnd, HDC hdc, const ButtonData& buttonData)
+ 	{
+ 		const auto& hTheme = buttonData._themeData._hTheme;
+ 
+@@ -1545,7 +1585,7 @@ namespace DarkMode
+ 
+ 			DWORD textFlags = isCenter ? DT_CENTER : DT_LEFT;
+ 
+-			if(::SendMessage(hWnd, WM_QUERYUISTATE, 0, 0) != static_cast<LRESULT>(NULL))
++			if (::SendMessage(hWnd, WM_QUERYUISTATE, 0, 0) != static_cast<LRESULT>(NULL))
+ 			{
+ 				textFlags |= DT_HIDEPREFIX;
+ 			}
+@@ -1553,7 +1593,8 @@ namespace DarkMode
+ 			::DrawThemeTextEx(hTheme, hdc, BP_GROUPBOX, iStateID, szText, -1, textFlags | DT_SINGLELINE, &rcText, &dtto);
+ 		}
+ 
+-		if (hCreatedFont) ::DeleteObject(hCreatedFont);
++		if (hCreatedFont)
++			::DeleteObject(hCreatedFont);
+ 		::SelectObject(hdc, hOldFont);
+ 	}
+ 
+@@ -1658,7 +1699,7 @@ namespace DarkMode
+ 			: _themeData(VSCLASS_BUTTON)
+ 		{}
+ 
+-		UpDownData(HWND hWnd)
++		explicit UpDownData(HWND hWnd)
+ 			: _themeData(VSCLASS_BUTTON)
+ 		{
+ 			const auto nStyle = ::GetWindowLongPtr(hWnd, GWL_STYLE);
+@@ -2411,7 +2452,7 @@ namespace DarkMode
+ 			: _themeData(VSCLASS_COMBOBOX)
+ 		{}
+ 
+-		ComboboxData(LONG_PTR cbStyle)
++		explicit ComboboxData(LONG_PTR cbStyle)
+ 			: _themeData(VSCLASS_COMBOBOX)
+ 			, _cbStyle(cbStyle)
+ 		{}
+@@ -2504,7 +2545,7 @@ namespace DarkMode
+ 		{
+ 			if (hasTheme)
+ 			{
+-				RECT rcThemedArrow { rcArrow.left, rcArrow.top - 1, rcArrow.right, rcArrow.bottom - 1 };
++				RECT rcThemedArrow{ rcArrow.left, rcArrow.top - 1, rcArrow.right, rcArrow.bottom - 1 };
+ 				::DrawThemeBackground(hTheme, hdc, CP_DROPDOWNBUTTONRIGHT, isDisabled ? CBXSR_DISABLED : CBXSR_NORMAL, &rcThemedArrow, nullptr);
+ 			}
+ 			else
+@@ -2698,6 +2739,18 @@ namespace DarkMode
+ 				break;
+ 			}
+ 
++			case WM_ERASEBKGND:
++			{
++				if (DarkMode::isEnabled())
++				{
++					RECT rcClient{};
++					::GetClientRect(hWnd, &rcClient);
++					::FillRect(reinterpret_cast<HDC>(wParam), &rcClient, DarkMode::getDlgBackgroundBrush());
++					return TRUE;
++				}
++				break;
++			}
++
+ 			case WM_CTLCOLOREDIT:
+ 			{
+ 				if (DarkMode::isEnabled())
+@@ -2873,7 +2926,7 @@ namespace DarkMode
+ 			_hasBtnStyle(true)
+ 		{}
+ 
+-		HeaderData(bool hasBtnStyle)
++		explicit HeaderData(bool hasBtnStyle)
+ 			: _themeData(VSCLASS_HEADER),
+ 			_hasBtnStyle(hasBtnStyle)
+ 		{}
+@@ -3183,7 +3236,7 @@ namespace DarkMode
+ 			: _themeData(VSCLASS_STATUS)
+ 		{}
+ 
+-		StatusBarData(const HFONT & hFont)
++		explicit StatusBarData(const HFONT& hFont)
+ 			: _themeData(VSCLASS_STATUS)
+ 		{
+ 			_fontData.setFont(hFont);
+@@ -3290,7 +3343,7 @@ namespace DarkMode
+ 			{
+ 				SIZE szGrip{};
+ 				::GetThemePartSize(hTheme, hdc, SP_GRIPPER, 0, &rcClient, TS_DRAW, &szGrip);
+-				RECT rcGrip{ rcClient};
++				RECT rcGrip{ rcClient };
+ 				rcGrip.left = rcGrip.right - szGrip.cx;
+ 				rcGrip.top = rcGrip.bottom - szGrip.cy;
+ 				::DrawThemeBackground(hTheme, hdc, SP_GRIPPER, 0, &rcGrip, nullptr);
+@@ -3452,17 +3505,16 @@ namespace DarkMode
+ 
+ 		PBRANGE range{};
+ 		::SendMessage(hWnd, PBM_GETRANGE, TRUE, reinterpret_cast<LPARAM>(&range));
+-		int min = range.iLow;
+-		int max = range.iHigh;
++		const int iMin = range.iLow;
+ 
+-		int currPos = pos - min;
++		const int currPos = pos - iMin;
+ 		if (currPos != 0)
+ 		{
+ 			int totalWidth = rcEmpty->right - rcEmpty->left;
+ 			rcFilled->left = rcEmpty->left;
+ 			rcFilled->top = rcEmpty->top;
+ 			rcFilled->bottom = rcEmpty->bottom;
+-			rcFilled->right = rcEmpty->left + static_cast<int>(static_cast<double>(currPos) / (max - min) * totalWidth);
++			rcFilled->right = rcEmpty->left + static_cast<int>(static_cast<double>(currPos) / (range.iHigh - iMin) * totalWidth);
+ 
+ 			rcEmpty->left = rcFilled->right; // to avoid painting under filled part
+ 		}
+@@ -3633,7 +3685,7 @@ namespace DarkMode
+ 		bool isEnabled = true;
+ 
+ 		StaticTextData() = default;
+-		StaticTextData(HWND hWnd)
++		explicit StaticTextData(HWND hWnd)
+ 		{
+ 			isEnabled = ::IsWindowEnabled(hWnd) == TRUE;
+ 		}
+@@ -4196,7 +4248,7 @@ namespace DarkMode
+ 
+ 			if (hBrush != nullptr)
+ 			{
+-				if (!isReport || (isReport && hasGridlines))
++				if (!isReport || hasGridlines)
+ 				{
+ 					::FillRect(lplvcd->nmcd.hdc, &lplvcd->nmcd.rc, hBrush);
+ 				}
+@@ -4395,7 +4447,7 @@ namespace DarkMode
+ 
+ 			default:
+ 				break;
+-			}
++		}
+ 		return ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
+ 	}
+ 
+@@ -4535,8 +4587,8 @@ namespace DarkMode
+ 					DWORD_PTR dwRefData = 0;
+ 					if (::GetWindowSubclass(hWndChild, StaticTextSubclass, g_staticTextSubclassID, &dwRefData) == TRUE)
+ 					{
+-						auto pStaticTextData = reinterpret_cast<StaticTextData*>(dwRefData);
+-						return DarkMode::onCtlColorDlgStaticText(hdc, pStaticTextData->isEnabled);
++						const bool isTextEnabled = (reinterpret_cast<StaticTextData*>(dwRefData))->isEnabled;
++						return DarkMode::onCtlColorDlgStaticText(hdc, isTextEnabled);
+ 					}
+ 					return DarkMode::onCtlColorDlg(hdc);
+ 				}
+@@ -5037,6 +5089,26 @@ namespace DarkMode
+ 		}
+ 	}
+ 
++	void setDarkDlgSafe(HWND hWnd, bool useWin11Features)
++	{
++		if (hWnd == nullptr)
++			return;
++
++		DarkMode::setDarkTitleBarEx(hWnd, useWin11Features);
++		DarkMode::autoSubclassCtlColor(hWnd);
++		DarkMode::autoSubclassAndThemeChildControls(hWnd);
++	}
++
++	void setDarkDlgNotifySafe(HWND hWnd, bool useWin11Features)
++	{
++		if (hWnd == nullptr)
++			return;
++
++		DarkMode::setDarkTitleBarEx(hWnd, useWin11Features);
++		DarkMode::autoSubclassCtlColor(hWnd);
++		DarkMode::autoSubclassNotifyCustomDraw(hWnd, true);
++	}
++
+ 	void disableVisualStyle(HWND hWnd, bool doDisable)
+ 	{
+ 		if (doDisable)
+@@ -5275,6 +5347,6 @@ namespace DarkMode
+ 		}
+ 		return DarkMode::onCtlColor(hdc);
+ 	}
+-}
++} // namespace DarkMode
+ 
+ #endif // !defined(_DARKMODELIB_NOT_USED)
+diff --git a/DarkMode/DarkModeSubclass.h b/DarkMode/DarkModeSubclass.h
+index d0e393203..8b842f914 100644
+--- a/DarkMode/DarkModeSubclass.h
++++ b/DarkMode/DarkModeSubclass.h
+@@ -22,7 +22,9 @@
+ 
+ #include <windows.h>
+ 
+-#if (NTDDI_VERSION >= NTDDI_VISTA)
++#if (NTDDI_VERSION >= NTDDI_VISTA) && \
++	(defined(__x86_64__) || defined(_M_X64) || \
++	 defined(__arm64__) || defined(__arm64) || defined(_M_ARM64))
+ 
+ namespace DarkMode
+ {
+@@ -81,9 +83,20 @@ namespace DarkMode
+ 		dark    = 2
+ 	};
+ 
+-	int* getDarkModeLibVersion();
++	enum LibInfoType
++	{
++		featureCheck    = 0,
++		verMajor        = 1,
++		verMinor        = 2,
++		verRevision     = 3,
++		iathookExternal = 4,
++		iniConfigUsed   = 5,
++		maxValue        = 6
++	};
+ 
+-	// enum DarkModeType { light = 0, dark = 1, windows = 2, classic = 3 }; values
++	int getLibInfo(LibInfoType libInfoType);
++
++	// enum DarkModeType { light = 0, dark = 1, classic = 3 }; values
+ 	void setDarkModeTypeConfig(int dmType);
+ 	// DWM_WINDOW_CORNER_PREFERENCE values
+ 	void setRoundCornerConfig(int roundCornerStyle);
+@@ -94,6 +107,8 @@ namespace DarkMode
+ 
+ 	void initDarkMode(const wchar_t* iniName);
+ 	void initDarkMode();
++	// enum DarkModeType { light = 0, dark = 1, classic = 3 }; values
++	void setDarkMode(int dmType);
+ 
+ 	bool isEnabled();
+ 	bool isExperimentalActive();
+@@ -218,7 +233,7 @@ namespace DarkMode
+ 	void autoSubclassWindowMenuBar(HWND hWnd);
+ 	void autoSubclassWindowSettingChange(HWND hWnd);
+ 
+-	void setDarkTitleBarEx(HWND hWnd, bool win11Features);
++	void setDarkTitleBarEx(HWND hWnd, bool useWin11Features);
+ 	void setDarkTitleBar(HWND hWnd);
+ 	void setDarkExplorerTheme(HWND hWnd);
+ 	void setDarkScrollBar(HWND hWnd);
+@@ -227,6 +242,9 @@ namespace DarkMode
+ 	void setDarkListView(HWND hWnd);
+ 	void setDarkThemeExperimental(HWND hWnd, const wchar_t* themeClassName = L"Explorer");
+ 
++	void setDarkDlgSafe(HWND hWnd, bool useWin11Features = true);
++	void setDarkDlgNotifySafe(HWND hWnd, bool useWin11Features = true);
++
+ 	void disableVisualStyle(HWND hWnd, bool doDisable);
+ 	double calculatePerceivedLightness(COLORREF clr);
+ 	void calculateTreeViewStyle();
+@@ -243,8 +261,8 @@ namespace DarkMode
+ 	LRESULT onCtlColorDlgStaticText(HDC hdc, bool isTextEnabled);
+ 	LRESULT onCtlColorDlgLinkText(HDC hdc, bool isTextEnabled = true);
+ 	LRESULT onCtlColorListbox(WPARAM wParam, LPARAM lParam);
+-}
++} // namespace DarkMode
+ 
+ #else
+ #define _DARKMODELIB_NOT_USED
+-#endif // (NTDDI_VERSION >= NTDDI_VISTA)
++#endif // (NTDDI_VERSION >= NTDDI_VISTA) && (x64 or arm64)
+diff --git a/DarkMode/IatHook.h b/DarkMode/IatHook.h
+index fe39c6b9a..af4dc63bd 100644
+--- a/DarkMode/IatHook.h
++++ b/DarkMode/IatHook.h
+@@ -14,7 +14,7 @@ constexpr T RVA2VA(T1 base, T2 rva)
+ }
+ 
+ template <typename T>
+-constexpr T DataDirectoryFromModuleBase(void *moduleBase, size_t entryID)
++constexpr T DataDirectoryFromModuleBase(void* moduleBase, size_t entryID)
+ {
+ 	auto dosHdr = static_cast<PIMAGE_DOS_HEADER>(moduleBase);
+ 	auto ntHdr = RVA2VA<PIMAGE_NT_HEADERS>(moduleBase, dosHdr->e_lfanew);
+@@ -22,7 +22,7 @@ constexpr T DataDirectoryFromModuleBase(void *moduleBase, size_t entryID)
+ 	return RVA2VA<T>(moduleBase, dataDir[entryID].VirtualAddress);
+ }
+ 
+-PIMAGE_THUNK_DATA FindAddressByName(void *moduleBase, PIMAGE_THUNK_DATA impName, PIMAGE_THUNK_DATA impAddr, const char *funcName)
++PIMAGE_THUNK_DATA FindAddressByName(void* moduleBase, PIMAGE_THUNK_DATA impName, PIMAGE_THUNK_DATA impAddr, const char* funcName)
+ {
+ 	for (; impName->u1.Ordinal; ++impName, ++impAddr)
+ 	{
+@@ -30,14 +30,14 @@ PIMAGE_THUNK_DATA FindAddressByName(void *moduleBase, PIMAGE_THUNK_DATA impName,
+ 			continue;
+ 
+ 		auto import = RVA2VA<PIMAGE_IMPORT_BY_NAME>(moduleBase, impName->u1.AddressOfData);
+-		if (strcmp(reinterpret_cast<const char *>(import->Name), funcName) != 0)
++		if (strcmp(reinterpret_cast<const char*>(import->Name), funcName) != 0)
+ 			continue;
+ 		return impAddr;
+ 	}
+ 	return nullptr;
+ }
+ 
+-PIMAGE_THUNK_DATA FindAddressByOrdinal(void */*moduleBase*/, PIMAGE_THUNK_DATA impName, PIMAGE_THUNK_DATA impAddr, uint16_t ordinal)
++PIMAGE_THUNK_DATA FindAddressByOrdinal(void* /*moduleBase*/, PIMAGE_THUNK_DATA impName, PIMAGE_THUNK_DATA impAddr, uint16_t ordinal)
+ {
+ 	for (; impName->u1.Ordinal; ++impName, ++impAddr)
+ 	{
+@@ -47,7 +47,7 @@ PIMAGE_THUNK_DATA FindAddressByOrdinal(void */*moduleBase*/, PIMAGE_THUNK_DATA i
+ 	return nullptr;
+ }
+ 
+-PIMAGE_THUNK_DATA FindIatThunkInModule(void *moduleBase, const char *dllName, const char *funcName)
++PIMAGE_THUNK_DATA FindIatThunkInModule(void* moduleBase, const char* dllName, const char* funcName)
+ {
+ 	auto imports = DataDirectoryFromModuleBase<PIMAGE_IMPORT_DESCRIPTOR>(moduleBase, IMAGE_DIRECTORY_ENTRY_IMPORT);
+ 	for (; imports->Name; ++imports)
+@@ -62,7 +62,7 @@ PIMAGE_THUNK_DATA FindIatThunkInModule(void *moduleBase, const char *dllName, co
+ 	return nullptr;
+ }
+ 
+-PIMAGE_THUNK_DATA FindDelayLoadThunkInModule(void *moduleBase, const char *dllName, const char *funcName)
++PIMAGE_THUNK_DATA FindDelayLoadThunkInModule(void* moduleBase, const char* dllName, const char* funcName)
+ {
+ 	auto imports = DataDirectoryFromModuleBase<PIMAGE_DELAYLOAD_DESCRIPTOR>(moduleBase, IMAGE_DIRECTORY_ENTRY_DELAY_IMPORT);
+ 	for (; imports->DllNameRVA; ++imports)
+@@ -77,7 +77,7 @@ PIMAGE_THUNK_DATA FindDelayLoadThunkInModule(void *moduleBase, const char *dllNa
+ 	return nullptr;
+ }
+ 
+-PIMAGE_THUNK_DATA FindDelayLoadThunkInModule(void *moduleBase, const char *dllName, uint16_t ordinal)
++PIMAGE_THUNK_DATA FindDelayLoadThunkInModule(void* moduleBase, const char* dllName, uint16_t ordinal)
+ {
+ 	auto imports = DataDirectoryFromModuleBase<PIMAGE_DELAYLOAD_DESCRIPTOR>(moduleBase, IMAGE_DIRECTORY_ENTRY_DELAY_IMPORT);
+ 	for (; imports->DllNameRVA; ++imports)
+diff --git a/DarkMode/UAHMenuBar.h b/DarkMode/UAHMenuBar.h
+index f43181ba2..0b2400e92 100644
+--- a/DarkMode/UAHMenuBar.h
++++ b/DarkMode/UAHMenuBar.h
+@@ -9,12 +9,12 @@
+ //bool UAHDarkModeWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam, LRESULT* lr);
+ 
+ // window messages related to menu bar drawing
+-#define WM_UAHDESTROYWINDOW    0x0090	// handled by DefWindowProc
+-#define WM_UAHDRAWMENU         0x0091	// lParam is UAHMENU
+-#define WM_UAHDRAWMENUITEM     0x0092	// lParam is UAHDRAWMENUITEM
+-#define WM_UAHINITMENU         0x0093	// handled by DefWindowProc
+-#define WM_UAHMEASUREMENUITEM  0x0094	// lParam is UAHMEASUREMENUITEM
+-#define WM_UAHNCPAINTMENUPOPUP 0x0095	// handled by DefWindowProc
++#define WM_UAHDESTROYWINDOW    0x0090 // handled by DefWindowProc
++#define WM_UAHDRAWMENU         0x0091 // lParam is UAHMENU
++#define WM_UAHDRAWMENUITEM     0x0092 // lParam is UAHDRAWMENUITEM
++#define WM_UAHINITMENU         0x0093 // handled by DefWindowProc
++#define WM_UAHMEASUREMENUITEM  0x0094 // lParam is UAHMEASUREMENUITEM
++#define WM_UAHNCPAINTMENUPOPUP 0x0095 // handled by DefWindowProc
+ 
+ // describes the sizes of the menu bar or menu item
+ typedef union tagUAHMENUITEMMETRICS
+diff --git a/DarkMode/Version.h b/DarkMode/Version.h
+index 827ca293a..47ce4d49c 100644
+--- a/DarkMode/Version.h
++++ b/DarkMode/Version.h
+@@ -17,6 +17,6 @@
+ #define DM_VERSION_MAJOR    0
+ #define DM_VERSION_MINOR    6
+ #define DM_VERSION_REVISION 0
+-#define DM_VERSION_BUILD    0
+-#define DM_VERSION "Dark mode v0.6.0.0"
+-#define DM_COPYRIGHT "Copyright (c) 2024-2025 ozone10"
++
++#define DM_VERSION  "Dark mode v0.6.0"
++#define DM_COPYRIGHT "Copyright (c)2024-2025 ozone10"

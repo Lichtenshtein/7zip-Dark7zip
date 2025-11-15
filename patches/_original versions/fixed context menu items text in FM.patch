@@ -1,0 +1,40 @@
+From 41944d8f291b3e9637aef600c27d889a9c558d6c Mon Sep 17 00:00:00 2001
+From: work <work>
+Date: Thu, 25 Jun 2020 09:14:17 +0200
+Subject: [PATCH] v1.0.2 -fixed context menu items text in FM
+
+---
+ CPP/7zip/UI/FileManager/MenuPage.cpp | 3 ++-
+ version                              | 2 +-
+ 2 files changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/CPP/7zip/UI/FileManager/MenuPage.cpp b/CPP/7zip/UI/FileManager/MenuPage.cpp
+index b50f91e..99ddb33 100644
+--- a/CPP/7zip/UI/FileManager/MenuPage.cpp
++++ b/CPP/7zip/UI/FileManager/MenuPage.cpp
+@@ -56,7 +56,7 @@ static const CContextMenuItem kMenuItems[] =
+ 
+   { IDS_CONTEXT_COMPRESS, kCompress },
+   { IDS_CONTEXT_COMPRESS_TO, kCompressTo7z },
+-  { IDS_CONTEXT_COMPRESS_TO, kCompressToZip },
++  { IDS_CONTEXT_COMPRESS_TO_ZIP, kCompressToZip },
+ 
+   #ifndef UNDER_CE
+   { IDS_CONTEXT_COMPRESS_EMAIL, kCompressEmail },
+@@ -201,6 +201,7 @@ bool CMenuPage::OnInit()
+         break;
+       }
+       case IDS_CONTEXT_COMPRESS_TO:
++      case IDS_CONTEXT_COMPRESS_TO_ZIP:
+       case IDS_CONTEXT_COMPRESS_TO_EMAIL:
+       {
+         UString s2 = LangString(IDS_CONTEXT_ARCHIVE);
+diff --git a/version b/version
+index dad8832..fecca0a 100644
+--- a/version
++++ b/version
+@@ -1 +1 @@
+-b1900-v1.0.1
+\ No newline at end of file
++b1900-v1.0.2
+\ No newline at end of file

@@ -1,0 +1,38 @@
+From 5b37583485c05703a1f001f96d9f2bb5299522ef Mon Sep 17 00:00:00 2001
+From: Nobody <mike64221@gmail.com>
+Date: Mon, 8 Jan 2018 01:10:49 -0800
+Subject: [PATCH] 7zNoRegModification
+
+---
+diff --git a/C/Util/7zipInstall/7zipInstall.c b/C/Util/7zipInstall/7zipInstall.c
+index 00d0f41..db09a12 100644
+--- a/C/Util/7zipInstall/7zipInstall.c	
++++ b/C/Util/7zipInstall/7zipInstall.c
+@@ -109,6 +109,7 @@ static LPCWSTR const k_Reg_CLSID_7zip_Inproc = L"CLSID\\" k_7zip_CLSID L"\\Inpro
+ static BoolInt g_Install_was_Pressed;
+ static BoolInt g_Finished;
+ static BoolInt g_SilentMode;
++static BoolInt g_NoRegistryModification;
+ 
+ static HWND g_HWND;
+ static HWND g_Path_HWND;
+@@ -1051,6 +1052,10 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
+             // RemoveQuotes(path);
+             error = False;
+           }
++          else if (cmd[1] == 'R')
++          {
++              g_NoRegistryModification = True;
++          }
+         }
+         s = s2;
+         if (error && cmdError[0] == 0)
+@@ -1572,7 +1577,7 @@ if (res == SZ_OK)
+ 
+     path[pathLen] = 0;
+ 
+-    if (i == db.NumFiles)
++    if (i == db.NumFiles && !g_NoRegistryModification)
+     {
+       SetRegKey_Path();
+       WriteCLSID();

@@ -1,0 +1,405 @@
+From f8d11bc1390f833e4213a9bf8e76043f12ee8bf7 Mon Sep 17 00:00:00 2001
+From: ozone10 <positronix10@gmail.com>
+Date: Sun, 21 Sep 2025 15:03:53 +0200
+Subject: [PATCH] Add basic GUI option for color mode v2
+
+---
+ CPP/7zip/UI/FileManager/App.cpp           | 25 ++++++++
+ CPP/7zip/UI/FileManager/RegistryUtils.cpp | 21 +++++++
+ CPP/7zip/UI/FileManager/RegistryUtils.h   |  3 +
+ CPP/7zip/UI/FileManager/SettingsPage.cpp  | 77 +++++++++++++++++++++++
+ CPP/7zip/UI/FileManager/SettingsPage.h    |  7 ++-
+ CPP/7zip/UI/FileManager/SettingsPage2.rc  |  3 +
+ CPP/7zip/UI/FileManager/SettingsPageRes.h |  3 +
+ CPP/Windows/Control/Dialog.cpp            | 31 +++++++++
+ DarkMode/src/DarkModeSubclass.cpp         | 20 +++++-
+ DarkMode/src/DarkModeSubclass.h           |  3 +
+ DarkMode/src/Version.h                    |  4 +-
+ 11 files changed, 192 insertions(+), 5 deletions(-)
+
+diff --git a/CPP/7zip/UI/FileManager/App.cpp b/CPP/7zip/UI/FileManager/App.cpp
+index 9913665ae..4d796d1d1 100644
+--- a/CPP/7zip/UI/FileManager/App.cpp
++++ b/CPP/7zip/UI/FileManager/App.cpp
+@@ -110,6 +110,31 @@ void CApp::SetListSettings()
+     panel._listView.SetStyle(style);
+     panel.SetExtendedStyle();
+   }
++
++  if (!DarkMode::doesConfigFileExist())
++  {
++    switch (Read_ClrMode())
++    {
++      case 0:
++      {
++        DarkMode::setDarkModeConfigEx(static_cast<UINT>(DarkMode::DarkModeType::classic));
++        break;
++      }
++
++      case 2:
++      {
++        DarkMode::setDarkModeConfig();
++        break;
++      }
++
++      //case 1:
++      default:
++      {
++        return;
++      }
++    }
++		DarkMode::setDefaultColors(false);
++  }
+ }
+ 
+ #ifndef ILC_COLOR32
+diff --git a/CPP/7zip/UI/FileManager/RegistryUtils.cpp b/CPP/7zip/UI/FileManager/RegistryUtils.cpp
+index 0284591e4..d55fff496 100644
+--- a/CPP/7zip/UI/FileManager/RegistryUtils.cpp
++++ b/CPP/7zip/UI/FileManager/RegistryUtils.cpp
+@@ -40,6 +40,8 @@ static LPCTSTR const kLargePages = TEXT("LargePages");
+ static LPCTSTR const kFlatViewName = TEXT("FlatViewArc");
+ // static LPCTSTR const kShowDeletedFiles = TEXT("ShowDeleted");
+ 
++static LPCTSTR const kClrMode = TEXT("ColorMode");
++
+ static void SaveCuString(LPCTSTR keyPath, LPCWSTR valuePath, LPCWSTR value)
+ {
+   CKey key;
+@@ -192,3 +194,22 @@ bool ReadFlatView(UInt32 panelIndex)
+ void Save_ShowDeleted(bool enable) { SaveOption(kShowDeletedFiles, enable); }
+ bool Read_ShowDeleted() { return ReadOption(kShowDeletedFiles, false); }
+ */
++
++void Save_ClrMode(UInt32 clrMode)
++{
++  CKey key;
++  key.Create(HKEY_CURRENT_USER, kCUBasePath);
++  if (clrMode > 2)
++    key.DeleteValue(kClrMode);
++  else
++    key.SetValue(kClrMode, clrMode);
++}
++
++UInt32 Read_ClrMode()
++{
++  CKey key;
++  UInt32 v = 1;
++  if (key.Open(HKEY_CURRENT_USER, kCUBasePath, KEY_READ) == ERROR_SUCCESS)
++    key.GetValue_UInt32_IfOk(kClrMode, v);
++  return v;
++}
+diff --git a/CPP/7zip/UI/FileManager/RegistryUtils.h b/CPP/7zip/UI/FileManager/RegistryUtils.h
+index 8b4cdf0af..b96a158ab 100644
+--- a/CPP/7zip/UI/FileManager/RegistryUtils.h
++++ b/CPP/7zip/UI/FileManager/RegistryUtils.h
+@@ -47,4 +47,7 @@ void Save_ShowDeleted(bool enable);
+ bool Read_ShowDeleted();
+ */
+ 
++void Save_ClrMode(UInt32 clrMode);
++UInt32 Read_ClrMode();
++
+ #endif
+diff --git a/CPP/7zip/UI/FileManager/SettingsPage.cpp b/CPP/7zip/UI/FileManager/SettingsPage.cpp
+index 8b5983af5..754b51757 100644
+--- a/CPP/7zip/UI/FileManager/SettingsPage.cpp
++++ b/CPP/7zip/UI/FileManager/SettingsPage.cpp
+@@ -24,6 +24,8 @@
+ #include "SettingsPage.h"
+ #include "SettingsPageRes.h"
+ 
++#include "../../../../DarkMode/src/DarkModeSubclass.h"
++
+ using namespace NWindows;
+ 
+ #ifdef Z7_LANG
+@@ -117,6 +119,9 @@ bool CSettingsPage::OnInit()
+   _wasChanged = false;
+   _largePages_wasChanged = false;
+   _memx_wasChanged = false;
++
++  _clrMode_wasChanged = false;
++
+   /*
+   _wasChanged_MemLimit = false;
+   _memLimitStrings.Clear();
+@@ -242,6 +247,30 @@ bool CSettingsPage::OnInit()
+     SetItemText(IDE_SETTINGS_MEM_SPIN_EDIT, s);
+   }
+ 
++  {
++    const bool isININotUsed = !DarkMode::doesConfigFileExist();
++    EnableItem(IDC_COLOR_MODE, isININotUsed);
++
++    _clrModeCombo.Attach(GetItem(IDC_COLOR_MODE));
++
++    if (isININotUsed)
++    {
++      _curClrMode = Read_ClrMode();
++      const wchar_t* modes[] = { L"classic", L"dark", L"system" };
++      for (const auto& mode : modes)
++      {
++        _clrModeCombo.AddString(mode);
++      }
++      _clrModeCombo.SetCurSel(_curClrMode);
++    }
++    else
++    {
++      const wchar_t* mode = L"INI used";
++      _clrModeCombo.AddString(mode);
++      _clrModeCombo.SetCurSel(0);
++    }
++  }
++
+   _initMode = false;
+   return CPropertyPage::OnInit();
+ }
+@@ -321,6 +350,47 @@ LONG CSettingsPage::OnApply()
+     _memx_wasChanged = false;
+   }
+ 
++  if (_clrMode_wasChanged)
++  {
++    _curClrMode = _clrModeCombo.GetCurSel();
++    Save_ClrMode(_curClrMode);
++    switch (_curClrMode)
++    {
++      case 0:
++      {
++        DarkMode::setDarkModeConfigEx(static_cast<UINT>(DarkMode::DarkModeType::classic));
++        break;
++      }
++
++      case 2:
++      {
++        DarkMode::setDarkModeConfig();
++        break;
++      }
++
++      //case 1:
++      default:
++      {
++        DarkMode::setDarkModeConfigEx(static_cast<UINT>(DarkMode::DarkModeType::dark));
++        break;
++      }
++    }
++
++    DarkMode::setDefaultColors(true);
++
++    HWND hOption = GetParent();
++    DarkMode::setChildCtrlsTheme(hOption);
++    DarkMode::setDarkTitleBarEx(hOption, true);
++    RedrawWindow(hOption, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_UPDATENOW | RDW_FRAME);
++
++    HWND hMain = ::GetParent(GetParent());
++    DarkMode::setChildCtrlsTheme(hMain);
++    DarkMode::setDarkTitleBarEx(hMain, true);
++    RedrawWindow(hMain, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_UPDATENOW | RDW_FRAME);
++
++    _clrMode_wasChanged = false;
++  }
++
+   /*
+   if (_wasChanged_MemLimit)
+   {
+@@ -397,6 +467,13 @@ bool CSettingsPage::OnCommand(unsigned code, unsigned itemID, LPARAM param)
+       _memx_wasChanged = true;
+       Changed();
+     }
++
++    if (code == CBN_SELCHANGE && itemID == IDC_COLOR_MODE)
++    {
++      _clrMode_wasChanged = true;
++      Changed();
++    }
++
+     /*
+     if (code == CBN_SELCHANGE)
+     {
+diff --git a/CPP/7zip/UI/FileManager/SettingsPage.h b/CPP/7zip/UI/FileManager/SettingsPage.h
+index 586b25352..d4c3eadb7 100644
+--- a/CPP/7zip/UI/FileManager/SettingsPage.h
++++ b/CPP/7zip/UI/FileManager/SettingsPage.h
+@@ -4,7 +4,7 @@
+ #define ZIP7_INC_SETTINGS_PAGE_H
+ 
+ #include "../../../Windows/Control/PropertyPage.h"
+-// #include "../../../Windows/Control/ComboBox.h"
++#include "../../../Windows/Control/ComboBox.h"
+ #include "../../../Windows/Control/Edit.h"
+ 
+ class CSettingsPage: public NWindows::NControl::CPropertyPage
+@@ -13,6 +13,11 @@ class CSettingsPage: public NWindows::NControl::CPropertyPage
+   bool _largePages_wasChanged;
+   bool _memx_wasChanged;
+   bool _initMode;
++
++  bool _clrMode_wasChanged;
++  int _curClrMode;
++  NWindows::NControl::CComboBox _clrModeCombo;
++
+   /*
+   bool _wasChanged_MemLimit;
+   NWindows::NControl::CComboBox _memCombo;
+diff --git a/CPP/7zip/UI/FileManager/SettingsPage2.rc b/CPP/7zip/UI/FileManager/SettingsPage2.rc
+index f67ee8099..3cbe59bbb 100644
+--- a/CPP/7zip/UI/FileManager/SettingsPage2.rc
++++ b/CPP/7zip/UI/FileManager/SettingsPage2.rc
+@@ -30,5 +30,8 @@ BEGIN
+   MY_CONTROL_CHECKBOX ( "Want CopyHistory",   IDX_SETTINGS_WANT_COPY_HISTORY,       m, 196, xc)
+   MY_CONTROL_CHECKBOX ( "Want FolderHistory", IDX_SETTINGS_WANT_FOLDER_HISTORY,     m, 208, xc)
+   MY_CONTROL_CHECKBOX ( "Use Lowercase Hashes", IDX_SETTINGS_LOWERCASE_HASHES,      m, 220, xc)
++
++  LTEXT "Color Mode:", IDT_COLOR_MODE, m, save_y + 34, xc, 8
++  COMBOBOX IDC_COLOR_MODE, m, spin_y + 34, spin_x_size, 60, MY_COMBO
+ 
+ END
+diff --git a/CPP/7zip/UI/FileManager/SettingsPageRes.h b/CPP/7zip/UI/FileManager/SettingsPageRes.h
+index 205daee74..30e6689b2 100644
+--- a/CPP/7zip/UI/FileManager/SettingsPageRes.h
++++ b/CPP/7zip/UI/FileManager/SettingsPageRes.h
+@@ -17,6 +17,9 @@
+ #define IDC_SETTINGS_MEM_SPIN      102
+ #define IDT_SETTINGS_MEM_GB        103
+ 
++#define IDT_COLOR_MODE             3104
++#define IDC_COLOR_MODE             3105
++
+ // #define IDT_SETTINGS_MEM     100
+ // #define IDC_SETTINGS_MEM     101
+ // #define IDT_SETTINGS_MEM_RAM 102
+diff --git a/CPP/Windows/Control/Dialog.cpp b/CPP/Windows/Control/Dialog.cpp
+index f44c35c77..d133876b2 100644
+--- a/CPP/Windows/Control/Dialog.cpp
++++ b/CPP/Windows/Control/Dialog.cpp
+@@ -10,6 +10,9 @@
+ 
+ #include "Dialog.h"
+ 
++#if !defined(Z7_SFX)
++#include "../../7zip/UI/FileManager/RegistryUtils.h"
++#endif
+ #include "../../../DarkMode/src/DarkModeSubclass.h"
+ 
+ extern HINSTANCE g_hInstance;
+@@ -38,7 +41,35 @@ DialogProcedure(HWND dialogHWND, UINT message, WPARAM wParam, LPARAM lParam)
+   if (message == WM_INITDIALOG)
+     {
+       dialog->Attach(dialogHWND);
++#if defined(Z7_LANG)
+       DarkMode::initDarkModeEx(L"7zDark");
++#endif
++#if !defined(Z7_SFX)
++      if (!DarkMode::doesConfigFileExist())
++      {
++        switch (Read_ClrMode())
++        {
++          case 0:
++          {
++            DarkMode::setDarkModeConfigEx(static_cast<UINT>(DarkMode::DarkModeType::classic));
++            break;
++          }
++
++          case 2:
++          {
++            DarkMode::setDarkModeConfig();
++            break;
++          }
++
++          //case 1:
++          default:
++          {
++            break;
++          }
++        }
++        DarkMode::setDefaultColors(false);
++      }
++#endif
+       DarkMode::setDarkWndNotifySafeEx(*dialog, true, true);
+     }
+ 
+diff --git a/DarkMode/src/DarkModeSubclass.cpp b/DarkMode/src/DarkModeSubclass.cpp
+index 90a9d802a..b2033411e 100644
+--- a/DarkMode/src/DarkModeSubclass.cpp
++++ b/DarkMode/src/DarkModeSubclass.cpp
+@@ -414,6 +414,7 @@ namespace DarkMode
+ #if !defined(_DARKMODELIB_NO_INI_CONFIG)
+ 			std::wstring m_iniName;
+ 			bool m_isIniNameSet = false;
++			bool m_iniExist = false;
+ #endif
+ 		} g_dmCfg;
+ 	} // anonymous namespace
+@@ -1479,7 +1480,8 @@ namespace DarkMode
+ 		}
+ 
+ 		const std::wstring iniPath = GetIniPath(iniName);
+-		if (FileExists(iniPath))
++		g_dmCfg.m_iniExist = FileExists(iniPath);
++		if (g_dmCfg.m_iniExist)
+ 		{
+ 			DarkMode::initDarkModeConfig(::GetPrivateProfileIntW(L"main", L"mode", 1, iniPath.c_str()));
+ 			if (g_dmCfg.m_dmType == DarkModeType::classic)
+@@ -1677,6 +1679,20 @@ namespace DarkMode
+ 		DarkMode::initDarkModeEx(L"");
+ 	}
+ 
++	/**
++	 * @brief Checks if there is config INI file.
++	 *
++	 * @return `true` if there is config INI file that can be used.
++	 */
++	bool doesConfigFileExist()
++	{
++#if !defined(_DARKMODELIB_NO_INI_CONFIG)
++		return g_dmCfg.m_iniExist;
++#else
++		return false;
++#endif
++	}
++
+ 	/**
+ 	 * @brief Checks if non-classic mode is enabled.
+ 	 *
+@@ -5199,7 +5215,7 @@ namespace DarkMode
+ 	 * @param hWnd Handle to the list view control.
+ 	 *
+ 	 * @see DarkMode::ListViewSubclass()
+-	 * @see DarkMode::setComboBoxExCtrlSubclass()
++	 * @see DarkMode::setListViewCtrlSubclass()
+ 	 */
+ 	void removeListViewCtrlSubclass(HWND hWnd)
+ 	{
+diff --git a/DarkMode/src/DarkModeSubclass.h b/DarkMode/src/DarkModeSubclass.h
+index 23c99fd8e..86ff29060 100644
+--- a/DarkMode/src/DarkModeSubclass.h
++++ b/DarkMode/src/DarkModeSubclass.h
+@@ -228,6 +228,9 @@ namespace DarkMode
+ 	///Initializes dark mode without INI settings.
+ 	DMLIB_API void initDarkMode();
+ 
++	/// Checks if there is config INI file.
++	DMLIB_API bool doesConfigFileExist();
++
+ 	// ========================================================================
+ 	// Basic checks
+ 	// ========================================================================
+diff --git a/DarkMode/src/Version.h b/DarkMode/src/Version.h
+index 2acf16de5..ba3a47166 100644
+--- a/DarkMode/src/Version.h
++++ b/DarkMode/src/Version.h
+@@ -9,11 +9,11 @@
+ 
+ 
+ #define DM_VERSION_MAJOR    0
+-#define DM_VERSION_MINOR    22
++#define DM_VERSION_MINOR    23
+ #define DM_VERSION_REVISION 0
+ 
+ #define STR_HELPER(x) #x
+ #define STR(x) STR_HELPER(x)
+ 
+-#define DM_VERSION "Dark mode v0.22.0"
++#define DM_VERSION "Dark mode v0.23.0"
+ #define DM_COPYRIGHT "Copyright (c) 2024-2025 ozone10"

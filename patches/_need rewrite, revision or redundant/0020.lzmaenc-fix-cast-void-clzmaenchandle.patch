@@ -1,0 +1,22 @@
+From 1290e3aac383741455dca6bb36e13f60a924f478 Mon Sep 17 00:00:00 2001
+From: Dmitry Tsarevich <dimhotepus@gmail.com>
+Date: Mon, 13 Jan 2025 14:55:53 +0300
+Subject: [PATCH] lzmaenc: Fix cast void* -> CLzmaEncHandle
+
+---
+ C/LzmaEnc.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/C/LzmaEnc.c b/C/LzmaEnc.c
+index 84a29a5c..665973ef 100644
+--- a/C/LzmaEnc.c
++++ b/C/LzmaEnc.c
+@@ -2355,7 +2355,7 @@ CLzmaEncHandle LzmaEnc_Create(ISzAllocPtr alloc)
+   p = ISzAlloc_Alloc(alloc, sizeof(CLzmaEnc));
+   if (p)
+     LzmaEnc_Construct((CLzmaEnc *)p);
+-  return p;
++  return static_cast<CLzmaEncHandle>(p);
+ }
+ 
+ static void LzmaEnc_FreeLits(CLzmaEnc *p, ISzAllocPtr alloc)

@@ -1,0 +1,1056 @@
+From 1fdc94433e5aab6ccf3d6ac6d705b26b0ae68745 Mon Sep 17 00:00:00 2001
+From: ironyman <ironyman13@gmail.com>
+Date: Thu, 4 Jan 2024 17:20:39 -0800
+Subject: [PATCH] Add some convenience menu items
+
+---
+ .vscode/settings.json                     |   3 +-
+ CPP/7zip/UI/FileManager/App.h             |   4 +
+ CPP/7zip/UI/FileManager/MyLoadMenu.cpp    |  46 ++---
+ CPP/7zip/UI/FileManager/Panel.cpp         |  41 ++++-
+ CPP/7zip/UI/FileManager/Panel.h           |  13 ++
+ CPP/7zip/UI/FileManager/PanelItemOpen.cpp | 212 ++++++++++++++++------
+ CPP/7zip/UI/FileManager/PanelItems.cpp    |  49 +++++
+ CPP/7zip/UI/FileManager/resource.h        |   5 +
+ CPP/7zip/UI/FileManager/resource.rc       |   6 +-
+ CPP/Windows/Control/ListView.h            |   7 +-
+ 10 files changed, 298 insertions(+), 88 deletions(-)
+
+diff --git a/.vscode/settings.json b/.vscode/settings.json
+index a6401b5..1a6884c 100644
+--- a/.vscode/settings.json
++++ b/.vscode/settings.json
+@@ -108,6 +108,7 @@
+         "xloctime": "cpp",
+         "xmemory": "cpp",
+         "xtree": "cpp",
+-        "xutility": "cpp"
++        "xutility": "cpp",
++        "*.rh": "cpp"
+     }
+ }
+\ No newline at end of file
+diff --git a/CPP/7zip/UI/FileManager/App.h b/CPP/7zip/UI/FileManager/App.h
+index f10a696..1b23ae1 100644
+--- a/CPP/7zip/UI/FileManager/App.h
++++ b/CPP/7zip/UI/FileManager/App.h
+@@ -133,6 +133,10 @@ class CApp
+   void OpenItem() { GetFocusedPanel().OpenSelectedItems(true); }
+   void OpenItemInside(const wchar_t *type) { GetFocusedPanel().OpenFocusedItemAsInternal(type); }
+   void OpenItemOutside() { GetFocusedPanel().OpenSelectedItems(false); }
++  void OpenItemVscode() { GetFocusedPanel().OpenSelectedItem(L"code.cmd", L"", SW_HIDE); }
++  void OpenItemTerminal() { GetFocusedPanel().OpenInSelectedItem(L"powershell.exe"); }
++  void OpenItemExplorer() { GetFocusedPanel().OpenInSelectedItem(L"", L"explore"); }
++  void CopyItemPath() { GetFocusedPanel().CopyItemPath(); }
+   void EditItem(bool useEditor) { GetFocusedPanel().EditItem(useEditor); }
+   void Rename() { GetFocusedPanel().RenameFile(); }
+   void CopyTo() { OnCopy(false, false, GetFocusedPanelIndex()); }
+diff --git a/CPP/7zip/UI/FileManager/MyLoadMenu.cpp b/CPP/7zip/UI/FileManager/MyLoadMenu.cpp
+index 86c6c85..1f80bc8 100644
+--- a/CPP/7zip/UI/FileManager/MyLoadMenu.cpp
++++ b/CPP/7zip/UI/FileManager/MyLoadMenu.cpp
+@@ -135,7 +135,7 @@ static void MyChangeMenu(HMENU menuLoc, unsigned menuID, unsigned level, unsigne
+ {
+   CMenu menu;
+   menu.Attach(menuLoc);
+-  
++
+   for (unsigned i = 0;; i++)
+   {
+     CMenuItem item;
+@@ -328,7 +328,7 @@ void MyLoadMenu(bool needResetMenu)
+   if (!g_LangID.IsEmpty())
+     MyChangeMenu(baseMenu, 0, 0);
+   g_App._commandBar.DrawMenuBar(0);
+- 
++
+   #else // UNDER_CE
+ 
+   const HWND hWnd = g_HWND;
+@@ -385,10 +385,10 @@ void OnMenuActivating(HWND /* hWnd */, HMENU hMenu, int position)
+     ::GetMenu(g_HWND)
+     #endif
+     ;
+-  
++
+   if (::GetSubMenu(mainMenu, position) != hMenu)
+     return;
+-  
++
+   if (position == k_MenuIndex_File)
+   {
+     CMenu menu;
+@@ -420,7 +420,7 @@ void OnMenuActivating(HWND /* hWnd */, HMENU hMenu, int position)
+         IDM_VIEW_ARANGE_NO_SORT,
+         GetSortControlID(g_App.GetSortID()),
+         MF_BYCOMMAND);
+-    
++
+     menu.CheckItemByID(IDM_VIEW_TWO_PANELS, g_App.NumPanels == 2);
+     menu.CheckItemByID(IDM_VIEW_FLAT_VIEW, g_App.GetFlatMode());
+     menu.CheckItemByID(IDM_VIEW_ARCHIVE_TOOLBAR, g_App.ShowArchiveToolbar);
+@@ -458,7 +458,7 @@ void OnMenuActivating(HWND /* hWnd */, HMENU hMenu, int position)
+         CMenu subMenu;
+         subMenu.Attach(menu.GetSubMenu((int)i));
+         subMenu.RemoveAllItems();
+-        
++
+         const int k_TimeLevels[] =
+         {
+           kTimestampPrintLevel_DAY,
+@@ -473,7 +473,7 @@ void OnMenuActivating(HWND /* hWnd */, HMENU hMenu, int position)
+         unsigned selectedCommand = 0;
+         g_App._timestampLevels.Clear();
+         unsigned id = k_MenuID_Time;
+-        
++
+         for (unsigned k = 0; k < Z7_ARRAY_SIZE(k_TimeLevels); k++)
+         {
+           wchar_t s[64];
+@@ -505,7 +505,7 @@ void OnMenuActivating(HWND /* hWnd */, HMENU hMenu, int position)
+     subMenu.Attach(menu.GetSubMenu(0));
+     subMenu.RemoveAllItems();
+     unsigned i;
+-    
++
+     for (i = 0; i < 10; i++)
+     {
+       UString s = LangString(IDS_BOOKMARK);
+@@ -574,17 +574,17 @@ void CFileMenu::Load(HMENU hMenu, unsigned startPos)
+   unsigned numRealItems = startPos;
+ 
+   const bool isBigScreen = NControl::IsDialogSizeOK(40, 200, g_HWND);
+-  
++
+   for (unsigned i = 0;; i++)
+   {
+     CMenuItem item;
+ 
+     item.fMask = MIIM_SUBMENU | MIIM_STATE | MIIM_ID | Get_fMask_for_FType_and_String();
+     item.fType = MFT_STRING;
+-    
++
+     if (!g_FileMenu.GetItem(i, true, item))
+       break;
+-    
++
+     {
+       if (!programMenu && item.wID == IDCLOSE)
+         continue;
+@@ -624,7 +624,7 @@ void CFileMenu::Load(HMENU hMenu, unsigned startPos)
+             disable = true;
+         }
+       }
+-      
++
+       if (isHashFolder)
+       {
+         switch (item.wID)
+@@ -675,7 +675,7 @@ void CFileMenu::Load(HMENU hMenu, unsigned startPos)
+   UString vercPath;
+   if (!diffPath.IsEmpty() && isFsFolder && allAreFiles && numItems == 1)
+     ReadReg_VerCtrlPath(vercPath);
+-  
++
+   if (!vercPath.IsEmpty())
+   {
+     NFile::NFind::CFileInfo fi;
+@@ -696,7 +696,7 @@ void CFileMenu::Load(HMENU hMenu, unsigned startPos)
+           if (id == IDM_VER_EDIT)
+             continue;
+         }
+-        
++
+         CMenuItem item;
+         UString s (g_Zvc_Strings[k]);
+         if (destMenu.AppendItem(MF_STRING, id, s))
+@@ -707,7 +707,7 @@ void CFileMenu::Load(HMENU hMenu, unsigned startPos)
+       }
+     }
+   }
+-  
++
+   destMenu.RemoveAllItemsFrom(numRealItems);
+ }
+ 
+@@ -725,10 +725,14 @@ bool ExecuteFileCommand(unsigned id)
+   {
+     // File
+     case IDM_OPEN: g_App.OpenItem(); break;
+-    
++
+     case IDM_OPEN_INSIDE:        g_App.OpenItemInside(NULL); break;
+     case IDM_OPEN_INSIDE_ONE:    g_App.OpenItemInside(L"*"); break;
+     case IDM_OPEN_INSIDE_PARSER: g_App.OpenItemInside(L"#"); break;
++    case IDM_OPEN_VSCODE: g_App.OpenItemVscode(); break;
++    case IDM_OPEN_TERMINAL: g_App.OpenItemTerminal(); break;
++    case IDM_OPEN_EXPLORER: g_App.OpenItemExplorer(); break;
++    case IDM_COPY_PATH: g_App.CopyItemPath(); break;
+ 
+     case IDM_OPEN_OUTSIDE: g_App.OpenItemOutside(); break;
+     case IDM_FILE_VIEW: g_App.EditItem(false); break;
+@@ -737,13 +741,13 @@ bool ExecuteFileCommand(unsigned id)
+     case IDM_COPY_TO: g_App.CopyTo(); break;
+     case IDM_MOVE_TO: g_App.MoveTo(); break;
+     case IDM_DELETE: g_App.Delete(!IsKeyDown(VK_SHIFT)); break;
+-    
++
+     case IDM_HASH_ALL: g_App.CalculateCrc("*"); break;
+     case IDM_CRC32: g_App.CalculateCrc("CRC32"); break;
+     case IDM_CRC64: g_App.CalculateCrc("CRC64"); break;
+     case IDM_SHA1: g_App.CalculateCrc("SHA1"); break;
+     case IDM_SHA256: g_App.CalculateCrc("SHA256"); break;
+-    
++
+     case IDM_DIFF: g_App.DiffFiles(); break;
+ 
+     case IDM_VER_EDIT:
+@@ -787,7 +791,7 @@ bool OnMenuCommand(HWND hWnd, unsigned id)
+       g_ExitEventLauncher.Exit(false);
+       SendMessage(hWnd, WM_CLOSE, 0, 0);
+       break;
+-    
++
+     // Edit
+     /*
+     case IDM_EDIT_CUT:
+@@ -870,7 +874,7 @@ bool OnMenuCommand(HWND hWnd, unsigned id)
+       Save_ShowDeleted(isChecked);
+     }
+     */
+-    
++
+     case IDM_VIEW_TWO_PANELS:       g_App.SwitchOnOffOnePanel(); break;
+     case IDM_VIEW_STANDARD_TOOLBAR: g_App.SwitchStandardToolbar(); break;
+     case IDM_VIEW_ARCHIVE_TOOLBAR:  g_App.SwitchArchiveToolbar(); break;
+@@ -880,7 +884,7 @@ bool OnMenuCommand(HWND hWnd, unsigned id)
+ 
+     // Tools
+     case IDM_OPTIONS: OptionsDialog(hWnd, g_hInstance); break;
+-          
++
+     case IDM_BENCHMARK: MyBenchmark(false); break;
+     case IDM_BENCHMARK2: MyBenchmark(true); break;
+ 
+diff --git a/CPP/7zip/UI/FileManager/Panel.cpp b/CPP/7zip/UI/FileManager/Panel.cpp
+index 3d708d2..9f2fecf 100644
+--- a/CPP/7zip/UI/FileManager/Panel.cpp
++++ b/CPP/7zip/UI/FileManager/Panel.cpp
+@@ -180,18 +180,36 @@ LRESULT CMyListView::OnMessage(UINT message, WPARAM wParam, LPARAM lParam)
+   else if (message == WM_SYSCHAR)
+   {
+     // For Alt+Enter Beep disabling
++    // And disable beep for Alt + number key row.
+     UINT scanCode = (UINT)(lParam >> 16) & 0xFF;
+     UINT virtualKey = MapVirtualKey(scanCode, 1);
+     if (virtualKey == VK_RETURN || virtualKey == VK_MULTIPLY ||
+-        virtualKey == VK_ADD || virtualKey == VK_SUBTRACT)
++        virtualKey == VK_ADD || virtualKey == VK_SUBTRACT || virtualKey == 'C'
++        || (virtualKey >= '0' && virtualKey <= '9'))
+       return 0;
+   }
+-  /*
+   else if (message == WM_SYSKEYDOWN)
+   {
+-    // return 0;
++    // This handles alt key presses.
++    bool alt = IsKeyDown(VK_MENU);
++    bool ctrl = IsKeyDown(VK_CONTROL);
++    bool shift = IsKeyDown(VK_SHIFT);
++    switch (wParam)
++    {
++      case 'C':
++      if (!ctrl && alt && shift)
++      {
++        g_App.CopyItemPath();
++        return 0;
++      }
++      case VK_RETURN:
++      if (!ctrl && alt && shift)
++      {
++        g_App.OpenItemTerminal();
++        return 0;
++      }
++    }
+   }
+-  */
+   else if (message == WM_KEYDOWN)
+   {
+     bool alt = IsKeyDown(VK_MENU);
+@@ -225,6 +243,21 @@ LRESULT CMyListView::OnMessage(UINT message, WPARAM wParam, LPARAM lParam)
+         _panel->OpenParentFolder();
+         return 0;
+       }
++      break;
++      case VK_RETURN:
++      // return (activation) are handled in CPanel::OnNotifyActivateItems after this.
++      if (ctrl && !alt && !shift)
++      {
++        g_App.OpenItemVscode();
++        return 0;
++      }
++      break;
++      case VK_ESCAPE:
++      {
++        DeselectAll();
++        return 0;
++      }
++      break;
+     }
+   }
+   #ifdef UNDER_CE
+diff --git a/CPP/7zip/UI/FileManager/Panel.h b/CPP/7zip/UI/FileManager/Panel.h
+index dbeee1f..9cbe33c 100644
+--- a/CPP/7zip/UI/FileManager/Panel.h
++++ b/CPP/7zip/UI/FileManager/Panel.h
+@@ -32,6 +32,7 @@
+ #include "../../../Windows/Control/StatusBar.h"
+ #include "../../../Windows/Control/ToolBar.h"
+ #include "../../../Windows/Control/Window2.h"
++#include "../../../Windows/ProcessUtils.h"
+ 
+ #include "../../Archive/IArchive.h"
+ 
+@@ -869,6 +870,9 @@ class CPanel Z7_final: public NWindows::NControl::CWindow2
+ 
+   void OpenFocusedItemAsInternal(const wchar_t *type = NULL);
+   void OpenSelectedItems(bool internal);
++  void OpenSelectedItem(UString const& command, UString const& operation = L"", int nShow = SW_SHOWNORMAL);
++  void OpenInSelectedItem(UString const& command, UString const& operation = L"");
++  void CopyItemPath();
+ 
+   void OpenFolderExternal(unsigned index);
+ 
+@@ -1033,4 +1037,13 @@ class CExitEventLauncher
+ 
+ extern CExitEventLauncher g_ExitEventLauncher;
+ 
++void StartApplicationDontWait(const UString &dir, const UString &path, HWND window);
++HRESULT StartApplication(
++  const UString &dir,
++  const UString &path,
++  const UString &operation,
++  const UString &parameter,
++  HWND window,
++  NWindows::CProcess &process,
++  int nShow = SW_SHOWNORMAL);
+ #endif
+diff --git a/CPP/7zip/UI/FileManager/PanelItemOpen.cpp b/CPP/7zip/UI/FileManager/PanelItemOpen.cpp
+index a2546e7..a0d0d79 100644
+--- a/CPP/7zip/UI/FileManager/PanelItemOpen.cpp
++++ b/CPP/7zip/UI/FileManager/PanelItemOpen.cpp
+@@ -11,7 +11,6 @@
+ #include "../../../Common/AutoPtr.h"
+ #include "../../../Common/StringConvert.h"
+ 
+-#include "../../../Windows/ProcessUtils.h"
+ #include "../../../Windows/FileName.h"
+ #include "../../../Windows/PropVariant.h"
+ #include "../../../Windows/PropVariantConv.h"
+@@ -142,7 +141,7 @@ class CPossibleProgs
+         ProgNames.Add(g_Progs[i].Prog);
+       }
+   }
+-  
++
+   bool IsFromList(const UString &progName) const
+   {
+     FOR_VECTOR (i, ProgNames)
+@@ -192,7 +191,7 @@ static void My_GetProcessFileName_2(HANDLE hProcess, UString &path)
+   path.Empty();
+   const unsigned maxPath = 1024;
+   WCHAR temp[maxPath + 1];
+-  
++
+   const char *func_name = "GetModuleFileNameExW";
+   Func_GetModuleFileNameExW my_func = (Func_GetModuleFileNameExW)
+     ::GetProcAddress(::GetModuleHandleA("kernel32.dll"), func_name);
+@@ -219,12 +218,12 @@ static void My_GetProcessFileName(HANDLE hProcess, UString &path)
+   path.Empty();
+   const unsigned maxPath = 1024;
+   WCHAR temp[maxPath + 1];
+-  
++
+   const char *func_name =
+       "GetProcessImageFileNameW";
+   Func_GetProcessImageFileNameW my_func = Z7_GET_PROC_ADDRESS(
+   Func_GetProcessImageFileNameW, ::GetModuleHandleA("kernel32.dll"), func_name);
+-  
++
+   if (!my_func)
+   {
+     if (!g_Psapi_dll_module)
+@@ -233,7 +232,7 @@ static void My_GetProcessFileName(HANDLE hProcess, UString &path)
+       my_func = Z7_GET_PROC_ADDRESS(
+         Func_GetProcessImageFileNameW, g_Psapi_dll_module, func_name);
+   }
+-  
++
+   if (my_func)
+   {
+     const DWORD num =
+@@ -298,7 +297,7 @@ class CChildProcesses
+   // CChildProcesses(): ProgsWereUsed(false) {}
+   ~CChildProcesses() { CloseAll(); }
+   void DisableWait(unsigned index) { NeedWait[index] = false; }
+-  
++
+   void CloseAll()
+   {
+     FOR_VECTOR (i, Handles)
+@@ -331,7 +330,7 @@ class CChildProcesses
+       if (id != 0)
+         _ids.AddToUniqueSorted(id);
+     }
+-    
++
+     My_GetProcessFileName(h, Path);
+     DEBUG_PRINT_W(Path);
+ 
+@@ -363,12 +362,12 @@ class CChildProcesses
+     for (;;)
+     {
+       bool wasAdded = false;
+-      
++
+       FOR_VECTOR (i, sps)
+       {
+         const CSnapshotProcess &sp = sps[i];
+         const DWORD id = sp.Id;
+-        
++
+         if (id == currentProcessId)
+           continue;
+         if (_ids.FindInSorted(id) >= 0)
+@@ -376,13 +375,13 @@ class CChildProcesses
+ 
+         bool isSameName = false;
+         const UString &name = sp.Name;
+-        
++
+         if (needFindProcessByPath)
+           isSameName = mainName.IsEqualTo_NoCase(name);
+ 
+         bool needAdd = false;
+         // bool isFromProgs = false;
+-        
++
+         if (isSameName || _ids.FindInSorted(sp.ParentId) >= 0)
+           needAdd = true;
+         /*
+@@ -411,12 +410,12 @@ class CChildProcesses
+           }
+         }
+       }
+-      
++
+       if (!wasAdded)
+         break;
+     }
+   }
+-  
++
+   #endif
+ };
+ 
+@@ -430,7 +429,7 @@ struct CTmpProcessInfo: public CTempFileInfo
+   UString Password;
+ 
+   bool ReadOnly;
+-  
++
+   CTmpProcessInfo(): UsePassword(false), ReadOnly(false) {}
+ };
+ 
+@@ -461,7 +460,7 @@ HRESULT CPanel::OpenAsArc(IInStream *inStream,
+   openRes.Encrypted = false;
+   CFolderLink folderLink;
+   (CTempFileInfo &)folderLink = tempFileInfo;
+-  
++
+   if (inStream)
+     folderLink.IsVirtual = true;
+   else
+@@ -484,7 +483,7 @@ HRESULT CPanel::OpenAsArc(IInStream *inStream,
+   openRes.ErrorMessage = ffp.ErrorMessage;
+ 
+   RINOK(res)
+- 
++
+   folderLink.Password = ffp.Password;
+   folderLink.UsePassword = ffp.Encrypted;
+ 
+@@ -492,7 +491,7 @@ HRESULT CPanel::OpenAsArc(IInStream *inStream,
+     folderLink.ParentFolderPath = GetFolderPath(_folder);
+   else
+     folderLink.ParentFolderPath = _currentFolderPrefix;
+-  
++
+   if (!_parentFolders.IsEmpty())
+     folderLink.ParentFolder = _folder;
+ 
+@@ -507,7 +506,7 @@ HRESULT CPanel::OpenAsArc(IInStream *inStream,
+   _flatMode = _flatModeForArc;
+ 
+   _thereAreDeletedItems = false;
+-  
++
+   if (!openRes.ErrorMessage.IsEmpty())
+     MessageBox_Error(openRes.ErrorMessage);
+   /*
+@@ -535,7 +534,7 @@ HRESULT CPanel::OpenAsArc_Msg(IInStream *inStream,
+   COpenResult opRes;
+ 
+   HRESULT res = OpenAsArc(inStream, tempFileInfo, virtualFilePath, arcFormat, opRes);
+-  
++
+   if (res == S_OK)
+     return res;
+   if (res == E_ABORT)
+@@ -644,7 +643,7 @@ static const char * const kStartExtensions =
+   " dwf"
+ 
+   " flv swf"
+-  
++
+   " epub"
+   " odt ods"
+   " wb3"
+@@ -699,7 +698,7 @@ static WRes StartAppWithParams(const UString &cmd, const UStringVector &paramVec
+   UString prg;
+ 
+   SplitCmdLineSmart(cmd, prg, param);
+-  
++
+   param.Trim();
+ 
+   // int pos = params.Find(L"%1");
+@@ -710,7 +709,7 @@ static WRes StartAppWithParams(const UString &cmd, const UStringVector &paramVec
+       param.Add_Space();
+     param += GetQuotedString(paramVector[i]);
+   }
+-  
++
+   return process.Create(prg, param, NULL);
+ }
+ 
+@@ -746,7 +745,7 @@ static HRESULT StartEditApplication(const UString &path, bool useEditor, HWND wi
+ void CApp::DiffFiles()
+ {
+   const CPanel &panel = GetFocusedPanel();
+-  
++
+   if (!panel.Is_IO_FS_Folder())
+   {
+     panel.MessageBox_Error_UnsupportOperation();
+@@ -831,7 +830,7 @@ static HRESULT StartApplication(const UString &dir, const UString &path, HWND wi
+   #endif
+ 
+   UINT32 result;
+-  
++
+   #ifndef _UNICODE
+   if (g_IsNT)
+   {
+@@ -885,7 +884,7 @@ static HRESULT StartApplication(const UString &dir, const UString &path, HWND wi
+     result = (UINT32)(UINT_PTR)execInfo.hInstApp;
+     process.Attach(execInfo.hProcess);
+   }
+-  
++
+ 
+   DEBUG_PRINT_NUM("-- ShellExecuteEx -- execInfo.hInstApp = ", result)
+ 
+@@ -899,19 +898,116 @@ static HRESULT StartApplication(const UString &dir, const UString &path, HWND wi
+           // L"There is no application associated with the given file name extension",
+           L"7-Zip", MB_OK | MB_ICONSTOP);
+     }
+-    
++
+     return E_FAIL; // fixed in 15.13. Can we use it for any Windows version?
+   }
+-  
++
+   return S_OK;
+ }
+ 
+-static void StartApplicationDontWait(const UString &dir, const UString &path, HWND window)
++void StartApplicationDontWait(const UString &dir, const UString &path, HWND window)
+ {
+   CProcess process;
+   StartApplication(dir, path, window, process);
+ }
+ 
++// Overloading to not modify existing StartApplication behavior.
++HRESULT StartApplication(
++  const UString &dir,
++  const UString &path,
++  const UString &operation,
++  const UString &parameter,
++  HWND parentWindow,
++  NWindows::CProcess &process,
++  int nShow)
++{
++  UString path2 = path;
++
++  #ifdef _WIN32
++  // {
++  //   int dot = path2.ReverseFind_Dot();
++  //   int separ = path2.ReverseFind_PathSepar();
++  //   if (dot < 0 || dot < separ)
++  //     path2.Add_Dot();
++  // }
++  #endif
++
++  UINT32 result;
++
++  #ifndef _UNICODE
++  if (g_IsNT)
++  {
++    SHELLEXECUTEINFOW execInfo;
++    execInfo.cbSize = sizeof(execInfo);
++    execInfo.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_FLAG_DDEWAIT;
++    execInfo.hwnd = NULL;
++    execInfo.lpVerb = NULL;
++    execInfo.lpFile = path2;
++    execInfo.lpParameters = NULL;
++    execInfo.lpDirectory = dir.IsEmpty() ? NULL : (LPCWSTR)dir;
++    execInfo.nShow = SW_SHOWNORMAL;
++    execInfo.hProcess = NULL;
++    const
++    Func_ShellExecuteExW
++       f_ShellExecuteExW = Z7_GET_PROC_ADDRESS(
++    Func_ShellExecuteExW, ::GetModuleHandleW(L"shell32.dll"),
++        "ShellExecuteExW");
++    if (!f_ShellExecuteExW)
++      return 0;
++    f_ShellExecuteExW(&execInfo);
++    result = (UINT32)(UINT_PTR)execInfo.hInstApp;
++    process.Attach(execInfo.hProcess);
++  }
++  else
++  #endif
++  {
++    SHELLEXECUTEINFO execInfo;
++    execInfo.cbSize = sizeof(execInfo);
++    execInfo.fMask = SEE_MASK_NOCLOSEPROCESS
++      #ifndef UNDER_CE
++      | SEE_MASK_FLAG_DDEWAIT
++      #endif
++      ;
++    execInfo.hwnd = NULL;
++    execInfo.lpVerb = operation;
++    const CSysString sysPath (GetSystemString(path2));
++    const CSysString sysDir (GetSystemString(dir));
++    execInfo.lpFile = sysPath;
++    execInfo.lpParameters = parameter;
++    execInfo.lpDirectory =
++      #ifdef UNDER_CE
++        NULL
++      #else
++        sysDir.IsEmpty() ? NULL : (LPCTSTR)sysDir
++      #endif
++      ;
++    execInfo.nShow = nShow;
++    execInfo.hProcess = NULL;
++    ::ShellExecuteEx(&execInfo);
++    result = (UINT32)(UINT_PTR)execInfo.hInstApp;
++    process.Attach(execInfo.hProcess);
++  }
++
++
++  DEBUG_PRINT_NUM("-- ShellExecuteEx -- execInfo.hInstApp = ", result)
++
++  if (result <= 32)
++  {
++    switch (result)
++    {
++      case SE_ERR_NOASSOC:
++        ::MessageBoxW(parentWindow,
++          NError::MyFormatMessage(::GetLastError()),
++          // L"There is no application associated with the given file name extension",
++          L"7-Zip", MB_OK | MB_ICONSTOP);
++    }
++
++    return E_FAIL; // fixed in 15.13. Can we use it for any Windows version?
++  }
++
++  return S_OK;
++}
++
+ void CPanel::EditItem(unsigned index, bool useEditor)
+ {
+   if (!_parentFolders.IsEmpty())
+@@ -961,7 +1057,7 @@ bool CPanel::IsVirus_Message(const UString &name)
+   bool isVirus = false;
+   bool isSpaceError = false;
+   name2 = name;
+-  
++
+   if (name2.Find(cRLO) >= 0)
+   {
+     const UString badString(cRLO);
+@@ -1003,12 +1099,12 @@ bool CPanel::IsVirus_Message(const UString &name)
+     }
+   }
+   #endif
+-  
++
+   if (!isVirus)
+     return false;
+ 
+   UString s = LangString(IDS_VIRUS);
+-  
++
+   if (!isSpaceError)
+   {
+     const int pos1 = s.Find(L'(');
+@@ -1040,7 +1136,7 @@ void CPanel::OpenItem(unsigned index, bool tryInternal, bool tryExternal, const
+ {
+   CDisableTimerProcessing disableTimerProcessing(*this);
+   const UString name = GetItemRelPath2(index);
+-  
++
+   if (tryExternal)
+     if (IsVirus_Message(name))
+       return;
+@@ -1071,7 +1167,7 @@ void CPanel::OpenItem(unsigned index, bool tryInternal, bool tryExternal, const
+         return;
+       }
+     }
+-  
++
+   if (tryExternal)
+   {
+     // SetCurrentDirectory opens HANDLE to folder!!!
+@@ -1091,12 +1187,12 @@ class CThreadCopyFrom: public CProgressThreadVirt
+   CMyComPtr<IProgress> UpdateCallback;
+   CUpdateCallback100Imp *UpdateCallbackSpec;
+ };
+-  
++
+ HRESULT CThreadCopyFrom::ProcessVirt()
+ {
+   return FolderOperations->CopyFromFile(ItemIndex, FullPath, UpdateCallback);
+ }
+-      
++
+ HRESULT CPanel::OnOpenItemChanged(UInt32 index, const wchar_t *fullFilePath,
+     bool usePassword, const UString &password)
+ {
+@@ -1133,11 +1229,11 @@ LRESULT CPanel::OnOpenItemChanged(LPARAM lParam)
+   UInt32 fileIndex = tpi.FileIndex;
+   UInt32 numItems;
+   _folder->GetNumberOfItems(&numItems);
+-  
++
+   // This code is not 100% OK for cases when there are several files with
+   // tpi.RelPath name and there are changes in archive before update.
+   // So tpi.FileIndex can point to another file.
+- 
++
+   if (fileIndex >= numItems || GetItemRelPath(fileIndex) != tpi.RelPath)
+   {
+     UInt32 i;
+@@ -1174,7 +1270,7 @@ void CExitEventLauncher::Exit(bool hardExit)
+ 
+   if (_numActiveThreads == 0)
+     return;
+-  
++
+   FOR_VECTOR (i, _threads)
+   {
+     ::CThread &th = _threads[i];
+@@ -1234,7 +1330,7 @@ static THREAD_FUNC_DECL MyThreadFunction(void *param)
+   {
+     CRecordVector<HANDLE> handles;
+     CUIntVector indices;
+-    
++
+     FOR_VECTOR (i, processes.Handles)
+     {
+       if (handles.Size() > 60)
+@@ -1245,7 +1341,7 @@ static THREAD_FUNC_DECL MyThreadFunction(void *param)
+         indices.Add(i);
+       }
+     }
+-    
++
+     bool needFindProcessByPath = false;
+ 
+     if (handles.IsEmpty())
+@@ -1256,11 +1352,11 @@ static THREAD_FUNC_DECL MyThreadFunction(void *param)
+     else
+     {
+       handles.Add(g_ExitEventLauncher._exitEvent);
+-      
++
+       DWORD waitResult = WaitForMultiObj_Any_Infinite(handles.Size(), &handles.Front());
+-      
++
+       waitResult -= WAIT_OBJECT_0;
+-      
++
+       if (waitResult >= handles.Size() - 1)
+       {
+         processes.CloseAll();
+@@ -1294,15 +1390,15 @@ static THREAD_FUNC_DECL MyThreadFunction(void *param)
+             if (tpi->WasChanged(newFileInfo))
+               needFindProcessByPath = false;
+         }
+-        
++
+         DEBUG_PRINT_NUM(" -- firstPass -- time = ", curTime)
+       }
+-      
++
+       processes.DisableWait(indices[(unsigned)waitResult]);
+     }
+ 
+     firstPass = false;
+-    
++
+     // Sleep(300);
+     #ifndef UNDER_CE
+     processes.Update(needFindProcessByPath /* , progs */);
+@@ -1325,7 +1421,7 @@ static THREAD_FUNC_DECL MyThreadFunction(void *param)
+   for (;;)
+   {
+     NFind::CFileInfo newFileInfo;
+-    
++
+     if (!newFileInfo.Find(tpi->FilePath))
+       break;
+ 
+@@ -1358,11 +1454,11 @@ static THREAD_FUNC_DECL MyThreadFunction(void *param)
+           break;
+         }
+       }
+-    
++
+       if (!isComplexMode)
+         break;
+     }
+-    
++
+     // DEBUG_PRINT("WaitForSingleObject");
+     DWORD waitResult = ::WaitForSingleObject(g_ExitEventLauncher._exitEvent, INFINITE);
+     // DEBUG_PRINT("---");
+@@ -1375,7 +1471,7 @@ static THREAD_FUNC_DECL MyThreadFunction(void *param)
+ 
+   {
+     NFind::CFileInfo newFileInfo;
+-    
++
+     bool finded = newFileInfo.Find(tpi->FilePath);
+ 
+     if (!needCheckTimestamp || !finded || !tpi->WasChanged(newFileInfo))
+@@ -1384,7 +1480,7 @@ static THREAD_FUNC_DECL MyThreadFunction(void *param)
+       tpi->DeleteDirAndFile();
+     }
+   }
+-  
++
+   return 0;
+ }
+ 
+@@ -1555,7 +1651,7 @@ void CPanel::OpenItemInArchive(unsigned index, bool tryInternal, bool tryExterna
+ 
+   const UString name = GetItemName(index);
+   const UString relPath = GetItemRelPath(index);
+-  
++
+   if (tryExternal)
+     if (IsVirus_Message(name))
+       return;
+@@ -1576,7 +1672,7 @@ void CPanel::OpenItemInArchive(unsigned index, bool tryInternal, bool tryExterna
+     MessageBox_LastError();
+     return;
+   }
+-  
++
+   FString tempDir = tempDirectory.GetPath();
+   FString tempDirNorm = tempDir;
+   NName::NormalizeDirPathPrefix(tempDirNorm);
+@@ -1669,7 +1765,7 @@ void CPanel::OpenItemInArchive(unsigned index, bool tryInternal, bool tryExterna
+     options.ZoneIdMode = NExtract::NZoneIdMode::kAll;
+     options.NeedRegistryZone = false;
+   }
+-  
++
+   if (tryAsArchive)
+   {
+     NCOM::CPropVariant prop;
+@@ -1688,7 +1784,7 @@ void CPanel::OpenItemInArchive(unsigned index, bool tryInternal, bool tryExterna
+       virtFileSystem = virtFileSystemSpec;
+       // we allow additional total size for small alt streams;
+       virtFileSystemSpec->MaxTotalAllocSize = fileSize + (1 << 10);
+-      
++
+       virtFileSystemSpec->DirPrefix = tempDirNorm;
+       virtFileSystemSpec->Init();
+       options.VirtFileSystem = virtFileSystem;
+@@ -1744,7 +1840,7 @@ void CPanel::OpenItemInArchive(unsigned index, bool tryInternal, bool tryExterna
+         return;
+       if (!tryExternal)
+         return;
+-      
++
+       tryAsArchive = false;
+       if (virtFileSystemSpec->FlushToDisk(true) != S_OK)
+         return;
+@@ -1820,7 +1916,7 @@ void CPanel::OpenItemInArchive(unsigned index, bool tryInternal, bool tryExterna
+   tpi->FullPathFolderPrefix = _currentFolderPrefix;
+   tpi->FileIndex = index;
+   tpi->RelPath = relPath;
+-  
++
+   if ((HANDLE)process)
+     tpi->Processes.SetMainProcess(process.Detach());
+ 
+diff --git a/CPP/7zip/UI/FileManager/PanelItems.cpp b/CPP/7zip/UI/FileManager/PanelItems.cpp
+index 987e463..aa59494 100644
+--- a/CPP/7zip/UI/FileManager/PanelItems.cpp
++++ b/CPP/7zip/UI/FileManager/PanelItems.cpp
+@@ -8,6 +8,8 @@
+ #include "../../../Windows/Menu.h"
+ #include "../../../Windows/PropVariant.h"
+ #include "../../../Windows/PropVariantConv.h"
++#include "../../../Windows/ProcessUtils.h"
++#include "../../../Windows/Clipboard.h"
+ 
+ #include "../../PropID.h"
+ 
+@@ -1062,6 +1064,53 @@ void CPanel::OpenSelectedItems(bool tryInternal)
+     else
+       OpenItem(index, (tryInternal && indices.Size() == 1), true);
+   }
++
++  if (indices.Size() == 0)
++  {
++    OpenInSelectedItem(L"", L"explore");
++  }
++}
++
++void CPanel::OpenSelectedItem(UString const& command, UString const& operation, int nShow)
++{
++  UString cwd = GetFsPath();
++  UString path = cwd;
++  CRecordVector<UInt32> indices;
++  Get_ItemIndices_Operated(indices);
++  if (indices.Size() > 0)
++  {
++    path = GetItemFullPath(indices[0]).Ptr();
++  }
++
++  NWindows::CProcess process;
++  StartApplication(cwd, command, operation, path, NULL, process, nShow);
++}
++
++void CPanel::OpenInSelectedItem(UString const& command, UString const& operation)
++{
++  UString cwd = GetFsPath();
++  UString path = cwd;
++  CRecordVector<UInt32> indices;
++  Get_ItemIndices_Operated(indices);
++  if (indices.Size() > 0)
++  {
++    path = GetItemFullPath(indices[0]).Ptr();
++  }
++
++  NWindows::CProcess process;
++  StartApplication(path, command, operation, L"", NULL, process);
++}
++
++void CPanel::CopyItemPath()
++{
++  UString path = GetFsPath();
++  CRecordVector<UInt32> indices;
++  Get_ItemIndices_Operated(indices);
++  if (indices.Size() > 0)
++  {
++    path = GetItemFullPath(indices[0]).Ptr();
++  }
++  ClipboardSetText(NULL, path);
+ }
+ 
+ UString CPanel::GetItemName(unsigned itemIndex) const
+diff --git a/CPP/7zip/UI/FileManager/resource.h b/CPP/7zip/UI/FileManager/resource.h
+index 6b93a1f..5b1f6f7 100644
+--- a/CPP/7zip/UI/FileManager/resource.h
++++ b/CPP/7zip/UI/FileManager/resource.h
+@@ -63,6 +63,11 @@
+ #define IDM_OPEN_INSIDE_ONE      590
+ #define IDM_OPEN_INSIDE_PARSER   591
+ 
++#define IDM_OPEN_VSCODE          592
++#define IDM_OPEN_TERMINAL        593
++#define IDM_OPEN_EXPLORER        594
++#define IDM_COPY_PATH            595
++
+ #define IDM_SELECT_ALL           600
+ #define IDM_DESELECT_ALL         601
+ #define IDM_INVERT_SELECTION     602
+diff --git a/CPP/7zip/UI/FileManager/resource.rc b/CPP/7zip/UI/FileManager/resource.rc
+index eb877fd..a744fd5 100644
+--- a/CPP/7zip/UI/FileManager/resource.rc
++++ b/CPP/7zip/UI/FileManager/resource.rc
+@@ -36,6 +36,10 @@ BEGIN
+   BEGIN
+     MENUITEM "&Open\tEnter",                IDM_OPEN
+     MENUITEM "Open &Inside\tCtrl+PgDn",     IDM_OPEN_INSIDE
++    MENUITEM "Open VS Code\tCtrl+Enter",    IDM_OPEN_VSCODE
++    MENUITEM "Open Terminal\tAlt+Shift+Enter", IDM_OPEN_TERMINAL
++    MENUITEM "Open Explorer\tShift+Enter",  IDM_OPEN_EXPLORER
++    MENUITEM "Copy Path\tAlt+Shift+C",      IDM_COPY_PATH
+     MENUITEM "Open Inside *",               IDM_OPEN_INSIDE_ONE
+     MENUITEM "Open Inside #",               IDM_OPEN_INSIDE_PARSER
+     MENUITEM "Open O&utside\tShift+Enter",  IDM_OPEN_OUTSIDE
+@@ -215,7 +219,7 @@ BEGIN
+   IDS_DELETING              "Deleting..."
+   IDS_ERROR_DELETING        "Error Deleting File or Folder"
+   IDS_ERROR_LONG_PATH_TO_RECYCLE  "The system cannot move a file with long path to the Recycle Bin"
+-  
++
+   IDS_CREATE_FOLDER       "Create Folder"
+   IDS_CREATE_FILE         "Create File"
+   IDS_CREATE_FOLDER_NAME  "Folder name:"
+diff --git a/CPP/Windows/Control/ListView.h b/CPP/Windows/Control/ListView.h
+index a31c1b9..94e9404 100644
+--- a/CPP/Windows/Control/ListView.h
++++ b/CPP/Windows/Control/ListView.h
+@@ -26,7 +26,7 @@ class CListView: public NWindows::CWindow
+     ListView_SetUnicodeFormat(_window, TRUE);
+     #endif
+   }
+- 
++
+   bool DeleteAllItems() { return BOOLToBool(ListView_DeleteAllItems(_window)); }
+   bool DeleteColumn(unsigned columnIndex) { return BOOLToBool(ListView_DeleteColumn(_window, columnIndex)); }
+ 
+@@ -77,7 +77,7 @@ class CListView: public NWindows::CWindow
+   int GetNextItem(int startIndex, UINT flags) const { return ListView_GetNextItem(_window, startIndex, flags); }
+   int GetNextSelectedItem(int startIndex) const { return GetNextItem(startIndex, LVNI_SELECTED); }
+   int GetFocusedItem() const { return GetNextItem(-1, LVNI_FOCUSED); }
+-  
++
+   bool GetItem(LVITEM* item) const { return BOOLToBool(ListView_GetItem(_window, item)); }
+   bool GetItemParam(unsigned itemIndex, LPARAM &param) const;
+   /*
+@@ -92,6 +92,7 @@ class CListView: public NWindows::CWindow
+   void SetItemState_Selected(int index, bool select) { SetItemState(index, select ? LVIS_SELECTED : 0, LVIS_SELECTED); }
+   void SetItemState_Selected(int index) { SetItemState(index, LVIS_SELECTED, LVIS_SELECTED); }
+   void SelectAll() { SetItemState_Selected(-1); }
++  void DeselectAll() { SetItemState_Selected(-1, 0); }
+   void SetItemState_FocusedSelected(int index) { SetItemState(index, LVIS_FOCUSED | LVIS_SELECTED, LVIS_FOCUSED | LVIS_SELECTED); }
+   UINT GetItemState(int index, UINT mask) const { return ListView_GetItemState(_window, index, mask); }
+   bool IsItemSelected(int index) const { return GetItemState(index, LVIS_SELECTED) == LVIS_SELECTED; }
+@@ -125,7 +126,7 @@ class CListView: public NWindows::CWindow
+     return true;
+   }
+   bool RedrawItem(int index) { return RedrawItems(index, index); }
+- 
++
+   int HitTest(LPLVHITTESTINFO info) { return ListView_HitTest(_window, info); }
+   COLORREF GetBkColor() { return ListView_GetBkColor(_window); }
+   bool SetColumnWidth(int iCol, int cx) { return BOOLToBool(ListView_SetColumnWidth(_window, iCol, cx)); }

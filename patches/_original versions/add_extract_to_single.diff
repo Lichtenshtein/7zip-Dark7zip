@@ -1,0 +1,134 @@
+diff --git a/CPP/7zip/UI/Explorer/ContextMenu.cpp b/CPP/7zip/UI/Explorer/ContextMenu.cpp
+index a99ca81..a6f5704 100644
+--- a/CPP/7zip/UI/Explorer/ContextMenu.cpp
++++ b/CPP/7zip/UI/Explorer/ContextMenu.cpp
+@@ -172,6 +172,12 @@ static const CContextMenuCommand g_Commands[] =
+     "ExtractTo",
+     IDS_CONTEXT_EXTRACT_TO
+   },
++  {
++    NContextMenuFlags::kExtractToSingle,
++    CZipContextMenu::kExtractToSingle,
++    "ExtractToSingle",
++    IDS_CONTEXT_EXTRACT_TO_SINGLE
++  },
+   {
+     NContextMenuFlags::kTest,
+     CZipContextMenu::kTest,
+@@ -638,6 +644,23 @@ STDMETHODIMP CZipContextMenu::QueryContextMenu(HMENU hMenu, UINT indexMenu,
+           MyInsertMenu(popupMenu, subIndex++, currentCommandID++, s, bitmap);
+           _commandMap.Add(commandMapItem);
+         }
++
++        if ((contextMenuFlags & NContextMenuFlags::kExtractToSingle) != 0)
++        {
++          // Extract To Sngle
++          CCommandMapItem commandMapItem;
++          FillCommand(kExtractToSingle, mainString, commandMapItem);
++	  if (/* archive contain only one folder */ true)
++	  {
++            commandMapItem.Folder = baseFolder;
++	  }
++	  else
++	  {
++            commandMapItem.Folder = baseFolder + specFolder;
++	  }
++          MyInsertMenu(popupMenu, subIndex++, currentCommandID++, mainString, bitmap);
++          _commandMap.Add(commandMapItem);
++        }
+       }
+ 
+       if ((contextMenuFlags & NContextMenuFlags::kTest) != 0)
+@@ -892,6 +915,7 @@ STDMETHODIMP CZipContextMenu::InvokeCommand(LPCMINVOKECOMMANDINFO commandInfo)
+       case kExtract:
+       case kExtractHere:
+       case kExtractTo:
++      case kExtractToSingle:
+       {
+         ExtractArchives(_fileNames, commandMapItem.Folder,
+             (cmdID == kExtract), // showDialog
+diff --git a/CPP/7zip/UI/Explorer/ContextMenu.h b/CPP/7zip/UI/Explorer/ContextMenu.h
+index 3a0eacc..0362711 100644
+--- a/CPP/7zip/UI/Explorer/ContextMenu.h
++++ b/CPP/7zip/UI/Explorer/ContextMenu.h
+@@ -25,6 +25,7 @@ public:
+     kExtract,
+     kExtractHere,
+     kExtractTo,
++    kExtractToSingle,
+     kTest,
+     kCompress,
+     kCompressEmail,
+diff --git a/CPP/7zip/UI/Explorer/ContextMenuFlags.h b/CPP/7zip/UI/Explorer/ContextMenuFlags.h
+index f739cdc..d957c8e 100644
+--- a/CPP/7zip/UI/Explorer/ContextMenuFlags.h
++++ b/CPP/7zip/UI/Explorer/ContextMenuFlags.h
+@@ -8,17 +8,18 @@ namespace NContextMenuFlags
+   const UInt32 kExtract = 1 << 0;
+   const UInt32 kExtractHere = 1 << 1;
+   const UInt32 kExtractTo = 1 << 2;
++  const UInt32 kExtractToSingle = 1 << 3;
+ 
+-  const UInt32 kTest = 1 << 4;
+-  const UInt32 kOpen = 1 << 5;
+-  const UInt32 kOpenAs = 1 << 6;
++  const UInt32 kTest = 1 << 5;
++  const UInt32 kOpen = 1 << 6;
++  const UInt32 kOpenAs = 1 << 7;
+ 
+-  const UInt32 kCompress = 1 << 8;
+-  const UInt32 kCompressTo7z = 1 << 9;
+-  const UInt32 kCompressEmail = 1 << 10;
+-  const UInt32 kCompressTo7zEmail = 1 << 11;
+-  const UInt32 kCompressToZip = 1 << 12;
+-  const UInt32 kCompressToZipEmail = 1 << 13;
++  const UInt32 kCompress = 1 << 9;
++  const UInt32 kCompressTo7z = 1 << 10;
++  const UInt32 kCompressEmail = 1 << 11;
++  const UInt32 kCompressTo7zEmail = 1 << 12;
++  const UInt32 kCompressToZip = 1 << 13;
++  const UInt32 kCompressToZipEmail = 1 << 14;
+ 
+   const UInt32 kCRC = (UInt32)1 << 31;
+ }
+diff --git a/CPP/7zip/UI/Explorer/resource.h b/CPP/7zip/UI/Explorer/resource.h
+index 8bb8210..738bbb3 100644
+--- a/CPP/7zip/UI/Explorer/resource.h
++++ b/CPP/7zip/UI/Explorer/resource.h
+@@ -6,8 +6,9 @@
+ #define IDS_CONTEXT_TEST                2325
+ #define IDS_CONTEXT_EXTRACT_HERE        2326
+ #define IDS_CONTEXT_EXTRACT_TO          2327
+-#define IDS_CONTEXT_COMPRESS_TO         2328
+-#define IDS_CONTEXT_COMPRESS_EMAIL      2329
+-#define IDS_CONTEXT_COMPRESS_TO_EMAIL   2330
++#define IDS_CONTEXT_EXTRACT_TO_SINGLE   2328
++#define IDS_CONTEXT_COMPRESS_TO         2329
++#define IDS_CONTEXT_COMPRESS_EMAIL      2330
++#define IDS_CONTEXT_COMPRESS_TO_EMAIL   2331
+ 
+ #define IDB_MENU_LOGO  190
+diff --git a/CPP/7zip/UI/Explorer/resource2.rc b/CPP/7zip/UI/Explorer/resource2.rc
+index c07148f..60a35cb 100644
+--- a/CPP/7zip/UI/Explorer/resource2.rc
++++ b/CPP/7zip/UI/Explorer/resource2.rc
+@@ -10,6 +10,7 @@ BEGIN
+   IDS_CONTEXT_TEST        "Test archive"
+   IDS_CONTEXT_EXTRACT_HERE "Extract Here"
+   IDS_CONTEXT_EXTRACT_TO  "Extract to {0}"
++  IDS_CONTEXT_EXTRACT_TO_SINGLE "Extract to single folder"
+   IDS_CONTEXT_COMPRESS_TO "Add to {0}"
+   IDS_CONTEXT_COMPRESS_EMAIL "Compress and email..."
+   IDS_CONTEXT_COMPRESS_TO_EMAIL "Compress to {0} and email"
+diff --git a/CPP/7zip/UI/FileManager/MenuPage.cpp b/CPP/7zip/UI/FileManager/MenuPage.cpp
+index 4067ad7..f90e0c3 100644
+--- a/CPP/7zip/UI/FileManager/MenuPage.cpp
++++ b/CPP/7zip/UI/FileManager/MenuPage.cpp
+@@ -50,6 +50,7 @@ static const CContextMenuItem kMenuItems[] =
+   { IDS_CONTEXT_EXTRACT, kExtract },
+   { IDS_CONTEXT_EXTRACT_HERE, kExtractHere },
+   { IDS_CONTEXT_EXTRACT_TO, kExtractTo },
++  { IDS_CONTEXT_EXTRACT_TO_SINGLE, kExtractToSingle },
+ 
+   { IDS_CONTEXT_TEST, kTest },
+ 

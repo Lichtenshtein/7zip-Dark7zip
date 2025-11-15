@@ -1,0 +1,30 @@
+From 522862b6345af50c84ca5cfcab95bfba17c3da4b Mon Sep 17 00:00:00 2001
+From: Himmelt <master@void-3.cn>
+Date: Wed, 30 Apr 2025 16:30:19 +0800
+Subject: [PATCH] Add datetime to filename
+
+---
+diff --git a/CPP/7zip/UI/GUI/CompressDialog.rc b/CPP/7zip/UI/GUI/CompressDialog.rc
+index f5cc3aea..c3ab1c93 100644
+--- a/CPP/7zip/UI/GUI/CompressDialog.rc
++++ b/CPP/7zip/UI/GUI/CompressDialog.rc
+@@ -118,14 +118,14 @@ BEGIN
+ 
+   GROUPBOX  "Options", IDG_COMPRESS_OPTIONS, g4x, yOpt, g4xs, GROUP_Y_SIZE
+ 
++  CONTROL   "Append date and time to filename", IDX_ADD_DATETIME_TO_FILENAME, MY_CHECKBOX,
++            g4x2, yOpt + 12, g4xs2, 10
+   CONTROL   "Create SF&X archive", IDX_COMPRESS_SFX, MY_CHECKBOX,
+-            g4x2, yOpt + 14, g4xs2, 10
++            g4x2, yOpt + 25, g4xs2, 10
+   CONTROL   "Compress shared files", IDX_COMPRESS_SHARED, MY_CHECKBOX,
+-            g4x2, yOpt + 30, g4xs2, 10
++            g4x2, yOpt + 38, g4xs2, 10
+   CONTROL   "Delete files after compression", IDX_COMPRESS_DEL, MY_CHECKBOX,
+-            g4x2, yOpt + 46, g4xs2, 10
+-  CONTROL   "Append date and time to filename", IDX_ADD_DATETIME_TO_FILENAME, MY_CHECKBOX,
+-            g4x2, yOpt + 62, g4xs2, 10
++            g4x2, yOpt + 50, g4xs2, 10
+ 
+   GROUPBOX  "Encryption", IDG_COMPRESS_ENCRYPTION, g4x, yPsw, g4xs, GROUP_Y_SIZE_ENCRYPT
+ 

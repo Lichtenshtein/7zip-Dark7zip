@@ -1,0 +1,267 @@
+From 25014bf8e68518acfc69de5d4ecacdebe1a0ea9e Mon Sep 17 00:00:00 2001
+From: Guglielmo Fachini <guglielmo.fachini@nozominetworks.com>
+Date: Tue, 14 Oct 2025 12:38:47 +0200
+Subject: [PATCH] Apply nozomi-interactive changes.
+
+---
+ C/warn_clang.mak                |   2 +-
+ C/warn_clang_mac.mak            |   2 +-
+ C/warn_gcc.mak                  |   1 -
+ CPP/7zip/7zip_gcc.mak           |   2 +-
+ CPP/7zip/Bundles/Alone/afxres.h |   1 +
+ CPP/7zip/UI/Console/MainAr.cpp  | 108 +++++++++++++++++++++++++++++++-
+ CPP/7zip/warn_clang.mak         |   2 +-
+ CPP/7zip/warn_clang_mac.mak     |   2 +-
+ CPP/7zip/warn_gcc.mak           |   3 +-
+ CPP/Windows/SystemInfo.cpp      |   4 +-
+ 10 files changed, 116 insertions(+), 11 deletions(-)
+ create mode 100644 CPP/7zip/Bundles/Alone/afxres.h
+
+diff --git a/C/warn_clang.mak b/C/warn_clang.mak
+index 0d6446d..e923096 100644
+--- a/C/warn_clang.mak
++++ b/C/warn_clang.mak
+@@ -1 +1 @@
+-CFLAGS_WARN = -Weverything -Wfatal-errors
++CFLAGS_WARN = -Wfatal-errors
+diff --git a/C/warn_clang_mac.mak b/C/warn_clang_mac.mak
+index 44afc53..dc5dc95 100644
+--- a/C/warn_clang_mac.mak
++++ b/C/warn_clang_mac.mak
+@@ -1 +1 @@
+-CFLAGS_WARN = -Weverything -Wfatal-errors -Wno-poison-system-directories
++CFLAGS_WARN = -Wfatal-errors -Wno-poison-system-directories
+diff --git a/C/warn_gcc.mak b/C/warn_gcc.mak
+index 7aab7a4..01adaab 100644
+--- a/C/warn_gcc.mak
++++ b/C/warn_gcc.mak
+@@ -19,7 +19,6 @@ CFLAGS_WARN_GCC_6 = \
+ 
+ CFLAGS_WARN_GCC_9 = \
+   -Waddress \
+-  -Waddress-of-packed-member \
+   -Waggressive-loop-optimizations \
+   -Wattributes \
+   -Wbool-compare \
+diff --git a/CPP/7zip/7zip_gcc.mak b/CPP/7zip/7zip_gcc.mak
+index 12f1ef2..6b0c6fb 100644
+--- a/CPP/7zip/7zip_gcc.mak
++++ b/CPP/7zip/7zip_gcc.mak
+@@ -24,7 +24,7 @@ PROGPATH_STATIC = $(O)/$(PROG)s
+ 
+ 
+ ifneq ($(CC), xlc)
+-CFLAGS_WARN_WALL = -Werror -Wall -Wextra
++CFLAGS_WARN_WALL = -Wall -Wextra
+ endif
+ 
+ ifndef CFLAGS_OPT
+diff --git a/CPP/7zip/Bundles/Alone/afxres.h b/CPP/7zip/Bundles/Alone/afxres.h
+new file mode 100644
+index 0000000..c2fadd4
+--- /dev/null
++++ b/CPP/7zip/Bundles/Alone/afxres.h
+@@ -0,0 +1 @@
++#include <winresrc.h>
+diff --git a/CPP/7zip/UI/Console/MainAr.cpp b/CPP/7zip/UI/Console/MainAr.cpp
+index 490950b..5428d40 100644
+--- a/CPP/7zip/UI/Console/MainAr.cpp
++++ b/CPP/7zip/UI/Console/MainAr.cpp
+@@ -1,5 +1,11 @@
+ // MainAr.cpp
+ 
++#include <fstream>
++#include <iostream>
++#include <string>
++#include <vector>
++#include <unistd.h>
++
+ #include "StdAfx.h"
+ 
+ #ifdef _WIN32
+@@ -9,6 +15,7 @@
+ 
+ #include "../../../Common/MyException.h"
+ #include "../../../Common/StdOutStream.h"
++#include "../../../Common/StdInStream.h"
+ 
+ #include "../../../Windows/ErrorMsg.h"
+ #include "../../../Windows/NtCheck.h"
+@@ -24,6 +31,9 @@ extern
+ CStdOutStream *g_StdStream;
+ CStdOutStream *g_StdStream = NULL;
+ extern
++CStdInStream *g_StdInStream;
++CStdInStream *g_StdInStream = NULL;
++extern
+ CStdOutStream *g_ErrStream;
+ CStdOutStream *g_ErrStream = NULL;
+ 
+@@ -100,6 +110,9 @@ static inline bool CheckIsa()
+   */
+ }
+ 
++int MainWrapper(int numArgs, char *args[]);
++int MainLoop(int numArgs, char *args[]);
++
+ int Z7_CDECL main
+ (
+   #ifndef _WIN32
+@@ -121,8 +134,20 @@ int Z7_CDECL main
+   NT_CHECK
+ 
+   NConsoleClose::CCtrlHandlerSetter ctrlHandlerSetter;
++
++  const int mainLoopRetVal = MainLoop(numArgs, args);
++  if (mainLoopRetVal == -1)
++  {
++    return MainWrapper(numArgs, args);
++  }
++
++  return mainLoopRetVal;
++}
++
++int MainWrapper(int numArgs, char *args[])
++{
+   int res = 0;
+-  
++
+   try
+   {
+     #ifdef _WIN32
+@@ -233,3 +258,84 @@ int Z7_CDECL main
+ 
+   return res;
+ }
++
++int MainLoop(int numArgs, char *args[])
++{
++  if (numArgs == 2)
++  {
++    if (std::string(args[1]) == "iv")
++    {
++      std::cout << "0.0.6" << std::endl;
++      return 0;
++    }
++  }
++  else if (numArgs == 3)
++  {
++    if (std::string(args[1]) == "in")
++    {
++      // args[2] is a full-path of a temporary file that was used as a lock.
++      // might be repurposed later
++
++      // const std::string lockFilePath = args[2];
++      std::string buffer;
++      while (std::getline(std::cin, buffer))
++      {
++        if (buffer == "exit")
++        {
++          return 0;
++        }
++        else
++        {
++          std::size_t pos = 0;
++          std::string arg;
++          std::string s(buffer);
++          const std::string delimiter = " ";
++          std::vector<std::string> parts;
++          bool foundLast = false;
++          while ((pos = s.find(delimiter)) != std::string::npos && !foundLast)
++          {
++            if (s.find('\"') < pos)
++            {
++              foundLast = true;
++            }
++            else
++            {
++              arg = s.substr(0, pos);
++              parts.push_back(arg);
++              s.erase(0, pos + delimiter.length());
++            }
++          }
++          if (s.size() > 2 && s[0] == '\"' && s[s.size() - 1] == '\"')
++          {
++            s = s.substr(1, s.size() - 2);
++          }
++          parts.push_back(s.substr(0, s.size()));
++          std::vector<char*> vecArgs;
++          char dummy1stArg[] = "7zz";
++          vecArgs.push_back(dummy1stArg);
++          bool hasFoundFilePath = false;
++          std::string filePath;
++          for (unsigned long ii = 0; ii < parts.size(); ++ii)
++          {
++            if (!hasFoundFilePath && ii >= 1 && !parts[ii].empty() && parts[ii][0] != '-')
++            {
++              filePath = parts[ii];
++              hasFoundFilePath = true;
++            }
++            char* partData = const_cast<char*>(parts[ii].data());
++            vecArgs.push_back(partData);
++          }
++          MainWrapper(
++            static_cast<int>(parts.size() + 1),
++            &vecArgs[0]
++          );
++
++          // this string is used by n2os_sandbox as an end-of-output marker
++      	  printf("Nozomi-7zz done.\n");
++          fflush(stdout);
++        }
++      }
++    }
++  }
++  return -1;
++}
+diff --git a/CPP/7zip/warn_clang.mak b/CPP/7zip/warn_clang.mak
+index 0d00730..5d2271e 100644
+--- a/CPP/7zip/warn_clang.mak
++++ b/CPP/7zip/warn_clang.mak
+@@ -1,3 +1,3 @@
+-CFLAGS_WARN = -Weverything -Wfatal-errors
++CFLAGS_WARN = -Wfatal-errors
+ # CXX_STD_FLAGS = -std=c++11
+ # CXX_STD_FLAGS =
+diff --git a/CPP/7zip/warn_clang_mac.mak b/CPP/7zip/warn_clang_mac.mak
+index ed936c5..e347ec3 100644
+--- a/CPP/7zip/warn_clang_mac.mak
++++ b/CPP/7zip/warn_clang_mac.mak
+@@ -1,4 +1,4 @@
+-CFLAGS_WARN = -Weverything -Wfatal-errors -Wno-poison-system-directories
++CFLAGS_WARN = -Wfatal-errors -Wno-poison-system-directories
+ CXX_STD_FLAGS = -std=c++98
+ CXX_STD_FLAGS = -std=c++11
+ CXX_STD_FLAGS = -std=c++14
+diff --git a/CPP/7zip/warn_gcc.mak b/CPP/7zip/warn_gcc.mak
+index 6152ab1..e63ed90 100644
+--- a/CPP/7zip/warn_gcc.mak
++++ b/CPP/7zip/warn_gcc.mak
+@@ -33,8 +33,7 @@ CFLAGS_WARN_GCC_8 = $(CFLAGS_WARN_GCC_7)\
+   -Wcast-align=strict \
+   -Wmissing-attributes
+ 
+-CFLAGS_WARN_GCC_9 = $(CFLAGS_WARN_GCC_8)\
+-  -Waddress-of-packed-member \
++CFLAGS_WARN_GCC_9 = $(CFLAGS_WARN_GCC_8)
+ 
+ # In C: -Wsign-conversion enabled also by -Wconversion
+ #  -Wno-sign-conversion \
+diff --git a/CPP/Windows/SystemInfo.cpp b/CPP/Windows/SystemInfo.cpp
+index 35846e0..7909c8f 100644
+--- a/CPP/Windows/SystemInfo.cpp
++++ b/CPP/Windows/SystemInfo.cpp
+@@ -40,8 +40,8 @@
+ // #endif
+ // #endif
+ 
+-// #undef AT_HWCAP    // to debug
+-// #undef AT_HWCAP2   // to debug
++#undef AT_HWCAP    // to debug
++#undef AT_HWCAP2   // to debug
+ 
+ /* the following patch for some debian systems.
+    Is it OK to define AT_HWCAP and AT_HWCAP2 here with these constant numbers? */
+-- 
+2.49.0.windows.1
+

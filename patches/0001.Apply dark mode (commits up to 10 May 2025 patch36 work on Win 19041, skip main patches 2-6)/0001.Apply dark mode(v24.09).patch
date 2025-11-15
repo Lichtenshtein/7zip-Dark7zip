@@ -1,0 +1,6029 @@
+From b669b2aed059742e522a70289ba0b984fd0bf1ea Mon Sep 17 00:00:00 2001
+From: ozone10 <positronix10@gmail.com>
+Date: Thu, 11 Jul 2024 18:14:50 +0200
+Subject: [PATCH] Apply dark mode
+
+---
+ C/Precomp.h                          |    2 +
+ CPP/7zip/7zip.mak                    |    9 +
+ CPP/7zip/Bundles/Fm/makefile         |    4 +
+ CPP/7zip/Bundles/SFXSetup/makefile   |    4 +
+ CPP/7zip/Bundles/SFXWin/makefile     |    4 +
+ CPP/7zip/UI/Explorer/makefile        |    4 +
+ CPP/7zip/UI/FileManager/App.cpp      |   19 +-
+ CPP/7zip/UI/FileManager/makefile     |    4 +
+ CPP/7zip/UI/GUI/makefile             |    4 +
+ CPP/Build.mak                        |    2 +-
+ CPP/Windows/Control/Dialog.cpp       |   10 +-
+ CPP/Windows/Control/PropertyPage.cpp |   12 +-
+ CPP/Windows/Shell.cpp                |    5 +
+ DarkMode/7zDark.ini                  |   40 +
+ DarkMode/DarkMode.cpp                |  508 ++++
+ DarkMode/DarkMode.h                  |   24 +
+ DarkMode/DarkModeSubclass.cpp        | 4027 ++++++++++++++++++++++++++
+ DarkMode/DarkModeSubclass.h          |  211 ++
+ DarkMode/IatHook.h                   |   94 +
+ DarkMode/StdAfx.h                    |   11 +
+ DarkMode/UAHMenuBar.h                |   74 +
+ LICENSE.md                           |  631 ++++
+ README.md                            |  512 +++-
+ build.cmd                            |   30 +
+ 27 files changed, 6327 insertions(+), 5 deletions(-)
+ create mode 100644 .github/FUNDING.yml
+ create mode 100644 .github/workflows/build_win.yml
+ create mode 100644 .gitignore
+ create mode 100644 DarkMode/7zDark.ini
+ create mode 100644 DarkMode/DarkMode.cpp
+ create mode 100644 DarkMode/DarkMode.h
+ create mode 100644 DarkMode/DarkModeSubclass.cpp
+ create mode 100644 DarkMode/DarkModeSubclass.h
+ create mode 100644 DarkMode/IatHook.h
+ create mode 100644 DarkMode/StdAfx.h
+ create mode 100644 DarkMode/UAHMenuBar.h
+ create mode 100644 LICENSE.md
+ create mode 100644 build.cmd
+diff --git a/C/Precomp.h b/C/Precomp.h
+index 7747fdd74..1d44a003a 100644
+--- a/C/Precomp.h
++++ b/C/Precomp.h
+@@ -21,6 +21,8 @@
+     _UNICODE 1
+ */
+ 
++#define Z7_WIN32_WINNT_MIN  0x0600
++
+ #include "Compiler.h"
+ 
+ #ifdef _MSC_VER
+diff --git a/CPP/7zip/7zip.mak b/CPP/7zip/7zip.mak
+index 8bf7e73e0..b3c52d26f 100644
+--- a/CPP/7zip/7zip.mak
++++ b/CPP/7zip/7zip.mak
+@@ -28,6 +28,7 @@ OBJS = \
+   $(ZSTDMT_OBJS) \
+   $(FASTLZMA2_OBJS) \
+   $(ASM_OBJS) \
++  $(DARK_MODE_OBJS) \
+   $O\resource.res \
+ 
+ !include "../../../Build.mak"
+@@ -167,6 +168,11 @@ $(GUI_OBJS): ../../UI/GUI/$(*B).cpp
+ 	$(COMPL)
+ !ENDIF
+ 
++!IFDEF DARK_MODE_OBJS
++$(DARK_MODE_OBJS): ../../../../DarkMode/$(*B).cpp
++	$(COMPL)
++!ENDIF
++
+ !IFDEF C_OBJS
+ $(C_OBJS): ../../../../C/$(*B).c
+ 	$(COMPL_O2)
+@@ -235,6 +241,9 @@ $(C_OBJS): ../../../../C/$(*B).c
+ {../../../../C/fast-lzma2}.c{$O}.obj::
+ 	$(CCOMPLB) -DNO_XXHASH -DFL2_7ZIP_BUILD
+ 
++{../../../../DarkMode}.cpp{$O}.obj::
++	$(COMPLB)
++
+ !ENDIF
+ 
+ !include "Asm.mak"
+diff --git a/CPP/7zip/Bundles/Fm/makefile b/CPP/7zip/Bundles/Fm/makefile
+index de74f7627..45a3b6b3c 100644
+--- a/CPP/7zip/Bundles/Fm/makefile
++++ b/CPP/7zip/Bundles/Fm/makefile
+@@ -35,6 +35,10 @@ WIN_CTRL_OBJS = \
+   $O\PropertyPage.obj \
+   $O\Window2.obj \
+ 
++DARK_MODE_OBJS = \
++  $O\DarkMode.obj \
++  $O\DarkModeSubclass.obj \
++
+ 7ZIP_COMMON_OBJS = $(7ZIP_COMMON_OBJS) \
+   $O\FilePathAutoRename.obj \
+   $O\FileStreams.obj \
+diff --git a/CPP/7zip/Bundles/SFXSetup/makefile b/CPP/7zip/Bundles/SFXSetup/makefile
+index 4f6c5fcca..bd66eac10 100644
+--- a/CPP/7zip/Bundles/SFXSetup/makefile
++++ b/CPP/7zip/Bundles/SFXSetup/makefile
+@@ -44,6 +44,10 @@ WIN_OBJS = \
+ WIN_CTRL_OBJS = \
+   $O\Dialog.obj \
+ 
++DARK_MODE_OBJS = \
++  $O\DarkMode.obj \
++  $O\DarkModeSubclass.obj \
++
+ 7ZIP_COMMON_OBJS = \
+   $O\CreateCoder.obj \
+   $O\CWrappers.obj \
+diff --git a/CPP/7zip/Bundles/SFXWin/makefile b/CPP/7zip/Bundles/SFXWin/makefile
+index 806bd0739..e80f43688 100644
+--- a/CPP/7zip/Bundles/SFXWin/makefile
++++ b/CPP/7zip/Bundles/SFXWin/makefile
+@@ -56,6 +56,10 @@ WIN_CTRL_OBJS = \
+   $O\Dialog.obj \
+   $O\ListView.obj \
+ 
++DARK_MODE_OBJS = \
++  $O\DarkMode.obj \
++  $O\DarkModeSubclass.obj \
++
+ 7ZIP_COMMON_OBJS = \
+   $O\CreateCoder.obj \
+   $O\CWrappers.obj \
+diff --git a/CPP/7zip/UI/Explorer/makefile b/CPP/7zip/UI/Explorer/makefile
+index 3901d6bd3..7962f3667 100644
+--- a/CPP/7zip/UI/Explorer/makefile
++++ b/CPP/7zip/UI/Explorer/makefile
+@@ -56,6 +56,10 @@ WIN_CTRL_OBJS = \
+   $O\Dialog.obj \
+   $O\ListView.obj \
+ 
++DARK_MODE_OBJS = \
++  $O\DarkMode.obj \
++  $O\DarkModeSubclass.obj \
++
+ UI_COMMON_OBJS = \
+   $O\ArchiveName.obj \
+   $O\CompressCall.obj \
+diff --git a/CPP/7zip/UI/FileManager/App.cpp b/CPP/7zip/UI/FileManager/App.cpp
+index 5b7d6167c..455f2a7ff 100644
+--- a/CPP/7zip/UI/FileManager/App.cpp
++++ b/CPP/7zip/UI/FileManager/App.cpp
+@@ -29,6 +29,8 @@
+ 
+ #include "PropertyNameRes.h"
+ 
++#include "../../../../DarkMode/DarkModeSubclass.h"
++
+ using namespace NWindows;
+ using namespace NFile;
+ using namespace NDir;
+@@ -285,6 +287,8 @@ HRESULT CApp::Create(HWND hwnd, const UString &mainPath, const UString &arcForma
+ {
+   _window.Attach(hwnd);
+ 
++  DarkMode::initDarkMode();
++
+   #ifdef UNDER_CE
+   _commandBar.Create(g_hInstance, hwnd, 1);
+   #endif
+@@ -350,7 +354,20 @@ HRESULT CApp::Create(HWND hwnd, const UString &mainPath, const UString &arcForma
+       }
+     }
+   }
+-  
++
++  DarkMode::setDarkTitleBar(hwnd);
++  DarkMode::autoSubclassWindowMenuBar(hwnd);
++  DarkMode::autoSubclassCtlColor(hwnd);
++  DarkMode::autoSubclassNotifyCustomDraw(hwnd, true);
++
++  for (i = 0; i < kNumPanelsMax; i++)
++  {
++    DarkMode::autoSubclassNotifyCustomDraw(Panels[i], false);
++    DarkMode::autoSubclassCtlColor(Panels[i]);
++    DarkMode::autoSubclassCtlColor(Panels[i]._headerReBar);
++    DarkMode::autoSubclassCtlColor(Panels[i]._headerComboBox);
++  }
++
+   SetFocusedPanel(LastFocusedPanel);
+   Panels[LastFocusedPanel].SetFocusToList();
+   return S_OK;
+diff --git a/CPP/7zip/UI/FileManager/makefile b/CPP/7zip/UI/FileManager/makefile
+index 0ca5caad1..b6aaf1839 100644
+--- a/CPP/7zip/UI/FileManager/makefile
++++ b/CPP/7zip/UI/FileManager/makefile
+@@ -51,6 +51,10 @@ WIN_CTRL_OBJS = \
+   $O\PropertyPage.obj \
+   $O\Window2.obj \
+ 
++DARK_MODE_OBJS = \
++  $O\DarkMode.obj \
++  $O\DarkModeSubclass.obj \
++
+ 7ZIP_COMMON_OBJS = \
+   $O\CreateCoder.obj \
+   $O\FilePathAutoRename.obj \
+diff --git a/CPP/7zip/UI/GUI/makefile b/CPP/7zip/UI/GUI/makefile
+index 22ae095aa..81c7442eb 100644
+--- a/CPP/7zip/UI/GUI/makefile
++++ b/CPP/7zip/UI/GUI/makefile
+@@ -66,6 +66,10 @@ WIN_CTRL_OBJS = \
+   $O\Dialog.obj \
+   $O\ListView.obj \
+ 
++DARK_MODE_OBJS = \
++  $O\DarkMode.obj \
++  $O\DarkModeSubclass.obj \
++
+ 7ZIP_COMMON_OBJS = \
+   $O\CreateCoder.obj \
+   $O\FilePathAutoRename.obj \
+diff --git a/CPP/Build.mak b/CPP/Build.mak
+index afb7ae877..c76e4cabf 100644
+--- a/CPP/Build.mak
++++ b/CPP/Build.mak
+@@ -69,7 +69,7 @@ CFLAGS_WARN_LEVEL = -W4
+ !ENDIF
+ 
+ # CFLAGS = $(CFLAGS) -nologo -c -Fo$O/ $(CFLAGS_WARN_LEVEL) -WX -EHsc -Gy -MT -MP -GR- -GL -Gw
+-CFLAGS = $(CFLAGS) -nologo -c -Fo$O/ -W4 -WX -EHsc -Gy -MT -MP -GR- -GL -Gw
++CFLAGS = $(CFLAGS) -nologo -c -Fo$O/ -WX -EHsc -Gy -GR- -GF -std:c++17
+ 
+ !IF "$(CC)" == "clang-cl"
+ 
+diff --git a/CPP/Windows/Control/Dialog.cpp b/CPP/Windows/Control/Dialog.cpp
+index cbb000bb2..23a33043a 100644
+--- a/CPP/Windows/Control/Dialog.cpp
++++ b/CPP/Windows/Control/Dialog.cpp
+@@ -10,6 +10,8 @@
+ 
+ #include "Dialog.h"
+ 
++#include "../../../DarkMode/DarkModeSubclass.h"
++
+ extern HINSTANCE g_hInstance;
+ #ifndef _UNICODE
+ extern bool g_IsNT;
+@@ -34,7 +36,13 @@ DialogProcedure(HWND dialogHWND, UINT message, WPARAM wParam, LPARAM lParam)
+   if (dialog == NULL)
+     return FALSE;
+   if (message == WM_INITDIALOG)
+-    dialog->Attach(dialogHWND);
++    {
++      dialog->Attach(dialogHWND);
++      DarkMode::initDarkMode();
++      DarkMode::setDarkTitleBar(*dialog);
++      DarkMode::autoSubclassCtlColor(*dialog);
++      DarkMode::autoSubclassNotifyCustomDraw(*dialog, true);
++    }
+ 
+   /* MSDN: The dialog box procedure should return
+        TRUE  - if it processed the message
+diff --git a/CPP/Windows/Control/PropertyPage.cpp b/CPP/Windows/Control/PropertyPage.cpp
+index 9b36cbec8..d412c42d9 100644
+--- a/CPP/Windows/Control/PropertyPage.cpp
++++ b/CPP/Windows/Control/PropertyPage.cpp
+@@ -8,6 +8,8 @@
+ 
+ #include "PropertyPage.h"
+ 
++#include "../../../DarkMode/DarkModeSubclass.h"
++
+ extern HINSTANCE g_hInstance;
+ #ifndef _UNICODE
+ extern bool g_IsNT;
+@@ -31,7 +33,15 @@ APIENTRY MyProperyPageProcedure(HWND dialogHWND, UINT message, WPARAM wParam, LP
+   if (dialog == NULL)
+     return FALSE;
+   if (message == WM_INITDIALOG)
+-    dialog->Attach(dialogHWND);
++    {
++      dialog->Attach(dialogHWND);
++      DarkMode::setDarkTitleBar(::GetParent(*dialog));
++      DarkMode::autoSubclassCtlColor(::GetParent(*dialog));
++      DarkMode::autoSubclassNotifyCustomDraw(::GetParent(*dialog), true);
++      DarkMode::autoSubclassNotifyCustomDraw(*dialog, true);
++      DarkMode::autoSubclassCtlColor(*dialog);
++
++    }
+   try { return BoolToBOOL(dialog->OnMessage(message, wParam, lParam)); }
+   catch(...) { return TRUE; }
+ }
+diff --git a/CPP/Windows/Shell.cpp b/CPP/Windows/Shell.cpp
+index 01ceb2288..e020b5323 100644
+--- a/CPP/Windows/Shell.cpp
++++ b/CPP/Windows/Shell.cpp
+@@ -10,6 +10,8 @@
+ #include "MemoryGlobal.h"
+ #include "Shell.h"
+ 
++#include "../../DarkMode/DarkModeSubclass.h"
++
+ #ifndef _UNICODE
+ extern bool g_IsNT;
+ #endif
+@@ -683,6 +685,9 @@ static int CALLBACK BrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM /* lp */, LP
+   {
+     case BFFM_INITIALIZED:
+     {
++      DarkMode::setDarkTitleBar(hwnd);
++      DarkMode::autoSubclassCtlColor(hwnd);
++      DarkMode::autoSubclassNotifyCustomDraw(hwnd, true);
+       SendMessage(hwnd, BFFM_SETSELECTION, TRUE, data);
+       break;
+     }
+diff --git a/DarkMode/7zDark.ini b/DarkMode/7zDark.ini
+new file mode 100644
+index 000000000..476c46e83
+--- /dev/null
++++ b/DarkMode/7zDark.ini
+@@ -0,0 +1,40 @@
++[main]
++mode = 1
++
++[dark]
++tone = 0
++
++[dark.colors]
++background =            "202020"
++backgroundInteractive = "404040"
++backgroundHot =         "404040"
++backgroundDlg =         "202020"
++text =                  "E0E0E0"
++textItem =              "C0C0C0"
++textDisabled =          "808080"
++edge =                  "646464"
++edgeHot =               "9B9B9B"
++edgeDisabled =          "484848"
++
++[dark.colors.view]
++backgroundView =        "112435"
++textView =              "C3BE98"
++gridlines =             "646464"
++
++[light.colors]
++background =            "F0F0F0"
++backgroundInteractive = "FFFFFF"
++backgroundHot =         "C0DCF3"
++backgroundDlg =         "F0F0F0"
++text =                  "000000"
++textItem =              "000000"
++textDisabled =          "6D6D6D"
++edge =                  "8D8D8D"
++edgeHot =               "0078D4"
++edgeDisabled =          "6D6D6D"
++
++[light.colors.view]
++backgroundView =        "FFFFFF"
++textView =              "000000"
++gridlines =             "F0F0F0"
++
+diff --git a/DarkMode/DarkMode.cpp b/DarkMode/DarkMode.cpp
+new file mode 100644
+index 000000000..895ffcf63
+--- /dev/null
++++ b/DarkMode/DarkMode.cpp
+@@ -0,0 +1,508 @@
++#include "StdAfx.h"
++
++#include <windows.h>
++
++#include "DarkMode.h"
++
++#include "IatHook.h"
++
++#include <uxtheme.h>
++#include <vssym32.h>
++
++#include <unordered_set>
++#include <mutex>
++
++#if defined(__GNUC__) && (__GNUC__ > 8)
++#define WINAPI_LAMBDA_RETURN(return_t) -> return_t WINAPI
++#elif defined(__GNUC__)
++#define WINAPI_LAMBDA_RETURN(return_t) WINAPI -> return_t
++#else
++#define WINAPI_LAMBDA_RETURN(return_t) -> return_t
++#endif
++
++#if defined(_MSC_VER) && _MSC_VER >= 1800
++#pragma warning(disable : 4191)
++#endif
++
++enum IMMERSIVE_HC_CACHE_MODE
++{
++	IHCM_USE_CACHED_VALUE,
++	IHCM_REFRESH
++};
++
++// 1903 18362
++enum class PreferredAppMode
++{
++	Default,
++	AllowDark,
++	ForceDark,
++	ForceLight,
++	Max
++};
++
++enum WINDOWCOMPOSITIONATTRIB
++{
++	WCA_UNDEFINED = 0,
++	WCA_NCRENDERING_ENABLED = 1,
++	WCA_NCRENDERING_POLICY = 2,
++	WCA_TRANSITIONS_FORCEDISABLED = 3,
++	WCA_ALLOW_NCPAINT = 4,
++	WCA_CAPTION_BUTTON_BOUNDS = 5,
++	WCA_NONCLIENT_RTL_LAYOUT = 6,
++	WCA_FORCE_ICONIC_REPRESENTATION = 7,
++	WCA_EXTENDED_FRAME_BOUNDS = 8,
++	WCA_HAS_ICONIC_BITMAP = 9,
++	WCA_THEME_ATTRIBUTES = 10,
++	WCA_NCRENDERING_EXILED = 11,
++	WCA_NCADORNMENTINFO = 12,
++	WCA_EXCLUDED_FROM_LIVEPREVIEW = 13,
++	WCA_VIDEO_OVERLAY_ACTIVE = 14,
++	WCA_FORCE_ACTIVEWINDOW_APPEARANCE = 15,
++	WCA_DISALLOW_PEEK = 16,
++	WCA_CLOAK = 17,
++	WCA_CLOAKED = 18,
++	WCA_ACCENT_POLICY = 19,
++	WCA_FREEZE_REPRESENTATION = 20,
++	WCA_EVER_UNCLOAKED = 21,
++	WCA_VISUAL_OWNER = 22,
++	WCA_HOLOGRAPHIC = 23,
++	WCA_EXCLUDED_FROM_DDA = 24,
++	WCA_PASSIVEUPDATEMODE = 25,
++	WCA_USEDARKMODECOLORS = 26,
++	WCA_LAST = 27
++};
++
++struct WINDOWCOMPOSITIONATTRIBDATA
++{
++	WINDOWCOMPOSITIONATTRIB Attrib;
++	PVOID pvData;
++	SIZE_T cbData;
++};
++
++template <typename P>
++bool ptrFn(HMODULE handle, P& pointer, const char* name)
++{
++	auto p = reinterpret_cast<P>(::GetProcAddress(handle, name));
++	if (p != nullptr)
++	{
++		pointer = p;
++		return true;
++	}
++	return false;
++}
++
++template <typename P>
++bool ptrFn(HMODULE handle, P& pointer, WORD index)
++{
++    return ptrFn(handle, pointer, MAKEINTRESOURCEA(index));
++}
++
++using fnRtlGetNtVersionNumbers = void (WINAPI *)(LPDWORD major, LPDWORD minor, LPDWORD build);
++using fnSetWindowCompositionAttribute = BOOL (WINAPI *)(HWND hWnd, WINDOWCOMPOSITIONATTRIBDATA*);
++// 1809 17763
++using fnShouldAppsUseDarkMode = bool (WINAPI *)(); // ordinal 132
++using fnAllowDarkModeForWindow = bool (WINAPI *)(HWND hWnd, bool allow); // ordinal 133
++using fnAllowDarkModeForApp = bool (WINAPI *)(bool allow); // ordinal 135, in 1809
++using fnFlushMenuThemes = void (WINAPI *)(); // ordinal 136
++using fnRefreshImmersiveColorPolicyState = void (WINAPI *)(); // ordinal 104
++using fnIsDarkModeAllowedForWindow = bool (WINAPI *)(HWND hWnd); // ordinal 137
++using fnGetIsImmersiveColorUsingHighContrast = bool (WINAPI *)(IMMERSIVE_HC_CACHE_MODE mode); // ordinal 106
++using fnOpenNcThemeData = HTHEME (WINAPI *)(HWND hWnd, LPCWSTR pszClassList); // ordinal 49
++// 1903 18362
++using fnShouldSystemUseDarkMode = bool (WINAPI *)(); // ordinal 138
++using fnSetPreferredAppMode = PreferredAppMode (WINAPI *)(PreferredAppMode appMode); // ordinal 135, in 1903
++using fnIsDarkModeAllowedForApp = bool (WINAPI *)(); // ordinal 139
++
++static fnSetWindowCompositionAttribute _SetWindowCompositionAttribute = nullptr;
++static fnShouldAppsUseDarkMode _ShouldAppsUseDarkMode = nullptr;
++static fnAllowDarkModeForWindow _AllowDarkModeForWindow = nullptr;
++static fnAllowDarkModeForApp _AllowDarkModeForApp = nullptr;
++static fnFlushMenuThemes _FlushMenuThemes = nullptr;
++static fnRefreshImmersiveColorPolicyState _RefreshImmersiveColorPolicyState = nullptr;
++static fnIsDarkModeAllowedForWindow _IsDarkModeAllowedForWindow = nullptr;
++static fnGetIsImmersiveColorUsingHighContrast _GetIsImmersiveColorUsingHighContrast = nullptr;
++static fnOpenNcThemeData _OpenNcThemeData = nullptr;
++// 1903 18362
++//fnShouldSystemUseDarkMode _ShouldSystemUseDarkMode = nullptr;
++fnSetPreferredAppMode _SetPreferredAppMode = nullptr;
++
++bool g_darkModeSupported = false;
++bool g_darkModeEnabled = false;
++DWORD g_buildNumber = 0;
++
++bool ShouldAppsUseDarkMode()
++{
++	if (!_ShouldAppsUseDarkMode)
++	{
++		return false;
++	}
++
++	return _ShouldAppsUseDarkMode();
++}
++
++bool AllowDarkModeForWindow(HWND hWnd, bool allow)
++{
++	if (g_darkModeSupported && _AllowDarkModeForWindow)
++		return _AllowDarkModeForWindow(hWnd, allow);
++	return false;
++}
++
++bool IsHighContrast()
++{
++	HIGHCONTRASTW highContrast{};
++	highContrast.cbSize = sizeof(HIGHCONTRASTW);
++	if (SystemParametersInfoW(SPI_GETHIGHCONTRAST, sizeof(HIGHCONTRASTW), &highContrast, FALSE))
++		return (highContrast.dwFlags & HCF_HIGHCONTRASTON) == HCF_HIGHCONTRASTON;
++	return false;
++}
++
++void SetTitleBarThemeColor(HWND hWnd, BOOL dark)
++{
++	if (g_buildNumber < 18362)
++		SetPropW(hWnd, L"UseImmersiveDarkModeColors", reinterpret_cast<HANDLE>(static_cast<intptr_t>(dark)));
++	else if (_SetWindowCompositionAttribute)
++	{
++		WINDOWCOMPOSITIONATTRIBDATA data = { WCA_USEDARKMODECOLORS, &dark, sizeof(dark) };
++		_SetWindowCompositionAttribute(hWnd, &data);
++	}
++}
++
++void RefreshTitleBarThemeColor(HWND hWnd)
++{
++	BOOL dark = FALSE;
++	if (_IsDarkModeAllowedForWindow && _ShouldAppsUseDarkMode)
++	{
++		if (_IsDarkModeAllowedForWindow(hWnd) && _ShouldAppsUseDarkMode() && !IsHighContrast())
++		{
++			dark = TRUE;
++		}
++	}
++
++	SetTitleBarThemeColor(hWnd, dark);
++}
++
++bool IsColorSchemeChangeMessage(LPARAM lParam)
++{
++	bool is = false;
++	if (lParam && (0 == lstrcmpi(reinterpret_cast<LPCWCH>(lParam), L"ImmersiveColorSet")) && _RefreshImmersiveColorPolicyState)
++	{
++		_RefreshImmersiveColorPolicyState();
++		is = true;
++	}
++	if (_GetIsImmersiveColorUsingHighContrast)
++		_GetIsImmersiveColorUsingHighContrast(IHCM_REFRESH);
++	return is;
++}
++
++bool IsColorSchemeChangeMessage(UINT message, LPARAM lParam)
++{
++	if (message == WM_SETTINGCHANGE)
++		return IsColorSchemeChangeMessage(lParam);
++	return false;
++}
++
++void AllowDarkModeForApp(bool allow)
++{
++	if (_AllowDarkModeForApp)
++		_AllowDarkModeForApp(allow);
++	else if (_SetPreferredAppMode)
++		_SetPreferredAppMode(allow ? PreferredAppMode::ForceDark : PreferredAppMode::Default);
++}
++
++void FlushMenuThemes()
++{
++	if (_FlushMenuThemes)
++	{
++		_FlushMenuThemes();
++	}
++}
++
++// limit dark scroll bar to specific windows and their children
++
++std::unordered_set<HWND> g_darkScrollBarWindows;
++std::mutex g_darkScrollBarMutex;
++
++void EnableDarkScrollBarForWindowAndChildren(HWND hwnd)
++{
++	std::lock_guard<std::mutex> lock(g_darkScrollBarMutex);
++	g_darkScrollBarWindows.insert(hwnd);
++}
++
++bool IsWindowOrParentUsingDarkScrollBar(HWND hwnd)
++{
++	HWND hwndRoot = GetAncestor(hwnd, GA_ROOT);
++
++	std::lock_guard<std::mutex> lock(g_darkScrollBarMutex);
++	if (g_darkScrollBarWindows.count(hwnd)) {
++		return true;
++	}
++	if (hwnd != hwndRoot && g_darkScrollBarWindows.count(hwndRoot)) {
++		return true;
++	}
++
++	return false;
++}
++
++void FixDarkScrollBar()
++{
++	HMODULE hComctl = LoadLibraryEx(L"comctl32.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
++	if (hComctl)
++	{
++		auto addr = FindDelayLoadThunkInModule(hComctl, "uxtheme.dll", 49); // OpenNcThemeData
++		if (addr)
++		{
++			DWORD oldProtect = 0;
++			if (VirtualProtect(addr, sizeof(IMAGE_THUNK_DATA), PAGE_READWRITE, &oldProtect) && _OpenNcThemeData)
++			{
++				auto MyOpenThemeData = [](HWND hWnd, LPCWSTR classList) WINAPI_LAMBDA_RETURN(HTHEME) {
++					if (wcscmp(classList, WC_SCROLLBAR) == 0)
++					{
++						if (IsWindowOrParentUsingDarkScrollBar(hWnd)) {
++							hWnd = nullptr;
++							classList = L"Explorer::ScrollBar";
++						}
++					}
++					return _OpenNcThemeData(hWnd, classList);
++				};
++
++				addr->u1.Function = reinterpret_cast<uintptr_t>(static_cast<fnOpenNcThemeData>(MyOpenThemeData));
++				VirtualProtect(addr, sizeof(IMAGE_THUNK_DATA), oldProtect, &oldProtect);
++			}
++		}
++		FreeLibrary(hComctl);
++	}
++}
++
++constexpr bool CheckBuildNumber(DWORD buildNumber)
++{
++	return (buildNumber == 17763 || // 1809
++		buildNumber == 18362 || // 1903
++		buildNumber == 18363 || // 1909
++		buildNumber == 19041 || // 2004
++		buildNumber == 19042 || // 20H2
++		buildNumber == 19043 || // 21H1
++		buildNumber == 19044 || // 21H2
++		(buildNumber > 19044 && buildNumber < 22000) || // Windows 10 any version > 21H2 
++		buildNumber >= 22000);  // Windows 11 builds
++}
++
++bool IsWindows10() // or later OS version
++{
++	return (g_buildNumber >= 17763);
++}
++
++bool IsWindows11() // or later OS version
++{
++	return (g_buildNumber >= 22000);
++}
++
++DWORD GetWindowsBuildNumber()
++{
++	return g_buildNumber;
++}
++
++void InitDarkMode()
++{
++	static bool isInit = false;
++	if (isInit)
++		return;
++
++	fnRtlGetNtVersionNumbers RtlGetNtVersionNumbers = nullptr;
++	HMODULE hNtdllModule = GetModuleHandle(L"ntdll.dll");
++	if (hNtdllModule)
++	{
++		ptrFn(hNtdllModule, RtlGetNtVersionNumbers, "RtlGetNtVersionNumbers");
++	}
++
++	if (RtlGetNtVersionNumbers)
++	{
++		DWORD major, minor;
++		RtlGetNtVersionNumbers(&major, &minor, &g_buildNumber);
++		g_buildNumber &= ~0xF0000000;
++		if (major == 10 && minor == 0 && CheckBuildNumber(g_buildNumber))
++		{
++			HMODULE hUxtheme = LoadLibraryEx(L"uxtheme.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
++			if (hUxtheme)
++			{
++				ptrFn(hUxtheme, _OpenNcThemeData, 49);
++				ptrFn(hUxtheme, _RefreshImmersiveColorPolicyState, 104);
++				ptrFn(hUxtheme, _GetIsImmersiveColorUsingHighContrast, 106);
++				ptrFn(hUxtheme, _ShouldAppsUseDarkMode, 132);
++				ptrFn(hUxtheme, _AllowDarkModeForWindow, 133);
++
++				if (g_buildNumber < 18362)
++					ptrFn(hUxtheme, _AllowDarkModeForApp, 135);
++				else
++					ptrFn(hUxtheme, _SetPreferredAppMode, 135);
++				
++				ptrFn(hUxtheme, _FlushMenuThemes, 136);
++				ptrFn(hUxtheme, _IsDarkModeAllowedForWindow, 137);
++
++				HMODULE hUser32 = GetModuleHandleW(L"user32.dll");
++				if (hUser32)
++				{
++					ptrFn(hUser32, _SetWindowCompositionAttribute, "SetWindowCompositionAttribute");
++				}
++
++				isInit = true;
++
++				if (_OpenNcThemeData &&
++					_RefreshImmersiveColorPolicyState &&
++					_ShouldAppsUseDarkMode &&
++					_AllowDarkModeForWindow &&
++					(_AllowDarkModeForApp || _SetPreferredAppMode) &&
++					_FlushMenuThemes &&
++					_IsDarkModeAllowedForWindow)
++				{
++					g_darkModeSupported = true;
++				}
++			}
++		}
++	}
++}
++
++void SetDarkMode(bool useDark, bool fixDarkScrollbar)
++{
++	if (g_darkModeSupported)
++	{
++		AllowDarkModeForApp(useDark);
++		//_RefreshImmersiveColorPolicyState();
++		FlushMenuThemes();
++		if (fixDarkScrollbar)
++		{
++			FixDarkScrollBar();
++		}
++		g_darkModeEnabled = useDark && ShouldAppsUseDarkMode() && !IsHighContrast();
++	}
++}
++
++// Hooking GetSysColor for comboboxex listbox
++
++using fnGetSysColor = DWORD (WINAPI*)(int nIndex);
++
++static fnGetSysColor _GetSysColor = nullptr;
++
++static COLORREF _clrWindow = RGB(32, 32, 32);
++static COLORREF _clrText = RGB(224, 224, 224);
++static COLORREF _clrTGridlines = RGB(100, 100, 100);
++
++static bool isGetSysColorHooked = false;
++static int hookRef = 0;
++
++void SetMySysColor(int nIndex, COLORREF clr)
++{
++	switch (nIndex)
++	{
++		case COLOR_WINDOW:
++		{
++			_clrWindow = clr;
++			break;
++		}
++
++		case COLOR_WINDOWTEXT:
++		{
++			_clrText = clr;
++			break;
++		}
++
++		case COLOR_BTNFACE:
++		{
++			_clrTGridlines = clr;
++			break;
++		}
++
++		default:
++			break;
++	}
++}
++
++DWORD MyGetSysColor(int nIndex)
++{
++	if( !(g_darkModeEnabled))
++			return GetSysColor(nIndex);
++
++	switch (nIndex)
++	{
++		case COLOR_WINDOW:
++			return _clrWindow;
++
++		case COLOR_WINDOWTEXT: 
++			return _clrText;
++
++		case COLOR_BTNFACE:
++			return _clrTGridlines;
++		
++		default:
++			return GetSysColor(nIndex);
++	}
++}
++
++template <typename P>
++P ReplaceFunction(IMAGE_THUNK_DATA* addr, P newFunction)
++{
++	DWORD oldProtect = 0;
++	if (!VirtualProtect(addr, sizeof(IMAGE_THUNK_DATA), PAGE_READWRITE, &oldProtect))
++		return 0;
++	uintptr_t oldFunction = addr->u1.Function;
++	addr->u1.Function = reinterpret_cast<uintptr_t>(newFunction);
++	VirtualProtect(addr, sizeof(IMAGE_THUNK_DATA), oldProtect, &oldProtect);
++	return reinterpret_cast<P>(oldFunction);
++}
++
++bool HookSysColor()
++{
++	HMODULE hComctl = LoadLibraryEx(L"comctl32.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
++	if (hComctl)
++	{
++		if (_GetSysColor == nullptr || !isGetSysColorHooked)
++		{
++			auto addr = FindIatThunkInModule(hComctl, "user32.dll", "GetSysColor");
++			if (addr)
++			{
++				_GetSysColor = ReplaceFunction(addr, static_cast<fnGetSysColor>(MyGetSysColor));
++				isGetSysColorHooked = true;
++			}
++			else
++			{
++				FreeLibrary(hComctl);
++				return false;
++			}
++		}
++
++		if (isGetSysColorHooked)
++		{
++			++hookRef;
++		}
++
++		FreeLibrary(hComctl);
++		return true;
++	}
++	return false;
++}
++
++void UnhookSysColor()
++{
++	HMODULE hComctl = LoadLibraryEx(L"comctl32.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
++	if (hComctl)
++	{
++		if (isGetSysColorHooked)
++		{
++			if (hookRef > 0)
++			{
++				--hookRef;
++			}
++
++			if (hookRef == 0)
++			{
++				auto addr = FindIatThunkInModule(hComctl, "user32.dll", "GetSysColor");
++				if (addr)
++				{
++					ReplaceFunction(addr, _GetSysColor);
++					isGetSysColorHooked = false;
++				}
++			}
++		}
++
++		FreeLibrary(hComctl);
++	}
++}
+diff --git a/DarkMode/DarkMode.h b/DarkMode/DarkMode.h
+new file mode 100644
+index 000000000..38d6b9801
+--- /dev/null
++++ b/DarkMode/DarkMode.h
+@@ -0,0 +1,24 @@
++#pragma once
++
++extern bool g_darkModeSupported;
++extern bool g_darkModeEnabled;
++
++
++bool ShouldAppsUseDarkMode();
++bool AllowDarkModeForWindow(HWND hWnd, bool allow);
++bool IsHighContrast();
++void RefreshTitleBarThemeColor(HWND hWnd);
++void SetTitleBarThemeColor(HWND hWnd, BOOL dark);
++bool IsColorSchemeChangeMessage(LPARAM lParam);
++bool IsColorSchemeChangeMessage(UINT message, LPARAM lParam);
++void AllowDarkModeForApp(bool allow);
++void EnableDarkScrollBarForWindowAndChildren(HWND hwnd);
++void InitDarkMode();
++void SetDarkMode(bool useDarkMode, bool fixDarkScrollbar);
++bool IsWindows10();
++bool IsWindows11();
++DWORD GetWindowsBuildNumber();
++
++void SetMySysColor(int nIndex, COLORREF clr);
++bool HookSysColor();
++void UnhookSysColor();
+diff --git a/DarkMode/DarkModeSubclass.cpp b/DarkMode/DarkModeSubclass.cpp
+new file mode 100644
+index 000000000..22893523d
+--- /dev/null
++++ b/DarkMode/DarkModeSubclass.cpp
+@@ -0,0 +1,4027 @@
++﻿// Copyright (C)2024 ozone10
++
++// This program is free software: you can redistribute it and/or modify
++// it under the terms of the GNU General Public License as published by
++// the Free Software Foundation, either version 3 of the License, or
++// at your option any later version.
++//
++// This program is distributed in the hope that it will be useful,
++// but WITHOUT ANY WARRANTY; without even the implied warranty of
++// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
++// GNU General Public License for more details.
++//
++// You should have received a copy of the GNU General Public License
++// along with this program. If not, see <https://www.gnu.org/licenses/>.
++
++
++// Based on Notepad++ dark mode code, original by adzm / Adam D. Walling
++// with modification from Notepad++ team.
++// Heavily modified by ozone10 (contributor of Notepad++)
++
++#include "StdAfx.h"
++
++#include "DarkModeSubclass.h"
++
++#include "DarkMode.h"
++#include "UAHMenuBar.h"
++
++#include <dwmapi.h>
++#include <uxtheme.h>
++#include <vssym32.h>
++
++#include <shlwapi.h>
++
++#include <array>
++#include <cmath>
++#include <string>
++
++#ifdef __GNUC__
++#define WINAPI_LAMBDA WINAPI
++#ifndef DWMWA_USE_IMMERSIVE_DARK_MODE
++#define DWMWA_USE_IMMERSIVE_DARK_MODE 20
++#endif
++#else
++#define WINAPI_LAMBDA
++#endif
++
++#ifndef WM_DPICHANGED
++#define WM_DPICHANGED 0x02E0
++#endif
++
++//#ifndef WM_DPICHANGED_BEFOREPARENT
++//#define WM_DPICHANGED_BEFOREPARENT 0x02E2
++//#endif
++//
++//#ifndef WM_DPICHANGED_AFTERPARENT
++//#define WM_DPICHANGED_AFTERPARENT 0x02E3
++//#endif
++//
++//#ifndef WM_GETDPISCALEDSIZE
++//#define WM_GETDPISCALEDSIZE 0x02E4
++//#endif
++
++#ifdef _MSC_VER
++#pragma comment(lib, "dwmapi.lib")
++#pragma comment(lib, "uxtheme.lib")
++#pragma comment(lib, "Comctl32.lib")
++#pragma comment(lib, "Gdi32.lib")
++#endif
++
++static constexpr COLORREF HEXRGB(DWORD rrggbb) {
++	// from 0xRRGGBB like natural #RRGGBB
++	// to the little-endian 0xBBGGRR
++	return
++		((rrggbb & 0xFF0000) >> 16) |
++		((rrggbb & 0x00FF00)) |
++		((rrggbb & 0x0000FF) << 16);
++}
++
++static std::wstring getWndClassName(HWND hWnd)
++{
++	constexpr int strLen = 32;
++	std::wstring className(strLen, 0);
++	className.resize(::GetClassName(hWnd, &className[0], strLen));
++	return className;
++}
++
++static bool cmpWndClassName(HWND hWnd, std::wstring classNameToCmp)
++{
++	return getWndClassName(hWnd) == classNameToCmp;
++}
++
++static std::wstring getIniPath(std::wstring iniFilename)
++{
++	wchar_t buffer[MAX_PATH]{};
++	::GetModuleFileName(nullptr, buffer, MAX_PATH);
++	
++	wchar_t* lastSlash = wcsrchr(buffer, L'\\');
++	if (lastSlash)
++	{
++		*lastSlash = L'\0';
++		std::wstring iniPath(buffer);
++
++		iniPath += L"\\";
++		iniPath += iniFilename;
++		iniPath += L".ini";
++		return iniPath;
++	}
++	return L"";
++}
++
++static bool fileExists(std::wstring filePath)
++{
++	DWORD dwAttrib = ::GetFileAttributes(filePath.c_str());
++	return (dwAttrib != INVALID_FILE_ATTRIBUTES && !(dwAttrib & FILE_ATTRIBUTE_DIRECTORY));
++}
++
++static bool setClrFromIni(std::wstring sectionName, std::wstring keyName, std::wstring iniFilePath, COLORREF* clr)
++{
++	constexpr int maxStringLength = 7;
++	wchar_t buffer[maxStringLength + 1]{};
++	
++	::GetPrivateProfileString(sectionName.c_str(), keyName.c_str(), L"", buffer, maxStringLength, iniFilePath.c_str());
++
++	size_t length = wcslen(buffer);
++	if (length != maxStringLength - 1)
++	{
++		return false;
++	}
++
++	for (size_t i = 0; i < length; ++i)
++	{
++		if (!iswxdigit(buffer[i]))
++		{
++			return false;
++		}
++	}
++
++	COLORREF clrTmp{ *clr };
++
++	try
++	{
++		clrTmp = HEXRGB(std::stoi(buffer, nullptr, 16));
++	}
++	catch (const std::exception&)
++	{
++		return false;
++	}
++
++	*clr = clrTmp;
++	return true;
++}
++
++namespace DarkMode
++{
++	struct Brushes
++	{
++		HBRUSH background = nullptr;
++		HBRUSH softerBackground = nullptr;
++		HBRUSH hotBackground = nullptr;
++		HBRUSH pureBackground = nullptr;
++		HBRUSH errorBackground = nullptr;
++
++		HBRUSH edge = nullptr;
++		HBRUSH hotEdge = nullptr;
++		HBRUSH disabledEdge = nullptr;
++
++		Brushes(const Colors& colors)
++			: background(::CreateSolidBrush(colors.background))
++			, softerBackground(::CreateSolidBrush(colors.softerBackground))
++			, hotBackground(::CreateSolidBrush(colors.hotBackground))
++			, pureBackground(::CreateSolidBrush(colors.pureBackground))
++			, errorBackground(::CreateSolidBrush(colors.errorBackground))
++
++			, edge(::CreateSolidBrush(colors.edge))
++			, hotEdge(::CreateSolidBrush(colors.hotEdge))
++			, disabledEdge(::CreateSolidBrush(colors.disabledEdge))
++		{}
++
++		~Brushes()
++		{
++			::DeleteObject(background);         background = nullptr;
++			::DeleteObject(softerBackground);   softerBackground = nullptr;
++			::DeleteObject(hotBackground);      hotBackground = nullptr;
++			::DeleteObject(pureBackground);     pureBackground = nullptr;
++			::DeleteObject(errorBackground);    errorBackground = nullptr;
++
++			::DeleteObject(edge);          edge = nullptr;
++			::DeleteObject(hotEdge);       hotEdge = nullptr;
++			::DeleteObject(disabledEdge);  disabledEdge = nullptr;
++		}
++
++		void change(const Colors& colors)
++		{
++			::DeleteObject(background);
++			::DeleteObject(softerBackground);
++			::DeleteObject(hotBackground);
++			::DeleteObject(pureBackground);
++			::DeleteObject(errorBackground);
++
++			::DeleteObject(edge);
++			::DeleteObject(hotEdge);
++			::DeleteObject(disabledEdge);
++
++			background = ::CreateSolidBrush(colors.background);
++			softerBackground = ::CreateSolidBrush(colors.softerBackground);
++			hotBackground = ::CreateSolidBrush(colors.hotBackground);
++			pureBackground = ::CreateSolidBrush(colors.pureBackground);
++			errorBackground = ::CreateSolidBrush(colors.errorBackground);
++
++			edge = ::CreateSolidBrush(colors.edge);
++			hotEdge = ::CreateSolidBrush(colors.hotEdge);
++			disabledEdge = ::CreateSolidBrush(colors.disabledEdge);
++		}
++	};
++
++	struct Pens
++	{
++		HPEN darkerTextPen = nullptr;
++		HPEN edgePen = nullptr;
++		HPEN hotEdgePen = nullptr;
++		HPEN disabledEdgePen = nullptr;
++
++		Pens(const Colors& colors)
++			: darkerTextPen(::CreatePen(PS_SOLID, 1, colors.darkerText))
++			, edgePen(::CreatePen(PS_SOLID, 1, colors.edge))
++			, hotEdgePen(::CreatePen(PS_SOLID, 1, colors.hotEdge))
++			, disabledEdgePen(::CreatePen(PS_SOLID, 1, colors.disabledEdge))
++		{}
++
++		~Pens()
++		{
++			::DeleteObject(darkerTextPen);      darkerTextPen = nullptr;
++			::DeleteObject(edgePen);            edgePen = nullptr;
++			::DeleteObject(hotEdgePen);         hotEdgePen = nullptr;
++			::DeleteObject(disabledEdgePen);    disabledEdgePen = nullptr;
++		}
++
++		void change(const Colors& colors)
++		{
++			::DeleteObject(darkerTextPen);
++			::DeleteObject(edgePen);
++			::DeleteObject(hotEdgePen);
++			::DeleteObject(disabledEdgePen);
++
++			darkerTextPen = ::CreatePen(PS_SOLID, 1, colors.darkerText);
++			edgePen = ::CreatePen(PS_SOLID, 1, colors.edge);
++			hotEdgePen = ::CreatePen(PS_SOLID, 1, colors.hotEdge);
++			disabledEdgePen = ::CreatePen(PS_SOLID, 1, colors.disabledEdge);
++		}
++
++	};
++
++	// black (default)
++	static const Colors darkColors{
++		HEXRGB(0x202020),   // background
++		HEXRGB(0x383838),   // softerBackground
++		HEXRGB(0x454545),   // hotBackground
++		HEXRGB(0x202020),   // pureBackground
++		HEXRGB(0xB00000),   // errorBackground
++		HEXRGB(0xE0E0E0),   // textColor
++		HEXRGB(0xC0C0C0),   // darkerTextColor
++		HEXRGB(0x808080),   // disabledTextColor
++		HEXRGB(0xFFFF00),   // linkTextColor
++		HEXRGB(0x646464),   // edgeColor
++		HEXRGB(0x9B9B9B),   // hotEdgeColor
++		HEXRGB(0x484848)    // disabledEdgeColor
++	};
++
++	// red tone
++	static const Colors darkRedColors{
++		HEXRGB(0x302020),   // background
++		HEXRGB(0x483838),   // softerBackground
++		HEXRGB(0x554545),   // hotBackground
++		HEXRGB(0x302020),   // pureBackground
++		HEXRGB(0xC00000),   // errorBackground
++		HEXRGB(0xE0E0E0),   // textColor
++		HEXRGB(0xC0C0C0),   // darkerTextColor
++		HEXRGB(0x808080),   // disabledTextColor
++		HEXRGB(0xFFFF00),   // linkTextColor
++		HEXRGB(0x908080),   // edgeColor
++		HEXRGB(0xBBABAB),   // hotEdgeColor
++		HEXRGB(0x584848)    // disabledEdgeColor
++	};
++
++	// green tone
++	static const Colors darkGreenColors{
++		HEXRGB(0x203020),   // background
++		HEXRGB(0x384838),   // softerBackground
++		HEXRGB(0x455545),   // hotBackground
++		HEXRGB(0x203020),   // pureBackground
++		HEXRGB(0xB01000),   // errorBackground
++		HEXRGB(0xE0E0E0),   // textColor
++		HEXRGB(0xC0C0C0),   // darkerTextColor
++		HEXRGB(0x808080),   // disabledTextColor
++		HEXRGB(0xFFFF00),   // linkTextColor
++		HEXRGB(0x809080),   // edgeColor
++		HEXRGB(0xABBBAB),   // hotEdgeColor
++		HEXRGB(0x485848)    // disabledEdgeColor
++	};
++
++	// blue tone
++	static const Colors darkBlueColors{
++		HEXRGB(0x202040),   // background
++		HEXRGB(0x383858),   // softerBackground
++		HEXRGB(0x454565),   // hotBackground
++		HEXRGB(0x202040),   // pureBackground
++		HEXRGB(0xB00020),   // errorBackground
++		HEXRGB(0xE0E0E0),   // textColor
++		HEXRGB(0xC0C0C0),   // darkerTextColor
++		HEXRGB(0x808080),   // disabledTextColor
++		HEXRGB(0xFFFF00),   // linkTextColor
++		HEXRGB(0x8080A0),   // edgeColor
++		HEXRGB(0xABABCB),   // hotEdgeColor
++		HEXRGB(0x484868)    // disabledEdgeColor
++	};
++
++	// purple tone
++	static const Colors darkPurpleColors{
++		HEXRGB(0x302040),   // background
++		HEXRGB(0x483858),   // softerBackground
++		HEXRGB(0x554565),   // hotBackground
++		HEXRGB(0x302040),   // pureBackground
++		HEXRGB(0xC00020),   // errorBackground
++		HEXRGB(0xE0E0E0),   // textColor
++		HEXRGB(0xC0C0C0),   // darkerTextColor
++		HEXRGB(0x808080),   // disabledTextColor
++		HEXRGB(0xFFFF00),   // linkTextColor
++		HEXRGB(0x9080A0),   // edgeColor
++		HEXRGB(0xBBABCB),   // hotEdgeColor
++		HEXRGB(0x584868)    // disabledEdgeColor
++	};
++
++	// cyan tone
++	static const Colors darkCyanColors{
++		HEXRGB(0x203040),   // background
++		HEXRGB(0x384858),   // softerBackground
++		HEXRGB(0x455565),   // hotBackground
++		HEXRGB(0x203040),   // pureBackground
++		HEXRGB(0xB01020),   // errorBackground
++		HEXRGB(0xE0E0E0),   // textColor
++		HEXRGB(0xC0C0C0),   // darkerTextColor
++		HEXRGB(0x808080),   // disabledTextColor
++		HEXRGB(0xFFFF00),   // linkTextColor
++		HEXRGB(0x8090A0),   // edgeColor
++		HEXRGB(0xBBBBCB),   // hotEdgeColor
++		HEXRGB(0x485868)    // disabledEdgeColor
++	};
++
++	// olive tone
++	static const Colors darkOliveColors{
++		HEXRGB(0x303020),   // background
++		HEXRGB(0x484838),   // softerBackground
++		HEXRGB(0x555545),   // hotBackground
++		HEXRGB(0x303020),   // pureBackground
++		HEXRGB(0xC01000),   // errorBackground
++		HEXRGB(0xE0E0E0),   // textColor
++		HEXRGB(0xC0C0C0),   // darkerTextColor
++		HEXRGB(0x808080),   // disabledTextColor
++		HEXRGB(0xFFFF00),   // linkTextColor
++		HEXRGB(0x909080),   // edgeColor
++		HEXRGB(0xBBBBAB),   // hotEdgeColor
++		HEXRGB(0x585848)    // disabledEdgeColor
++	};
++
++	// customized
++	static Colors darkCustomizedColors{ darkColors };
++
++	static Colors lightColors{
++		::GetSysColor(COLOR_3DFACE),        // background
++		::GetSysColor(COLOR_WINDOW),        // softerBackground
++		HEXRGB(0xC0DCF3),                   // hotBackground
++		::GetSysColor(COLOR_3DFACE),        // pureBackground
++		HEXRGB(0xA01000),                   // errorBackground
++		::GetSysColor(COLOR_WINDOWTEXT),    // textColor
++		::GetSysColor(COLOR_BTNTEXT),       // darkerTextColor
++		::GetSysColor(COLOR_GRAYTEXT),      // disabledTextColor
++		::GetSysColor(COLOR_HOTLIGHT),      // linkTextColor
++		HEXRGB(0x8D8D8D),                   // edgeColor
++		::GetSysColor(COLOR_HIGHLIGHT),     // hotEdgeColor
++		::GetSysColor(COLOR_GRAYTEXT)       // disabledEdgeColor
++	};
++
++	static ColorTone g_colorToneChoice = DarkMode::ColorTone::blackTone;
++
++	void setDarkCustomColors(ColorTone colorTone)
++	{
++		switch (colorTone)
++		{
++			case DarkMode::ColorTone::redTone:
++			{
++				darkCustomizedColors = darkRedColors;
++				break;
++			}
++
++			case DarkMode::ColorTone::greenTone:
++			{
++				darkCustomizedColors = darkGreenColors;
++				break;
++			}
++
++			case DarkMode::ColorTone::blueTone:
++			{
++				darkCustomizedColors = darkBlueColors;
++				break;
++			}
++
++			case DarkMode::ColorTone::purpleTone:
++			{
++				darkCustomizedColors = darkPurpleColors;
++				break;
++			}
++
++			case DarkMode::ColorTone::cyanTone:
++			{
++				darkCustomizedColors = darkCyanColors;
++				break;
++			}
++
++			case DarkMode::ColorTone::oliveTone:
++			{
++				darkCustomizedColors = darkOliveColors;
++				break;
++			}
++
++			case DarkMode::ColorTone::customizedTone:
++			case DarkMode::ColorTone::blackTone:
++			{
++				darkCustomizedColors = darkColors;
++				break;
++			}
++		}
++	}
++
++	struct Theme
++	{
++		Colors _colors;
++		Brushes _brushes;
++		Pens _pens;
++
++		Theme(const Colors& colors)
++			: _colors(colors)
++			, _brushes(colors)
++			, _pens(colors)
++		{}
++
++		void change(const Colors& colors)
++		{
++			_colors = colors;
++			_brushes.change(colors);
++			_pens.change(colors);
++		}
++	};
++
++	Theme tDefault(darkCustomizedColors);
++
++	static ColorsView darkColorsView{
++		RGB(41, 49, 52),      // background
++		RGB(224, 226, 228),   // text
++		RGB(100, 100, 100)    // gridlines
++	};
++
++	static ColorsView lightColorsView{
++		RGB(255, 255, 255),   // background
++		RGB(0, 0, 0),         // text
++		RGB(240, 240, 240)    // gridlines
++	};
++
++	static Theme& getTheme()
++	{
++		return tDefault;
++	}
++
++	struct BrushesView
++	{
++		HBRUSH background = nullptr;
++		HBRUSH gridlines = nullptr;
++
++		BrushesView(const ColorsView& colors)
++			: background(::CreateSolidBrush(colors.background))
++			, gridlines(::CreateSolidBrush(colors.gridlines))
++		{}
++
++		~BrushesView()
++		{
++			::DeleteObject(background);         background = nullptr;
++			::DeleteObject(gridlines);          gridlines = nullptr;
++		}
++
++		void change(const ColorsView& colors)
++		{
++			::DeleteObject(background);
++			::DeleteObject(gridlines);
++
++			background = ::CreateSolidBrush(colors.background);
++			gridlines = ::CreateSolidBrush(colors.gridlines);
++		}
++	};
++
++	struct ThemeView
++	{
++		ColorsView _clrView;
++		BrushesView _hbrView;
++
++		ThemeView()
++			: _clrView({ RGB(41, 49, 52), RGB(224, 226, 228), RGB(100, 100, 100) })
++			, _hbrView(_clrView)
++		{}
++
++		ThemeView(const ColorsView& colorsView)
++			: _clrView(colorsView)
++			, _hbrView(_clrView)
++		{}
++
++		void updateBrushes()
++		{
++			_hbrView.change(_clrView);
++		}
++
++		void change(ColorsView colors)
++		{
++			_clrView = colors;
++			updateBrushes();
++		}
++	};
++
++	static ThemeView tView{darkColorsView};
++
++	static ThemeView& getThemeView()
++	{
++		return tView;
++	}
++
++	static bool g_useDarkMode = true;
++	static bool g_enableWindowsMode = false;
++
++	void initOptions()
++	{
++		std::wstring iniPath = getIniPath(L"7zDark");
++		if (fileExists(iniPath))
++		{
++			switch (::GetPrivateProfileInt(L"main", L"mode", 1, iniPath.c_str()))
++			{
++				case 0:
++				{
++					g_useDarkMode = false;
++					g_enableWindowsMode = false;
++					break;
++				}
++
++				case 2:
++				{
++					g_useDarkMode = DarkMode::isDarkModeReg();
++					g_enableWindowsMode = true;
++					break;
++				}
++
++				case 1:
++				default:
++				{
++					g_useDarkMode = true;
++					g_enableWindowsMode = false;
++					break;
++				}
++			}
++
++			std::wstring sectionBase = g_useDarkMode ? L"dark" : L"light";
++			std::wstring sectionColorsView = sectionBase + L".colors.view";
++			std::wstring sectionColors = sectionBase + L".colors";
++
++			if (g_useDarkMode)
++			{
++				int tone = ::GetPrivateProfileInt(sectionBase.c_str(), L"tone", 0, iniPath.c_str());
++				if (tone > 6)
++					tone = 0;
++
++				DarkMode::setDarkCustomColors(static_cast<DarkMode::ColorTone>(tone));
++				DarkMode::getTheme()._colors = DarkMode::darkCustomizedColors;
++				DarkMode::getThemeView()._clrView = DarkMode::darkColorsView;
++			}
++			else
++			{
++				DarkMode::getTheme()._colors = DarkMode::lightColors;
++				DarkMode::getThemeView()._clrView = DarkMode::lightColorsView;
++			}
++
++			setClrFromIni(sectionColorsView, L"backgroundView", iniPath, &DarkMode::getThemeView()._clrView.background);
++			setClrFromIni(sectionColorsView, L"textView", iniPath, &DarkMode::getThemeView()._clrView.text);
++			setClrFromIni(sectionColorsView, L"gridlines", iniPath, &DarkMode::getThemeView()._clrView.gridlines);
++
++			setClrFromIni(sectionColors, L"background", iniPath, &DarkMode::getTheme()._colors.background);
++			setClrFromIni(sectionColors, L"backgroundInteractive", iniPath, &DarkMode::getTheme()._colors.softerBackground);
++			setClrFromIni(sectionColors, L"backgroundHot", iniPath, &DarkMode::getTheme()._colors.hotBackground);
++			setClrFromIni(sectionColors, L"backgroundDlg", iniPath, &DarkMode::getTheme()._colors.pureBackground);
++			//setClrFromIni(sectionColors, L"backgroundError", iniPath, getTheme()._colors.errorBackground);
++
++			setClrFromIni(sectionColors, L"text", iniPath, &DarkMode::getTheme()._colors.text);
++			setClrFromIni(sectionColors, L"textItem", iniPath, &DarkMode::getTheme()._colors.darkerText);
++			setClrFromIni(sectionColors, L"textDisabled", iniPath, &DarkMode::getTheme()._colors.disabledText);
++			//setClrFromIni(sectionColors, L"textLink", iniPath, getTheme()._colors.linkText);
++
++			setClrFromIni(sectionColors, L"edge", iniPath, &DarkMode::getTheme()._colors.edge);
++			setClrFromIni(sectionColors, L"edgeHot", iniPath, &DarkMode::getTheme()._colors.hotEdge);
++			setClrFromIni(sectionColors, L"edgeDisabled", iniPath, &DarkMode::getTheme()._colors.disabledEdge);
++
++			DarkMode::getTheme()._brushes.change(DarkMode::getTheme()._colors);
++			DarkMode::getTheme()._pens.change(DarkMode::getTheme()._colors);
++
++			DarkMode::getThemeView().updateBrushes();
++		}
++	}
++
++	static bool g_isInit = false;
++	static bool g_isInitExperimental = false;
++
++	void initDarkMode()
++	{
++		if (!g_isInit)
++		{
++			if (!g_isInitExperimental)
++			{
++				DarkMode::initExperimentalDarkMode();
++				g_isInitExperimental = true;
++			}
++
++			initOptions();
++
++			DarkMode::calculateTreeViewStyle();
++			DarkMode::setDarkMode(g_useDarkMode, true);
++
++			DarkMode::setSysColor(COLOR_WINDOW, DarkMode::getBackgroundColor());
++			DarkMode::setSysColor(COLOR_WINDOWTEXT, DarkMode::getTextColor());
++			DarkMode::setSysColor(COLOR_BTNFACE, DarkMode::getViewGridlinesColor());
++
++			g_isInit = true;
++		}
++	}
++
++	bool isEnabled()
++	{
++		return DarkMode::isWindows10();
++	}
++
++	bool isExperimentalActive()
++	{
++		return g_darkModeEnabled;
++	}
++
++	bool isExperimentalSupported()
++	{
++		return g_darkModeSupported;
++	}
++
++	bool isWindowsModeEnabled()
++{
++	return g_enableWindowsMode;
++}
++
++	bool isWindows10()
++	{
++		return IsWindows10();
++	}
++
++	bool isWindows11()
++	{
++		return IsWindows11();
++	}
++
++	DWORD getWindowsBuildNumber()
++	{
++		return GetWindowsBuildNumber();
++	}
++
++	static TreeViewStyle g_treeViewStylePrev = TreeViewStyle::classic;
++	static TreeViewStyle g_treeViewStyle = TreeViewStyle::classic;
++	static COLORREF g_treeViewBg = RGB(41, 49, 52);
++	static double g_lightnessTreeView = 50.0;
++
++	// adapted from https://stackoverflow.com/a/56678483
++	double calculatePerceivedLightness(COLORREF c)
++	{
++		auto linearValue = [](double colorChannel) -> double {
++			colorChannel /= 255.0;
++			if (colorChannel <= 0.04045)
++				return colorChannel / 12.92;
++			return std::pow(((colorChannel + 0.055) / 1.055), 2.4);
++			};
++
++		double r = linearValue(static_cast<double>(GetRValue(c)));
++		double g = linearValue(static_cast<double>(GetGValue(c)));
++		double b = linearValue(static_cast<double>(GetBValue(c)));
++
++		double luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
++
++		double lightness = (luminance <= 216.0 / 24389.0) ? (luminance * 24389.0 / 27.0) : (std::pow(luminance, (1.0 / 3.0)) * 116.0 - 16.0);
++		return lightness;
++	}
++
++	COLORREF getBackgroundColor()         { return getTheme()._colors.background; }
++	COLORREF getSofterBackgroundColor()   { return getTheme()._colors.softerBackground; }
++	COLORREF getHotBackgroundColor()      { return getTheme()._colors.hotBackground; }
++	COLORREF getDarkerBackgroundColor()   { return getTheme()._colors.pureBackground; }
++	COLORREF getErrorBackgroundColor()    { return getTheme()._colors.errorBackground; }
++	COLORREF getTextColor()               { return getTheme()._colors.text; }
++	COLORREF getDarkerTextColor()         { return getTheme()._colors.darkerText; }
++	COLORREF getDisabledTextColor()       { return getTheme()._colors.disabledText; }
++	COLORREF getLinkTextColor()           { return getTheme()._colors.linkText; }
++	COLORREF getEdgeColor()               { return getTheme()._colors.edge; }
++	COLORREF getHotEdgeColor()            { return getTheme()._colors.hotEdge; }
++	COLORREF getDisabledEdgeColor()       { return getTheme()._colors.disabledEdge; }
++
++	HBRUSH getBackgroundBrush()           { return getTheme()._brushes.background; }
++	HBRUSH getSofterBackgroundBrush()     { return getTheme()._brushes.softerBackground; }
++	HBRUSH getHotBackgroundBrush()        { return getTheme()._brushes.hotBackground; }
++	HBRUSH getDarkerBackgroundBrush()     { return getTheme()._brushes.pureBackground; }
++	HBRUSH getErrorBackgroundBrush()      { return getTheme()._brushes.errorBackground; }
++
++	HBRUSH getEdgeBrush()                 { return getTheme()._brushes.edge; }
++	HBRUSH getHotEdgeBrush()              { return getTheme()._brushes.hotEdge; }
++	HBRUSH getDisabledEdgeBrush()         { return getTheme()._brushes.disabledEdge; }
++
++	HPEN getDarkerTextPen()               { return getTheme()._pens.darkerTextPen; }
++	HPEN getEdgePen()                     { return getTheme()._pens.edgePen; }
++	HPEN getHotEdgePen()                  { return getTheme()._pens.hotEdgePen; }
++	HPEN getDisabledEdgePen()             { return getTheme()._pens.disabledEdgePen; }
++
++	void changeCustomTheme(const Colors& colors)
++	{
++		tDefault.change(colors);
++	}
++
++	COLORREF getViewBackgroundColor()       { return DarkMode::getThemeView()._clrView.background; }
++	COLORREF getViewTextColor()             { return DarkMode::getThemeView()._clrView.text; }
++	COLORREF getViewGridlinesColor()        { return DarkMode::getThemeView()._clrView.gridlines; }
++	HBRUSH getViewBackgroundBrush()         { return DarkMode::getThemeView()._hbrView.background; }
++	HBRUSH getViewGridlinesBrush()          { return DarkMode::getThemeView()._hbrView.gridlines; }
++
++	bool handleSettingChange(LPARAM lParam)
++	{
++		if (DarkMode::isExperimentalSupported() && IsColorSchemeChangeMessage(lParam))
++		{
++			// ShouldAppsUseDarkMode() is not reliable from 1903+, use NppDarkMode::isDarkModeReg() instead
++			bool isDarkModeUsed = DarkMode::isDarkModeReg() && !IsHighContrast();
++			if (DarkMode::isExperimentalActive() != isDarkModeUsed)
++			{
++				g_darkModeEnabled = isDarkModeUsed;
++				if (g_isInit)
++				{
++					g_isInit = false;
++					DarkMode::initDarkMode();
++				}
++			}
++			return true;
++		}
++		return false;
++	}
++
++	bool isDarkModeReg()
++	{
++		DWORD data{};
++		DWORD dwBufSize = sizeof(data);
++		LPCTSTR lpSubKey = L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize";
++		LPCTSTR lpValue = L"AppsUseLightTheme";
++
++		auto result = RegGetValue(HKEY_CURRENT_USER, lpSubKey, lpValue, RRF_RT_REG_DWORD, nullptr, &data, &dwBufSize);
++		if (result != ERROR_SUCCESS)
++		{
++			return false;
++		}
++
++		// dark mode is 0, light mode is 1
++		return data == 0UL;
++	}
++
++	// processes messages related to UAH / custom menubar drawing.
++	// return true if handled, false to continue with normal processing in your wndproc
++	bool runUAHWndProc(HWND hWnd, UINT uMsg, WPARAM /*wParam*/, LPARAM lParam, LRESULT* lr)
++	{
++		static HTHEME g_menuTheme = nullptr;
++
++		switch (uMsg)
++		{
++			case WM_UAHDRAWMENU:
++			{
++				auto pUDM = reinterpret_cast<UAHMENU*>(lParam);
++				RECT rc{};
++
++				// get the menubar rect
++				{
++					MENUBARINFO mbi{};
++					mbi.cbSize = sizeof(MENUBARINFO);
++					::GetMenuBarInfo(hWnd, OBJID_MENU, 0, &mbi);
++
++					RECT rcWindow{};
++					::GetWindowRect(hWnd, &rcWindow);
++
++					// the rcBar is offset by the window rect
++					rc = mbi.rcBar;
++					::OffsetRect(&rc, -rcWindow.left, -rcWindow.top);
++
++					rc.top -= 1;
++				}
++
++				::FillRect(pUDM->hdc, &rc, DarkMode::getDarkerBackgroundBrush());
++
++				*lr = 0;
++
++				return true;
++			}
++
++			case WM_UAHDRAWMENUITEM:
++			{
++				auto pUDMI = reinterpret_cast<UAHDRAWMENUITEM*>(lParam);
++
++				// get the menu item string
++				wchar_t menuString[256] = { '\0' };
++				MENUITEMINFO mii{};
++				{
++					mii.cbSize = sizeof(MENUITEMINFO);
++					mii.fMask = MIIM_STRING;
++					mii.dwTypeData = menuString;
++					mii.cch = (sizeof(menuString) / 2) - 1;
++
++					GetMenuItemInfo(pUDMI->um.hmenu, pUDMI->umi.iPosition, TRUE, &mii);
++				}
++
++				// get the item state for drawing
++
++				DWORD dwFlags = DT_CENTER | DT_SINGLELINE | DT_VCENTER;
++
++				int iTextStateID = MBI_NORMAL;
++				int iBackgroundStateID = MBI_NORMAL;
++				{
++					if ((pUDMI->dis.itemState & ODS_INACTIVE) | (pUDMI->dis.itemState & ODS_DEFAULT))
++					{
++						// normal display
++						iTextStateID = MBI_NORMAL;
++						iBackgroundStateID = MBI_NORMAL;
++					}
++					if (pUDMI->dis.itemState & ODS_HOTLIGHT)
++					{
++						// hot tracking
++						iTextStateID = MBI_HOT;
++						iBackgroundStateID = MBI_HOT;
++					}
++					if (pUDMI->dis.itemState & ODS_SELECTED)
++					{
++						// clicked
++						iTextStateID = MBI_PUSHED;
++						iBackgroundStateID = MBI_PUSHED;
++					}
++					if ((pUDMI->dis.itemState & ODS_GRAYED) || (pUDMI->dis.itemState & ODS_DISABLED))
++					{
++						// disabled / grey text
++						iTextStateID = MBI_DISABLED;
++						iBackgroundStateID = MBI_DISABLED;
++					}
++					if (pUDMI->dis.itemState & ODS_NOACCEL)
++					{
++						dwFlags |= DT_HIDEPREFIX;
++					}
++				}
++
++				if (!g_menuTheme)
++				{
++					g_menuTheme = ::OpenThemeData(hWnd, VSCLASS_MENU);
++				}
++
++				switch (iBackgroundStateID)
++				{
++					case MBI_NORMAL:
++					case MBI_DISABLED:
++					{
++						::FillRect(pUDMI->um.hdc, &pUDMI->dis.rcItem, DarkMode::getDarkerBackgroundBrush());
++						break;
++					}
++
++					case MBI_HOT:
++					case MBI_DISABLEDHOT:
++					{
++						::FillRect(pUDMI->um.hdc, &pUDMI->dis.rcItem, DarkMode::getHotBackgroundBrush());
++						break;
++					}
++
++					case MBI_PUSHED:
++					case MBI_DISABLEDPUSHED:
++					{
++						::FillRect(pUDMI->um.hdc, &pUDMI->dis.rcItem, DarkMode::getSofterBackgroundBrush());
++						break;
++					}
++
++					default:
++					{
++						::DrawThemeBackground(g_menuTheme, pUDMI->um.hdc, MENU_BARITEM, iBackgroundStateID, &pUDMI->dis.rcItem, nullptr);
++						break;
++					}
++				}
++
++				DTTOPTS dttopts{};
++				dttopts.dwSize = sizeof(DTTOPTS);
++				if (iTextStateID == MBI_NORMAL || iTextStateID == MBI_HOT || iTextStateID == MBI_PUSHED)
++				{
++					dttopts.dwFlags |= DTT_TEXTCOLOR;
++					dttopts.crText = DarkMode::getTextColor();
++				}
++				else if (iTextStateID == MBI_DISABLED || iTextStateID == MBI_DISABLEDHOT || iTextStateID == MBI_DISABLEDPUSHED)
++				{
++					dttopts.dwFlags |= DTT_TEXTCOLOR;
++					dttopts.crText = DarkMode::getDisabledTextColor();
++				}
++
++				::DrawThemeTextEx(g_menuTheme, pUDMI->um.hdc, MENU_BARITEM, iTextStateID, menuString, mii.cch, dwFlags, &pUDMI->dis.rcItem, &dttopts);
++
++				*lr = 0;
++
++				return true;
++			}
++
++			case WM_DPICHANGED:
++			case WM_THEMECHANGED:
++			{
++				if (g_menuTheme)
++				{
++					::CloseThemeData(g_menuTheme);
++					g_menuTheme = nullptr;
++				}
++				// continue processing in main wndproc
++				return false;
++			}
++
++			default:
++				return false;
++		}
++	}
++
++	void drawUAHMenuNCBottomLine(HWND hWnd)
++	{
++		MENUBARINFO mbi{};
++		mbi.cbSize = sizeof(MENUBARINFO);
++		if (!::GetMenuBarInfo(hWnd, OBJID_MENU, 0, &mbi))
++		{
++			return;
++		}
++
++		RECT rcClient{};
++		::GetClientRect(hWnd, &rcClient);
++		::MapWindowPoints(hWnd, nullptr, reinterpret_cast<POINT*>(&rcClient), 2);
++
++		RECT rcWindow{};
++		::GetWindowRect(hWnd, &rcWindow);
++
++		::OffsetRect(&rcClient, -rcWindow.left, -rcWindow.top);
++
++		// the rcBar is offset by the window rect
++		RECT rcAnnoyingLine = rcClient;
++		rcAnnoyingLine.bottom = rcAnnoyingLine.top;
++		rcAnnoyingLine.top--;
++
++
++		HDC hdc = ::GetWindowDC(hWnd);
++		::FillRect(hdc, &rcAnnoyingLine, DarkMode::getDarkerBackgroundBrush());
++		::ReleaseDC(hWnd, hdc);
++	}
++
++	// from DarkMode.h
++
++	void initExperimentalDarkMode()
++	{
++		::InitDarkMode();
++	}
++
++	void setDarkMode(bool useDark, bool fixDarkScrollbar)
++	{
++		::SetDarkMode(useDark, fixDarkScrollbar);
++	}
++
++	void allowDarkModeForApp(bool allow)
++	{
++		::AllowDarkModeForApp(allow);
++	}
++
++	bool allowDarkModeForWindow(HWND hWnd, bool allow)
++	{
++		return ::AllowDarkModeForWindow(hWnd, allow);
++	}
++
++	void setTitleBarThemeColor(HWND hWnd)
++	{
++		::RefreshTitleBarThemeColor(hWnd);
++	}
++
++	void setSysColor(int nIndex, COLORREF color)
++	{
++		::SetMySysColor(nIndex, color);
++	}
++
++	bool hookSysColor()
++	{
++		return ::HookSysColor();
++	}
++	void unhookSysColor()
++	{
++		::UnhookSysColor();
++	}
++
++	void enableDarkScrollBarForWindowAndChildren(HWND hWnd)
++	{
++		::EnableDarkScrollBarForWindowAndChildren(hWnd);
++	}
++
++	void paintRoundFrameRect(HDC hdc, const RECT rect, const HPEN hpen, int width, int height)
++	{
++		auto holdBrush = ::SelectObject(hdc, ::GetStockObject(NULL_BRUSH));
++		auto holdPen = ::SelectObject(hdc, hpen);
++		::RoundRect(hdc, rect.left, rect.top, rect.right, rect.bottom, width, height);
++		::SelectObject(hdc, holdBrush);
++		::SelectObject(hdc, holdPen);
++	}
++
++	struct ButtonData
++	{
++		HTHEME hTheme = nullptr;
++		int iStateID = 0;
++
++		bool isSizeSet = false;
++		SIZE szBtn{};
++
++		ButtonData() = default;
++
++		// Saves width and height from the resource file for use as restrictions.
++		ButtonData(HWND hWnd)
++		{
++			const auto nBtnStyle = ::GetWindowLongPtr(hWnd, GWL_STYLE);
++			switch (nBtnStyle & BS_TYPEMASK)
++			{
++				case BS_CHECKBOX:
++				case BS_AUTOCHECKBOX:
++				case BS_RADIOBUTTON:
++				case BS_AUTORADIOBUTTON:
++				{
++					if ((nBtnStyle & BS_MULTILINE) != BS_MULTILINE)
++					{
++						RECT rcBtn{};
++						::GetClientRect(hWnd, &rcBtn);
++						szBtn.cx = rcBtn.right - rcBtn.left;
++						szBtn.cy = rcBtn.bottom - rcBtn.top;
++						isSizeSet = (szBtn.cx != 0 && szBtn.cy != 0);
++					}
++					break;
++				}
++
++				default:
++					break;
++			}
++		}
++
++		~ButtonData()
++		{
++			closeTheme();
++		}
++
++		bool ensureTheme(HWND hWnd)
++		{
++			if (!hTheme)
++			{
++				hTheme = ::OpenThemeData(hWnd, VSCLASS_BUTTON);
++			}
++			return hTheme != nullptr;
++		}
++
++		void closeTheme()
++		{
++			if (hTheme)
++			{
++				::CloseThemeData(hTheme);
++				hTheme = nullptr;
++			}
++		}
++	};
++
++	static void renderButton(HWND hWnd, HDC hdc, HTHEME hTheme, int iPartID, int iStateID)
++	{
++		RECT rcClient{};
++		wchar_t szText[256] = { '\0' };
++		DWORD nState = static_cast<DWORD>(SendMessage(hWnd, BM_GETSTATE, 0, 0));
++		DWORD uiState = static_cast<DWORD>(SendMessage(hWnd, WM_QUERYUISTATE, 0, 0));
++		auto nStyle = ::GetWindowLongPtr(hWnd, GWL_STYLE);
++
++		HFONT hFont = nullptr;
++		HFONT hOldFont = nullptr;
++		HFONT hCreatedFont = nullptr;
++		LOGFONT lf{};
++		if (SUCCEEDED(::GetThemeFont(hTheme, hdc, iPartID, iStateID, TMT_FONT, &lf)))
++		{
++			hCreatedFont = ::CreateFontIndirect(&lf);
++			hFont = hCreatedFont;
++		}
++
++		if (!hFont) {
++			hFont = reinterpret_cast<HFONT>(SendMessage(hWnd, WM_GETFONT, 0, 0));
++		}
++
++		hOldFont = static_cast<HFONT>(::SelectObject(hdc, hFont));
++
++		DWORD dtFlags = DT_LEFT; // DT_LEFT is 0
++		dtFlags |= (nStyle & BS_MULTILINE) ? DT_WORDBREAK : DT_SINGLELINE;
++		dtFlags |= ((nStyle & BS_CENTER) == BS_CENTER) ? DT_CENTER : (nStyle & BS_RIGHT) ? DT_RIGHT : 0;
++		dtFlags |= ((nStyle & BS_VCENTER) == BS_VCENTER) ? DT_VCENTER : (nStyle & BS_BOTTOM) ? DT_BOTTOM : 0;
++		dtFlags |= (uiState & UISF_HIDEACCEL) ? DT_HIDEPREFIX : 0;
++
++		if (!(nStyle & BS_MULTILINE) && !(nStyle & BS_BOTTOM) && !(nStyle & BS_TOP))
++		{
++			dtFlags |= DT_VCENTER;
++		}
++
++		::GetClientRect(hWnd, &rcClient);
++		::GetWindowText(hWnd, szText, _countof(szText));
++
++		SIZE szBox{ 13, 13 };
++		::GetThemePartSize(hTheme, hdc, iPartID, iStateID, NULL, TS_DRAW, &szBox);
++
++		RECT rcText = rcClient;
++		::GetThemeBackgroundContentRect(hTheme, hdc, iPartID, iStateID, &rcClient, &rcText);
++
++		RECT rcBackground = rcClient;
++		if ((dtFlags & DT_SINGLELINE) == DT_SINGLELINE)
++		{
++			rcBackground.top += (rcText.bottom - rcText.top - szBox.cy) / 2;
++		}
++		rcBackground.bottom = rcBackground.top + szBox.cy;
++		rcBackground.right = rcBackground.left + szBox.cx;
++		rcText.left = rcBackground.right + 3;
++
++		::DrawThemeParentBackground(hWnd, hdc, &rcClient);
++		::DrawThemeBackground(hTheme, hdc, iPartID, iStateID, &rcBackground, nullptr);
++
++		DTTOPTS dtto{};
++		dtto.dwSize = sizeof(DTTOPTS);
++		dtto.dwFlags = DTT_TEXTCOLOR;
++		dtto.crText = ((nStyle & WS_DISABLED) == WS_DISABLED) ? DarkMode::getDisabledTextColor() : DarkMode::getTextColor();
++
++		::DrawThemeTextEx(hTheme, hdc, iPartID, iStateID, szText, -1, dtFlags, &rcText, &dtto);
++
++		if (((nState & BST_FOCUS) == BST_FOCUS) && ((uiState & UISF_HIDEFOCUS) != UISF_HIDEFOCUS))
++		{
++			RECT rcTextOut = rcText;
++			dtto.dwFlags |= DTT_CALCRECT;
++			::DrawThemeTextEx(hTheme, hdc, iPartID, iStateID, szText, -1, dtFlags | DT_CALCRECT, &rcTextOut, &dtto);
++			RECT rcFocus = rcTextOut;
++			rcFocus.bottom++;
++			rcFocus.left--;
++			rcFocus.right++;
++			::DrawFocusRect(hdc, &rcFocus);
++		}
++
++		if (hCreatedFont) ::DeleteObject(hCreatedFont);
++		::SelectObject(hdc, hOldFont);
++	}
++
++	static void paintButton(HWND hWnd, HDC hdc, ButtonData& buttonData)
++	{
++		DWORD nState = static_cast<DWORD>(SendMessage(hWnd, BM_GETSTATE, 0, 0));
++		const auto nStyle = ::GetWindowLongPtr(hWnd, GWL_STYLE);
++		const auto nButtonStyle = nStyle & BS_TYPEMASK;
++
++		int iPartID = BP_CHECKBOX;
++
++		// Plugin might use BS_3STATE and BS_AUTO3STATE button style
++		if (nButtonStyle == BS_CHECKBOX || nButtonStyle == BS_AUTOCHECKBOX || nButtonStyle == BS_3STATE || nButtonStyle == BS_AUTO3STATE)
++		{
++			iPartID = BP_CHECKBOX;
++		}
++		else if (nButtonStyle == BS_RADIOBUTTON || nButtonStyle == BS_AUTORADIOBUTTON)
++		{
++			iPartID = BP_RADIOBUTTON;
++		}
++		else
++		{
++			//assert(false);
++		}
++
++		// states of BP_CHECKBOX and BP_RADIOBUTTON are the same
++		int iStateID = RBS_UNCHECKEDNORMAL;
++
++		if (nStyle & WS_DISABLED)		iStateID = RBS_UNCHECKEDDISABLED;
++		else if (nState & BST_PUSHED)	iStateID = RBS_UNCHECKEDPRESSED;
++		else if (nState & BST_HOT)		iStateID = RBS_UNCHECKEDHOT;
++
++		if (nState & BST_CHECKED)		iStateID += 4;
++
++		if (::BufferedPaintRenderAnimation(hWnd, hdc))
++		{
++			return;
++		}
++
++		BP_ANIMATIONPARAMS animParams{};
++		animParams.cbSize = sizeof(BP_ANIMATIONPARAMS);
++		animParams.style = BPAS_LINEAR;
++		if (iStateID != buttonData.iStateID)
++		{
++			::GetThemeTransitionDuration(buttonData.hTheme, iPartID, buttonData.iStateID, iStateID, TMT_TRANSITIONDURATIONS, &animParams.dwDuration);
++		}
++
++		RECT rcClient{};
++		::GetClientRect(hWnd, &rcClient);
++
++		HDC hdcFrom = nullptr;
++		HDC hdcTo = nullptr;
++		HANIMATIONBUFFER hbpAnimation = ::BeginBufferedAnimation(hWnd, hdc, &rcClient, BPBF_COMPATIBLEBITMAP, nullptr, &animParams, &hdcFrom, &hdcTo);
++		if (hbpAnimation)
++		{
++			if (hdcFrom)
++			{
++				DarkMode::renderButton(hWnd, hdcFrom, buttonData.hTheme, iPartID, buttonData.iStateID);
++			}
++			if (hdcTo)
++			{
++				DarkMode::renderButton(hWnd, hdcTo, buttonData.hTheme, iPartID, iStateID);
++			}
++
++			buttonData.iStateID = iStateID;
++
++			::EndBufferedAnimation(hbpAnimation, TRUE);
++		}
++		else
++		{
++			DarkMode::renderButton(hWnd, hdc, buttonData.hTheme, iPartID, iStateID);
++
++			buttonData.iStateID = iStateID;
++		}
++	}
++
++	constexpr UINT_PTR g_buttonSubclassID = 42;
++
++	static LRESULT CALLBACK ButtonSubclass(
++		HWND hWnd,
++		UINT uMsg,
++		WPARAM wParam,
++		LPARAM lParam,
++		UINT_PTR uIdSubclass,
++		DWORD_PTR dwRefData
++	)
++	{
++		auto pButtonData = reinterpret_cast<ButtonData*>(dwRefData);
++
++		switch (uMsg)
++		{
++			case WM_UPDATEUISTATE:
++			{
++				if (HIWORD(wParam) & (UISF_HIDEACCEL | UISF_HIDEFOCUS))
++				{
++					::InvalidateRect(hWnd, nullptr, FALSE);
++				}
++				break;
++			}
++
++			case WM_NCDESTROY:
++			{
++				::RemoveWindowSubclass(hWnd, ButtonSubclass, uIdSubclass);
++				delete pButtonData;
++				break;
++			}
++
++			case WM_ERASEBKGND:
++			{
++				if (DarkMode::isEnabled() && pButtonData->ensureTheme(hWnd))
++				{
++					return TRUE;
++				}
++				break;
++			}
++
++			case WM_DPICHANGED:
++			{
++				pButtonData->closeTheme();
++				[[fallthrough]];
++			}
++
++			case WM_THEMECHANGED:
++			{
++				pButtonData->closeTheme();
++				break;
++			}
++
++			case WM_PRINTCLIENT:
++			case WM_PAINT:
++			{
++				if (DarkMode::isEnabled() && pButtonData->ensureTheme(hWnd))
++				{
++					PAINTSTRUCT ps{};
++					HDC hdc = reinterpret_cast<HDC>(wParam);
++					if (!hdc)
++					{
++						hdc = ::BeginPaint(hWnd, &ps);
++					}
++
++					DarkMode::paintButton(hWnd, hdc, *pButtonData);
++
++					if (ps.hdc)
++					{
++						::EndPaint(hWnd, &ps);
++					}
++
++					return 0;
++				}
++				break;
++			}
++
++			case WM_SIZE:
++			case WM_DESTROY:
++			{
++				::BufferedPaintStopAllAnimations(hWnd);
++				break;
++			}
++
++			case WM_ENABLE:
++			{
++				if (DarkMode::isEnabled())
++				{
++					// skip the button's normal wndproc so it won't redraw out of wm_paint
++					LRESULT lr = ::DefWindowProc(hWnd, uMsg, wParam, lParam);
++					::InvalidateRect(hWnd, nullptr, FALSE);
++					return lr;
++				}
++				break;
++			}
++		}
++		return ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
++	}
++
++	void subclassButtonControl(HWND hWnd)
++	{
++		if (::GetWindowSubclass(hWnd, ButtonSubclass, g_buttonSubclassID, nullptr) == FALSE)
++		{
++			DWORD_PTR pButtonData = reinterpret_cast<DWORD_PTR>(new ButtonData(hWnd));
++			::SetWindowSubclass(hWnd, ButtonSubclass, g_buttonSubclassID, pButtonData);
++		}
++	}
++
++	static void paintGroupbox(HWND hWnd, HDC hdc, ButtonData& buttonData)
++	{
++		const auto nStyle = ::GetWindowLongPtr(hWnd, GWL_STYLE);
++		bool isDisabled = (nStyle & WS_DISABLED) == WS_DISABLED;
++		int iPartID = BP_GROUPBOX;
++		int iStateID = isDisabled ? GBS_DISABLED : GBS_NORMAL;
++
++		RECT rcClient{};
++		::GetClientRect(hWnd, &rcClient);
++
++		rcClient.bottom -= 1;
++
++		RECT rcText = rcClient;
++		RECT rcBackground = rcClient;
++
++		HFONT hFont = nullptr;
++		HFONT hOldFont = nullptr;
++		HFONT hCreatedFont = nullptr;
++		LOGFONT lf{};
++		if (SUCCEEDED(::GetThemeFont(buttonData.hTheme, hdc, iPartID, iStateID, TMT_FONT, &lf)))
++		{
++			hCreatedFont = ::CreateFontIndirect(&lf);
++			hFont = hCreatedFont;
++		}
++
++		if (!hFont)
++		{
++			hFont = reinterpret_cast<HFONT>(SendMessage(hWnd, WM_GETFONT, 0, 0));
++		}
++
++		hOldFont = static_cast<HFONT>(::SelectObject(hdc, hFont));
++
++		wchar_t szText[256] = { '\0' };
++		::GetWindowText(hWnd, szText, _countof(szText));
++
++		const auto style = ::GetWindowLongPtr(hWnd, GWL_STYLE);
++		bool isCenter = (style & BS_CENTER) == BS_CENTER;
++
++		if (szText[0])
++		{
++			SIZE textSize{};
++			::GetTextExtentPoint32(hdc, szText, static_cast<int>(wcslen(szText)), &textSize);
++
++			int centerPosX = isCenter ? ((rcClient.right - rcClient.left - textSize.cx) / 2) : 7;
++
++			rcBackground.top += textSize.cy / 2;
++			rcText.left += centerPosX;
++			rcText.bottom = rcText.top + textSize.cy;
++			rcText.right = rcText.left + textSize.cx + 4;
++
++			::ExcludeClipRect(hdc, rcText.left, rcText.top, rcText.right, rcText.bottom);
++		}
++		else
++		{
++			SIZE textSize{};
++			::GetTextExtentPoint32(hdc, L"M", 1, &textSize);
++			rcBackground.top += textSize.cy / 2;
++		}
++
++		RECT rcContent = rcBackground;
++		::GetThemeBackgroundContentRect(buttonData.hTheme, hdc, BP_GROUPBOX, iStateID, &rcBackground, &rcContent);
++		::ExcludeClipRect(hdc, rcContent.left, rcContent.top, rcContent.right, rcContent.bottom);
++
++		//DrawThemeParentBackground(hWnd, hdc, &rcClient);
++		//DrawThemeBackground(buttonData.hTheme, hdc, BP_GROUPBOX, iStateID, &rcBackground, nullptr);
++		DarkMode::paintRoundFrameRect(hdc, rcBackground, DarkMode::getEdgePen());
++
++		::SelectClipRgn(hdc, nullptr);
++
++		if (szText[0])
++		{
++			rcText.right -= 2;
++			rcText.left += 2;
++
++			DTTOPTS dtto{};
++			dtto.dwSize = sizeof(DTTOPTS);
++			dtto.dwFlags = DTT_TEXTCOLOR;
++			dtto.crText = isDisabled ? DarkMode::getDisabledTextColor() : DarkMode::getTextColor();
++
++			DWORD textFlags = isCenter ? DT_CENTER : DT_LEFT;
++
++			if(::SendMessage(hWnd, WM_QUERYUISTATE, 0, 0) != static_cast<LRESULT>(NULL))
++			{
++				textFlags |= DT_HIDEPREFIX;
++			}
++
++			::DrawThemeTextEx(buttonData.hTheme, hdc, BP_GROUPBOX, iStateID, szText, -1, textFlags | DT_SINGLELINE, &rcText, &dtto);
++		}
++
++		if (hCreatedFont) DeleteObject(hCreatedFont);
++		::SelectObject(hdc, hOldFont);
++	}
++
++	constexpr UINT_PTR g_groupboxSubclassID = 42;
++
++	static LRESULT CALLBACK GroupboxSubclass(
++		HWND hWnd,
++		UINT uMsg,
++		WPARAM wParam,
++		LPARAM lParam,
++		UINT_PTR uIdSubclass,
++		DWORD_PTR dwRefData
++	)
++	{
++		auto pButtonData = reinterpret_cast<ButtonData*>(dwRefData);
++
++		switch (uMsg)
++		{
++			case WM_NCDESTROY:
++			{
++				::RemoveWindowSubclass(hWnd, GroupboxSubclass, uIdSubclass);
++				delete pButtonData;
++				break;
++			}
++
++			case WM_ERASEBKGND:
++			{
++				if (DarkMode::isEnabled() && pButtonData->ensureTheme(hWnd))
++				{
++					return TRUE;
++				}
++				break;
++			}
++
++			case WM_DPICHANGED:
++			{
++				pButtonData->closeTheme();
++				return 0;
++			}
++
++			case WM_THEMECHANGED:
++			{
++				pButtonData->closeTheme();
++				break;
++			}
++
++			case WM_PRINTCLIENT:
++			case WM_PAINT:
++			{
++				if (DarkMode::isEnabled() && pButtonData->ensureTheme(hWnd))
++				{
++					PAINTSTRUCT ps{};
++					HDC hdc = reinterpret_cast<HDC>(wParam);
++					if (!hdc)
++					{
++						hdc = ::BeginPaint(hWnd, &ps);
++					}
++
++					DarkMode::paintGroupbox(hWnd, hdc, *pButtonData);
++
++					if (ps.hdc)
++					{
++						::EndPaint(hWnd, &ps);
++					}
++
++					return 0;
++				}
++				break;
++			}
++
++			case WM_ENABLE:
++			{
++				::RedrawWindow(hWnd, nullptr, nullptr, RDW_INVALIDATE);
++				break;
++			}
++		}
++		return ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
++	}
++
++	void subclassGroupboxControl(HWND hWnd)
++	{
++		if (::GetWindowSubclass(hWnd, GroupboxSubclass, g_groupboxSubclassID, nullptr) == FALSE)
++		{
++			DWORD_PTR pButtonData = reinterpret_cast<DWORD_PTR>(new ButtonData());
++			::SetWindowSubclass(hWnd, GroupboxSubclass, g_groupboxSubclassID, pButtonData);
++		}
++	}
++
++	constexpr UINT_PTR g_tabSubclassID = 42;
++
++	static LRESULT CALLBACK TabSubclass(
++		HWND hWnd,
++		UINT uMsg,
++		WPARAM wParam,
++		LPARAM lParam,
++		UINT_PTR uIdSubclass,
++		DWORD_PTR /*dwRefData*/
++	)
++	{
++		switch (uMsg)
++		{
++			case WM_ERASEBKGND:
++			{
++				if (DarkMode::isEnabled())
++				{
++					return TRUE;
++				}
++				break;
++			}
++
++		case WM_PAINT:
++		{
++			if (!DarkMode::isEnabled())
++			{
++				break;
++			}
++
++			auto dwStyle = ::GetWindowLongPtr(hWnd, GWL_STYLE);
++			if ((dwStyle & TCS_BUTTONS) || (dwStyle & TCS_VERTICAL))
++			{
++				break;
++			}
++
++			PAINTSTRUCT ps{};
++			HDC hdc = ::BeginPaint(hWnd, &ps);
++			::FillRect(hdc, &ps.rcPaint, DarkMode::getDarkerBackgroundBrush());
++
++			auto holdPen = static_cast<HPEN>(::SelectObject(hdc, DarkMode::getEdgePen()));
++
++			HRGN holdClip = ::CreateRectRgn(0, 0, 0, 0);
++			if (1 != GetClipRgn(hdc, holdClip))
++			{
++				::DeleteObject(holdClip);
++				holdClip = nullptr;
++			}
++
++			HFONT hFont = reinterpret_cast<HFONT>(SendMessage(hWnd, WM_GETFONT, 0, 0));
++			auto hOldFont = ::SelectObject(hdc, hFont);
++
++			POINT ptCursor{};
++			::GetCursorPos(&ptCursor);
++			::ScreenToClient(hWnd, &ptCursor);
++
++			int nTabs = TabCtrl_GetItemCount(hWnd);
++
++			int nSelTab = TabCtrl_GetCurSel(hWnd);
++			for (int i = 0; i < nTabs; ++i)
++			{
++				RECT rcItem{};
++				TabCtrl_GetItemRect(hWnd, i, &rcItem);
++				RECT rcFrame = rcItem;
++
++				RECT rcIntersect{};
++				if (::IntersectRect(&rcIntersect, &ps.rcPaint, &rcItem))
++				{
++					bool bHot = ::PtInRect(&rcItem, ptCursor);
++					bool isSelectedTab = (i == nSelTab);
++
++					HRGN hClip = ::CreateRectRgnIndirect(&rcItem);
++
++					::SelectClipRgn(hdc, hClip);
++
++					::SetTextColor(hdc, (bHot || isSelectedTab ) ? DarkMode::getTextColor() : DarkMode::getDarkerTextColor());
++
++					::InflateRect(&rcItem, -1, -1);
++					rcItem.right += 1;
++
++					// for consistency getBackgroundBrush() 
++					// would be better, than getSofterBackgroundBrush(),
++					// however default getBackgroundBrush() has same color
++					// as getDarkerBackgroundBrush()
++					::FillRect(hdc, &rcItem, isSelectedTab ? DarkMode::getDarkerBackgroundBrush() : bHot ? DarkMode::getHotBackgroundBrush() : DarkMode::getSofterBackgroundBrush());
++
++					::SetBkMode(hdc, TRANSPARENT);
++
++					wchar_t label[MAX_PATH]{};
++					TCITEM tci{};
++					tci.mask = TCIF_TEXT;
++					tci.pszText = label;
++					tci.cchTextMax = MAX_PATH - 1;
++
++					::SendMessage(hWnd, TCM_GETITEM, i, reinterpret_cast<LPARAM>(&tci));
++
++					RECT rcText = rcItem;
++					if (isSelectedTab)
++					{
++						::OffsetRect(&rcText, 0, -1);
++						::InflateRect(&rcFrame, 0, 1);
++					}
++
++					if (i != nTabs - 1)
++					{
++						rcFrame.right += 1;
++					}
++
++					::FrameRect(hdc, &rcFrame, DarkMode::getEdgeBrush());
++
++					::DrawText(hdc, label, -1, &rcText, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
++
++					::DeleteObject(hClip);
++
++					::SelectClipRgn(hdc, holdClip);
++				}
++			}
++
++			::SelectObject(hdc, hOldFont);
++
++			::SelectClipRgn(hdc, holdClip);
++			if (holdClip)
++			{
++				::DeleteObject(holdClip);
++				holdClip = nullptr;
++			}
++
++			::SelectObject(hdc, holdPen);
++
++			::EndPaint(hWnd, &ps);
++			return 0;
++		}
++
++		case WM_NCDESTROY:
++		{
++			::RemoveWindowSubclass(hWnd, TabSubclass, uIdSubclass);
++			break;
++		}
++
++		case WM_PARENTNOTIFY:
++		{
++			switch (LOWORD(wParam))
++			{
++				case WM_CREATE:
++				{
++					auto hwndUpdown = reinterpret_cast<HWND>(lParam);
++					if (DarkMode::subclassTabUpDownControl(hwndUpdown))
++					{
++						return 0;
++					}
++					break;
++				}
++			}
++			return 0;
++		}
++
++		}
++		return ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
++	}
++
++	void subclassTabControl(HWND hWnd)
++	{
++		if (::GetWindowSubclass(hWnd, TabSubclass, g_tabSubclassID, nullptr) == FALSE)
++		{
++			::SetWindowSubclass(hWnd, TabSubclass, g_tabSubclassID, 0);
++		}
++	}
++
++	void subclassTabControl(HWND hWnd, DarkModeParams p)
++	{
++		if (p._subclass)
++		{
++			subclassTabControl(hWnd);
++		}
++	}
++
++	struct BorderMetricsData
++	{
++		UINT _dpi = USER_DEFAULT_SCREEN_DPI;
++		LONG _xEdge = ::GetSystemMetrics(SM_CXEDGE);
++		LONG _yEdge = ::GetSystemMetrics(SM_CYEDGE);
++		LONG _xScroll = ::GetSystemMetrics(SM_CXVSCROLL);
++		LONG _yScroll = ::GetSystemMetrics(SM_CYVSCROLL);
++	};
++
++	constexpr UINT_PTR g_customBorderSubclassID = 42;
++
++	static LRESULT CALLBACK CustomBorderSubclass(
++		HWND hWnd,
++		UINT uMsg,
++		WPARAM wParam,
++		LPARAM lParam,
++		UINT_PTR uIdSubclass,
++		DWORD_PTR dwRefData
++	)
++	{
++		auto pBorderMetricsData = reinterpret_cast<BorderMetricsData*>(dwRefData);
++
++		static bool isHotStatic = false;
++
++		switch (uMsg)
++		{
++			case WM_NCPAINT:
++			{
++				if (!DarkMode::isEnabled())
++				{
++					break;
++				}
++
++				::DefSubclassProc(hWnd, uMsg, wParam, lParam);
++
++				HDC hdc = ::GetWindowDC(hWnd);
++				RECT rcClient{};
++				::GetClientRect(hWnd, &rcClient);
++				rcClient.right += (2 * pBorderMetricsData->_xEdge);
++
++				auto style = ::GetWindowLongPtr(hWnd, GWL_STYLE);
++				bool hasVerScrollbar = (style & WS_VSCROLL) == WS_VSCROLL;
++				if (hasVerScrollbar)
++				{
++					rcClient.right += pBorderMetricsData->_xScroll;
++				}
++
++				rcClient.bottom += (2 * pBorderMetricsData->_yEdge);
++
++				bool hasHorScrollbar = (style & WS_HSCROLL) == WS_HSCROLL;
++				if (hasHorScrollbar)
++				{
++					rcClient.bottom += pBorderMetricsData->_yScroll;
++				}
++
++				HPEN hPen = ::CreatePen(PS_SOLID, 1, DarkMode::getBackgroundColor());
++				RECT rcInner = rcClient;
++				::InflateRect(&rcInner, -1, -1);
++				DarkMode::paintRoundFrameRect(hdc, rcInner, hPen);
++				::DeleteObject(hPen);
++
++				bool hasFocus = ::GetFocus() == hWnd;
++
++				POINT ptCursor{};
++				::GetCursorPos(&ptCursor);
++				::ScreenToClient(hWnd, &ptCursor);
++
++				bool isHot = ::PtInRect(&rcClient, ptCursor);
++
++				bool isWindowEnabled = ::IsWindowEnabled(hWnd) == TRUE;
++				HPEN hEnabledPen = ((isHotStatic && isHot) || hasFocus ? DarkMode::getHotEdgePen() : DarkMode::getEdgePen());
++
++				DarkMode::paintRoundFrameRect(hdc, rcClient, isWindowEnabled ? hEnabledPen : DarkMode::getDisabledEdgePen());
++
++				::ReleaseDC(hWnd, hdc);
++
++				return 0;
++			}
++			break;
++
++			case WM_NCCALCSIZE:
++			{
++				if (!DarkMode::isEnabled())
++				{
++					break;
++				}
++
++				auto lpRect = reinterpret_cast<LPRECT>(lParam);
++				::InflateRect(lpRect, -(pBorderMetricsData->_xEdge), -(pBorderMetricsData->_yEdge));
++
++				auto style = ::GetWindowLongPtr(hWnd, GWL_STYLE);
++				bool hasVerScrollbar = (style & WS_VSCROLL) == WS_VSCROLL;
++				if (hasVerScrollbar)
++				{
++					lpRect->right -= pBorderMetricsData->_xScroll;
++				}
++
++				bool hasHorScrollbar = (style & WS_HSCROLL) == WS_HSCROLL;
++				if (hasHorScrollbar)
++				{
++					lpRect->bottom -= pBorderMetricsData->_yScroll;
++				}
++
++				return 0;
++			}
++			break;
++
++			case WM_DPICHANGED:
++			{
++				::SetWindowPos(hWnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
++				return 0;
++			}
++
++			case WM_MOUSEMOVE:
++			{
++				if (!DarkMode::isEnabled())
++				{
++					break;
++				}
++
++				if (::GetFocus() == hWnd)
++				{
++					break;
++				}
++
++				TRACKMOUSEEVENT tme{};
++				tme.cbSize = sizeof(TRACKMOUSEEVENT);
++				tme.dwFlags = TME_LEAVE;
++				tme.hwndTrack = hWnd;
++				tme.dwHoverTime = HOVER_DEFAULT;
++				::TrackMouseEvent(&tme);
++
++				if (!isHotStatic)
++				{
++					isHotStatic = true;
++					::SetWindowPos(hWnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
++				}
++			}
++			break;
++
++			case WM_MOUSELEAVE:
++			{
++				if (!DarkMode::isEnabled())
++				{
++					break;
++				}
++
++				if (isHotStatic)
++				{
++					isHotStatic = false;
++					::SetWindowPos(hWnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
++				}
++
++				TRACKMOUSEEVENT tme{};
++				tme.cbSize = sizeof(TRACKMOUSEEVENT);
++				tme.dwFlags = TME_LEAVE | TME_CANCEL;
++				tme.hwndTrack = hWnd;
++				tme.dwHoverTime = HOVER_DEFAULT;
++				::TrackMouseEvent(&tme);
++			}
++			break;
++
++			case WM_NCDESTROY:
++			{
++				::RemoveWindowSubclass(hWnd, CustomBorderSubclass, uIdSubclass);
++				delete pBorderMetricsData;
++			}
++			break;
++		}
++		return ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
++	}
++
++	static void subclassCustomBorderForListBoxAndEditControls(HWND hWnd)
++	{
++		if (::GetWindowSubclass(hWnd, CustomBorderSubclass, g_customBorderSubclassID, nullptr) == FALSE)
++		{
++			auto pBorderMetricsData = reinterpret_cast<DWORD_PTR>(new BorderMetricsData());
++			::SetWindowSubclass(hWnd, CustomBorderSubclass, g_customBorderSubclassID, pBorderMetricsData);
++		}
++	}
++
++	struct ComboboxData
++	{
++		HTHEME hTheme = nullptr;
++
++		ComboboxData() = default;
++
++		~ComboboxData()
++		{
++			closeTheme();
++		}
++
++		bool ensureTheme(HWND hWnd)
++		{
++			if (!hTheme)
++			{
++				hTheme = ::OpenThemeData(hWnd, VSCLASS_COMBOBOX);
++			}
++			return hTheme != nullptr;
++		}
++
++		void closeTheme()
++		{
++			if (hTheme)
++			{
++				::CloseThemeData(hTheme);
++				hTheme = nullptr;
++			}
++		}
++	};
++
++	void paintCombobox(HWND hWnd, HDC hdc, ComboboxData* pComboboxData)
++	{
++		COMBOBOXINFO cbi{};
++		cbi.cbSize = sizeof(COMBOBOXINFO);
++		::GetComboBoxInfo(hWnd, &cbi);
++
++		RECT rc{};
++		::GetClientRect(hWnd, &rc);
++
++		POINT ptCursor{};
++		::GetCursorPos(&ptCursor);
++		::ScreenToClient(hWnd, &ptCursor);
++
++		const bool isDisabled = ::IsWindowEnabled(hWnd) != TRUE;
++		const bool isHot = ::PtInRect(&rc, ptCursor) == TRUE && !isDisabled;
++		
++		bool hasFocus = false;
++
++		::SelectObject(hdc, reinterpret_cast<HFONT>(::SendMessage(hWnd, WM_GETFONT, 0, 0)));
++		::SetBkMode(hdc, TRANSPARENT);
++
++		auto holdBrush = ::SelectObject(hdc, DarkMode::getDarkerBackgroundBrush());
++
++		RECT rcArrow{ cbi.rcButton };
++		rcArrow.left -= 1;
++
++		// CBS_DROPDOWN text is handled by parent by WM_CTLCOLOREDIT
++		const auto cbStyle = ::GetWindowLongPtr(hWnd, GWL_STYLE) & CBS_DROPDOWNLIST;
++		if (cbStyle == CBS_DROPDOWNLIST)
++		{
++			::FillRect(hdc, &rc, isHot ? DarkMode::getHotBackgroundBrush() : DarkMode::getSofterBackgroundBrush()); // erase background on item change
++
++			auto index = static_cast<int>(::SendMessage(hWnd, CB_GETCURSEL, 0, 0));
++			if (index != CB_ERR)
++			{
++				auto bufferLen = static_cast<size_t>(::SendMessage(hWnd, CB_GETLBTEXTLEN, index, 0));
++				wchar_t* buffer = new wchar_t[(bufferLen + 1)];
++				::SendMessage(hWnd, CB_GETLBTEXT, index, reinterpret_cast<LPARAM>(buffer));
++
++				RECT rcText{ cbi.rcItem.left + 2, cbi.rcItem.top, cbi.rcItem.right - 2, cbi.rcItem.bottom };
++
++				constexpr DWORD dtFlags = DT_NOPREFIX | DT_LEFT | DT_VCENTER | DT_SINGLELINE;
++				if (pComboboxData->ensureTheme(hWnd))
++				{
++					DTTOPTS dtto{};
++					dtto.dwSize = sizeof(DTTOPTS);
++					dtto.dwFlags = DTT_TEXTCOLOR;
++					dtto.crText = isDisabled ? DarkMode::getDisabledTextColor() : DarkMode::getTextColor();
++
++					::DrawThemeTextEx(pComboboxData->hTheme, hdc, CP_DROPDOWNITEM, isDisabled ? CBXSR_DISABLED : CBXSR_NORMAL, buffer, -1, dtFlags, &rcText, &dtto);
++				}
++				else
++				{
++					::SetTextColor(hdc, isDisabled ? DarkMode::getDisabledTextColor() : DarkMode::getTextColor());
++					::DrawText(hdc, buffer, -1, &rcText, dtFlags);
++				}
++				delete[] buffer;
++			}
++
++			hasFocus = ::GetFocus() == hWnd;
++			if (!isDisabled && hasFocus && ::SendMessage(hWnd, CB_GETDROPPEDSTATE, 0, 0) == FALSE)
++			{
++				::DrawFocusRect(hdc, &cbi.rcItem);
++			}
++		}
++		else if (cbStyle == CBS_DROPDOWN && cbi.hwndItem != nullptr)
++		{
++			hasFocus = ::GetFocus() == cbi.hwndItem;
++
++			::FillRect(hdc, &rcArrow, isHot ? DarkMode::getHotBackgroundBrush() : DarkMode::getSofterBackgroundBrush());
++		}
++
++		const auto hSelectedPen = isDisabled ? DarkMode::getDisabledEdgePen() : ((isHot || hasFocus) ? DarkMode::getHotEdgePen() : DarkMode::getEdgePen());
++		auto holdPen = static_cast<HPEN>(::SelectObject(hdc, hSelectedPen));
++
++		if (cbStyle != CBS_SIMPLE)
++		{
++			if (pComboboxData->ensureTheme(hWnd))
++			{
++				RECT rcThemedArrow { rcArrow.left, rcArrow.top - 1, rcArrow.right, rcArrow.bottom - 1 };
++				::DrawThemeBackground(pComboboxData->hTheme, hdc, CP_DROPDOWNBUTTONRIGHT, isDisabled ? CBXSR_DISABLED : CBXSR_NORMAL, &rcThemedArrow, nullptr);
++			}
++			else
++			{
++				const auto clrText = isDisabled ? DarkMode::getDisabledTextColor() : (isHot ? DarkMode::getTextColor() : DarkMode::getDarkerTextColor());
++				::SetTextColor(hdc, clrText);
++				wchar_t arrow[] = L"˅";
++				::DrawText(hdc, arrow, -1, &rcArrow, DT_NOPREFIX | DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOCLIP);
++			}
++		}
++
++		if (cbStyle == CBS_DROPDOWNLIST)
++		{
++			::ExcludeClipRect(hdc, rc.left + 1, rc.top + 1, rc.right - 1, rc.bottom - 1);
++		}
++		else if (cbStyle == CBS_DROPDOWN)
++		{
++			POINT edge[] = {
++				{rcArrow.left - 1, rcArrow.top},
++				{rcArrow.left - 1, rcArrow.bottom}
++			};
++
++			::Polyline(hdc, edge, _countof(edge));
++
++			::ExcludeClipRect(hdc, cbi.rcItem.left, cbi.rcItem.top, cbi.rcItem.right, cbi.rcItem.bottom);
++			::ExcludeClipRect(hdc, rcArrow.left - 1, rcArrow.top, rcArrow.right, rcArrow.bottom);
++		}
++
++		//const int roundCornerValue = DarkMode::isWindows11() ? 4 : 0;
++
++		::RoundRect(hdc, rc.left, rc.top, rc.right, rc.bottom, 0, 0);
++
++		::SelectObject(hdc, holdPen);
++		::SelectObject(hdc, holdBrush);
++	}
++
++	constexpr UINT_PTR g_comboBoxSubclassID = 42;
++
++	static LRESULT CALLBACK ComboBoxSubclass(
++		HWND hWnd,
++		UINT uMsg,
++		WPARAM wParam,
++		LPARAM lParam,
++		UINT_PTR uIdSubclass,
++		DWORD_PTR dwRefData
++	)
++	{
++		auto pComboboxData = reinterpret_cast<ComboboxData*>(dwRefData);
++
++		switch (uMsg)
++		{
++			case WM_ERASEBKGND:
++			{
++				if (!DarkMode::isEnabled())
++				{
++					break;
++				}
++
++				return TRUE;
++			}
++
++			case WM_PAINT:
++			{
++				if (!DarkMode::isEnabled())
++				{
++					break;
++				}
++
++				PAINTSTRUCT ps{};
++				auto hdc = ::BeginPaint(hWnd, &ps);
++
++				RECT rc{};
++				::GetClientRect(hWnd, &rc);
++
++				HDC hMemoryDC = ::CreateCompatibleDC(hdc);
++				HBITMAP hBitmap = ::CreateCompatibleBitmap(hdc, rc.right, rc.bottom);
++				auto holdBitmap = static_cast<HBITMAP>(::SelectObject(hMemoryDC, hBitmap));
++
++				int savedState = ::SaveDC(hMemoryDC);
++
++				DarkMode::paintCombobox(hWnd, hMemoryDC, pComboboxData);
++
++				::RestoreDC(hMemoryDC, savedState);
++
++				::BitBlt(
++					hdc, ps.rcPaint.left, ps.rcPaint.top, ps.rcPaint.right - ps.rcPaint.left, ps.rcPaint.bottom - ps.rcPaint.top,
++					hMemoryDC, ps.rcPaint.left, ps.rcPaint.top,
++					SRCCOPY
++				);
++
++				::DeleteObject(::SelectObject(hMemoryDC, holdBitmap));
++				::DeleteDC(hMemoryDC);
++
++				::EndPaint(hWnd, &ps);
++				return 0;
++			}
++
++			case WM_DPICHANGED:
++			{
++				pComboboxData->closeTheme();
++				return 0;
++			}
++
++			case WM_THEMECHANGED:
++			{
++				pComboboxData->closeTheme();
++				break;
++			}
++
++			case WM_NCDESTROY:
++			{
++				::RemoveWindowSubclass(hWnd, ComboBoxSubclass, uIdSubclass);
++				delete pComboboxData;
++				break;
++			}
++		}
++		return ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
++	}
++
++	void subclassComboBoxControl(HWND hWnd)
++	{
++		if (::GetWindowSubclass(hWnd, ComboBoxSubclass, g_comboBoxSubclassID, nullptr) == FALSE)
++		{
++			auto pComboboxData = reinterpret_cast<DWORD_PTR>(new ComboboxData());
++			::SetWindowSubclass(hWnd, ComboBoxSubclass, g_comboBoxSubclassID, pComboboxData);
++		}
++	}
++
++	constexpr UINT_PTR g_comboboxExSubclassID = 42;
++
++	static LRESULT CALLBACK ComboboxExSubclass(
++		HWND hWnd,
++		UINT uMsg,
++		WPARAM wParam,
++		LPARAM lParam,
++		UINT_PTR uIdSubclass,
++		DWORD_PTR /*dwRefData*/
++	)
++	{
++		switch (uMsg)
++		{
++			case WM_NCDESTROY:
++			{
++				::RemoveWindowSubclass(hWnd, ComboboxExSubclass, uIdSubclass);
++				DarkMode::unhookSysColor();
++				break;
++			}
++
++			case WM_COMMAND:
++			{
++				// ComboboxEx has only one child combobox, so only control-defined notification code is checked.
++				// Hooking is done only when listbox is about to show. And unhook when listbox is closed.
++				// This process is used to avoid visual glitches in other GUI.
++				switch (HIWORD(wParam))
++				{
++					case CBN_DROPDOWN:
++					{
++						DarkMode::hookSysColor();
++						break;
++					}
++
++					case CBN_CLOSEUP:
++					{
++						DarkMode::unhookSysColor();
++						break;
++					}
++
++					default:
++						break;
++				}
++				break;
++			}
++		}
++		return ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
++	}
++
++	static void subclassComboboxEx(HWND hWnd)
++	{
++		if (::GetWindowSubclass(hWnd, ComboboxExSubclass, g_comboboxExSubclassID, nullptr) == FALSE)
++		{
++			::SetWindowSubclass(hWnd, ComboboxExSubclass, g_comboboxExSubclassID, 0);
++		}
++	}
++
++	void subclassComboboxEx(HWND hWnd, DarkModeParams p)
++	{
++		if (p._subclass)
++		{
++			subclassComboboxEx(hWnd);
++		}
++	}
++
++	constexpr UINT_PTR g_listViewSubclassID = 42;
++
++	static LRESULT CALLBACK ListViewSubclass(
++		HWND hWnd,
++		UINT uMsg,
++		WPARAM wParam,
++		LPARAM lParam,
++		UINT_PTR uIdSubclass,
++		DWORD_PTR /*dwRefData*/
++	)
++	{
++		switch (uMsg)
++		{
++			case WM_PAINT:
++			{
++				const auto lvStyle = ::GetWindowLongPtr(hWnd, GWL_STYLE) & LVS_TYPEMASK;
++				const bool isReport = (lvStyle == LVS_REPORT);
++				bool hasGridlines = false;
++				if (isReport)
++				{
++					const auto lvExStyle = ListView_GetExtendedListViewStyle(hWnd);
++					hasGridlines = (lvExStyle & LVS_EX_GRIDLINES) == LVS_EX_GRIDLINES;
++				}
++
++				if (hasGridlines)
++				{
++					DarkMode::hookSysColor();
++					LRESULT lr = ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
++					DarkMode::unhookSysColor();
++					return lr;
++				}
++				break;
++			}
++
++			case WM_NCDESTROY:
++			{
++				DarkMode::unhookSysColor();
++				::RemoveWindowSubclass(hWnd, ListViewSubclass, uIdSubclass);
++				break;
++			}
++
++			case WM_NOTIFY:
++			{
++				switch (reinterpret_cast<LPNMHDR>(lParam)->code)
++				{
++					case NM_CUSTOMDRAW:
++					{
++						auto lpnmcd = reinterpret_cast<LPNMCUSTOMDRAW>(lParam);
++						switch (lpnmcd->dwDrawStage)
++						{
++							case CDDS_PREPAINT:
++							{
++								if (DarkMode::isExperimentalActive())
++								{
++									return CDRF_NOTIFYITEMDRAW;
++								}
++								return CDRF_DODEFAULT;
++							}
++
++							case CDDS_ITEMPREPAINT:
++							{
++								::SetTextColor(lpnmcd->hdc, DarkMode::getDarkerTextColor());
++
++								return CDRF_NEWFONT;
++							}
++
++							default:
++								return CDRF_DODEFAULT;
++						}
++					}
++					break;
++				}
++				break;
++			}
++			break;
++		}
++		return ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
++	}
++
++	static void subclassListViewControl(HWND hWnd)
++	{
++		if (::GetWindowSubclass(hWnd, ListViewSubclass, g_listViewSubclassID, nullptr) == FALSE)
++		{
++			::SetWindowSubclass(hWnd, ListViewSubclass, g_listViewSubclassID, 0);
++		}
++	}
++
++	struct UpDownData
++	{
++		HTHEME hTheme = nullptr;
++		bool isHorizontal = false;
++		RECT rcClient{};
++		RECT rcPrev{};
++		RECT rcNext{};
++		bool wasHotNext = false;
++
++		UpDownData() = default;
++
++		UpDownData(HWND hWnd)
++		{
++			const auto style = ::GetWindowLongPtr(hWnd, GWL_STYLE);
++			isHorizontal = ((style & UDS_HORZ) == UDS_HORZ);
++
++			updateRect(hWnd);
++		}
++
++		~UpDownData()
++		{
++			closeTheme();
++		}
++
++		bool ensureTheme(HWND hWnd)
++		{
++			if (!hTheme)
++			{
++				hTheme = ::OpenThemeData(hWnd, VSCLASS_BUTTON);
++			}
++			return hTheme != nullptr;
++		}
++
++		void closeTheme()
++		{
++			if (hTheme)
++			{
++				::CloseThemeData(hTheme);
++				hTheme = nullptr;
++			}
++		}
++
++		void updateRect(HWND hWnd)
++		{
++			::GetClientRect(hWnd, &rcClient);
++
++			if (isHorizontal)
++			{
++				RECT rcArrowLeft{
++					rcClient.left, rcClient.top,
++					rcClient.right - ((rcClient.right - rcClient.left) / 2), rcClient.bottom
++				};
++
++				RECT rcArrowRight{
++					rcArrowLeft.right, rcClient.top,
++					rcClient.right, rcClient.bottom
++				};
++
++				rcPrev = rcArrowLeft;
++				rcNext = rcArrowRight;
++			}
++			else
++			{
++				rcClient.left += 2;
++
++				RECT rcArrowTop{
++					rcClient.left, rcClient.top,
++					rcClient.right, rcClient.bottom - ((rcClient.bottom - rcClient.top) / 2)
++				};
++
++				RECT rcArrowBottom{
++					rcClient.left, rcArrowTop.bottom,
++					rcClient.right, rcClient.bottom
++				};
++
++				rcPrev = rcArrowTop;
++				rcNext = rcArrowBottom;
++			}
++		}
++	};
++
++	constexpr UINT_PTR g_upDownSubclassID = 42;
++
++	static LRESULT CALLBACK UpDownSubclass(
++		HWND hWnd,
++		UINT uMsg,
++		WPARAM wParam,
++		LPARAM lParam,
++		UINT_PTR uIdSubclass,
++		DWORD_PTR dwRefData
++	)
++	{
++		auto pUpDownData = reinterpret_cast<UpDownData*>(dwRefData);
++
++		switch (uMsg)
++		{
++			case WM_PRINTCLIENT:
++			case WM_PAINT:
++			{
++				if (!DarkMode::isEnabled())
++				{
++					break;
++				}
++
++				const auto style = ::GetWindowLongPtr(hWnd, GWL_STYLE);
++				const bool isDisabled = ((style & WS_DISABLED) == WS_DISABLED);
++
++				const bool hasTheme = pUpDownData->ensureTheme(hWnd) && pUpDownData->isHorizontal;
++
++				PAINTSTRUCT ps{};
++				auto hdc = ::BeginPaint(hWnd, &ps);
++
++				::FillRect(hdc, &pUpDownData->rcClient, DarkMode::getDarkerBackgroundBrush());
++				::SetBkMode(hdc, TRANSPARENT);
++
++				POINT ptCursor{};
++				::GetCursorPos(&ptCursor);
++				::ScreenToClient(hWnd, &ptCursor);
++
++				const bool isHotPrev = ::PtInRect(&pUpDownData->rcPrev, ptCursor);
++				const bool isHotNext = ::PtInRect(&pUpDownData->rcNext, ptCursor);
++
++				pUpDownData->wasHotNext = isHotNext;
++
++				if (hasTheme)
++				{
++					auto stateID = isDisabled ? PBS_DISABLED : PBS_NORMAL;
++					::DrawThemeBackground(pUpDownData->hTheme, hdc, BP_PUSHBUTTON, isHotPrev ? PBS_HOT : stateID, &pUpDownData->rcPrev, nullptr);
++					::DrawThemeBackground(pUpDownData->hTheme, hdc, BP_PUSHBUTTON, isHotNext ? PBS_HOT : stateID, &pUpDownData->rcNext, nullptr);
++				}
++				else
++				{
++					HBRUSH hBrush = isDisabled ? DarkMode::getDarkerBackgroundBrush() : DarkMode::getBackgroundBrush();
++					::FillRect(hdc, &pUpDownData->rcPrev, isHotPrev ? DarkMode::getHotBackgroundBrush() : hBrush);
++					::FillRect(hdc, &pUpDownData->rcNext, isHotNext ? DarkMode::getHotBackgroundBrush() : hBrush);
++				}
++
++				constexpr auto arrowTextFlags = DT_NOPREFIX | DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOCLIP;
++				COLORREF clrText = isDisabled ? DarkMode::getDisabledTextColor() : DarkMode::getDarkerTextColor();
++
++				::SetTextColor(hdc, isHotPrev ? DarkMode::getTextColor() : clrText);
++				::DrawText(hdc, pUpDownData->isHorizontal ? L"<" : L"˄", -1, &pUpDownData->rcPrev, arrowTextFlags);
++
++				::SetTextColor(hdc, isHotNext ? DarkMode::getTextColor() : clrText);
++				::DrawText(hdc, pUpDownData->isHorizontal ? L">" : L"˅", -1, &pUpDownData->rcNext, arrowTextFlags);
++
++				if (!hasTheme)
++				{
++					HPEN hPen = isDisabled ? DarkMode::getDisabledEdgePen() : DarkMode::getEdgePen();
++					DarkMode::paintRoundFrameRect(hdc, pUpDownData->rcPrev, hPen);
++					DarkMode::paintRoundFrameRect(hdc, pUpDownData->rcNext, hPen);
++				}
++
++				::EndPaint(hWnd, &ps);
++				return FALSE;
++			}
++
++			case WM_DPICHANGED:
++			{
++				pUpDownData->closeTheme();
++				pUpDownData->updateRect(hWnd);
++				return 0;
++			}
++
++			case WM_THEMECHANGED:
++			{
++				pUpDownData->closeTheme();
++				break;
++			}
++
++			case WM_MOUSEMOVE:
++			{
++				if (!DarkMode::isEnabled())
++				{
++					break;
++				}
++
++				POINT ptCursor{};
++				::GetCursorPos(&ptCursor);
++				::ScreenToClient(hWnd, &ptCursor);
++
++				const bool isHotPrev = ::PtInRect(&pUpDownData->rcPrev, ptCursor);
++
++				if ((isHotPrev && pUpDownData->wasHotNext))
++				{
++					pUpDownData->wasHotNext = false;
++					::RedrawWindow(hWnd, &pUpDownData->rcNext, nullptr, RDW_INVALIDATE);
++				}
++
++				break;
++			}
++
++			case WM_MOUSELEAVE:
++			{
++				if (!DarkMode::isEnabled())
++				{
++					break;
++				}
++
++				pUpDownData->wasHotNext = false;
++				::RedrawWindow(hWnd, nullptr, nullptr, RDW_INVALIDATE);
++
++				break;
++			}
++
++			case WM_NCDESTROY:
++			{
++				::RemoveWindowSubclass(hWnd, UpDownSubclass, uIdSubclass);
++				delete pUpDownData;
++				break;
++			}
++
++			case WM_ERASEBKGND:
++			{
++				if (DarkMode::isEnabled())
++				{
++					return TRUE;
++				}
++				break;
++			}
++		}
++		return ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
++	}
++
++	static void subclassAndThemeUpDownControl(HWND hWnd, DarkModeParams p)
++	{
++		if (p._subclass && ::GetWindowSubclass(hWnd, UpDownSubclass, g_upDownSubclassID, nullptr) == FALSE)
++		{
++			auto pUpDownData = reinterpret_cast<DWORD_PTR>(new UpDownData(hWnd));
++			::SetWindowSubclass(hWnd, UpDownSubclass, g_upDownSubclassID, pUpDownData);
++		}
++
++		if (p._theme)
++		{
++			::SetWindowTheme(hWnd, p._themeClassName, nullptr);
++		}
++	}
++
++	bool subclassTabUpDownControl(HWND hWnd)
++	{
++		if (::GetWindowSubclass(hWnd, UpDownSubclass, g_upDownSubclassID, nullptr) == FALSE)
++		{
++			if (cmpWndClassName(hWnd, UPDOWN_CLASS))
++			{
++				auto pUpDownData = reinterpret_cast<DWORD_PTR>(new UpDownData(hWnd));
++				::SetWindowSubclass(hWnd, UpDownSubclass, g_upDownSubclassID, pUpDownData);
++				DarkMode::setDarkExplorerTheme(hWnd);
++				return true;
++			}
++		}
++		return false;
++	}
++
++	struct StatusBarSubclassInfo
++	{
++		HTHEME hTheme = nullptr;
++		HFONT _hFont = nullptr;
++
++		StatusBarSubclassInfo() = default;
++		StatusBarSubclassInfo(const HFONT& hFont)
++			: _hFont(hFont) {}
++
++		~StatusBarSubclassInfo()
++		{
++			closeTheme();
++			destroyFont();
++		}
++
++		bool ensureTheme(HWND hWnd)
++		{
++			if (!hTheme)
++			{
++				hTheme = ::OpenThemeData(hWnd, VSCLASS_STATUS);
++			}
++			return hTheme != nullptr;
++		}
++
++		void closeTheme()
++		{
++			if (hTheme)
++			{
++				CloseThemeData(hTheme);
++				hTheme = nullptr;
++			}
++		}
++
++		void setFont(const HFONT& hFont)
++		{
++			destroyFont();
++			_hFont = hFont;
++		}
++
++		void destroyFont()
++		{
++			if (_hFont != nullptr)
++			{
++				::DeleteObject(_hFont);
++				_hFont = nullptr;
++			}
++		}
++	};
++
++	constexpr UINT_PTR g_statusBarSubclassID = 42;
++
++	static LRESULT CALLBACK StatusBarSubclass(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData)
++	{
++		StatusBarSubclassInfo* pStatusBarInfo = reinterpret_cast<StatusBarSubclassInfo*>(dwRefData);
++
++		switch (uMsg)
++		{
++			case WM_ERASEBKGND:
++			{
++				if (!DarkMode::isEnabled())
++				{
++					break;
++				}
++
++				RECT rc{};
++				::GetClientRect(hWnd, &rc);
++				::FillRect(reinterpret_cast<HDC>(wParam), &rc, DarkMode::getBackgroundBrush());
++				return TRUE;
++			}
++
++			case WM_PAINT:
++			{
++				if (!DarkMode::isEnabled())
++				{
++					break;
++				}
++
++				struct {
++					int horizontal = 0;
++					int vertical = 0;
++					int between = 0;
++				} borders{};
++
++				SendMessage(hWnd, SB_GETBORDERS, 0, (LPARAM)&borders);
++
++				const auto style = ::GetWindowLongPtr(hWnd, GWL_STYLE);
++				bool isSizeGrip = style & SBARS_SIZEGRIP;
++
++				PAINTSTRUCT ps{};
++				HDC hdc = ::BeginPaint(hWnd, &ps);
++
++				auto holdPen = static_cast<HPEN>(::SelectObject(hdc, DarkMode::getEdgePen()));
++
++				auto holdFont = static_cast<HFONT>(::SelectObject(hdc, pStatusBarInfo->_hFont));
++
++				RECT rcClient{};
++				::GetClientRect(hWnd, &rcClient);
++
++				::FillRect(hdc, &ps.rcPaint, DarkMode::getBackgroundBrush());
++
++				int nParts = static_cast<int>(SendMessage(hWnd, SB_GETPARTS, 0, 0));
++				std::wstring str;
++				for (int i = 0; i < nParts; ++i)
++				{
++					RECT rcPart{};
++					SendMessage(hWnd, SB_GETRECT, i, reinterpret_cast<LPARAM>(&rcPart));
++					RECT rcIntersect{};
++					if (::IntersectRect(&rcIntersect, &rcPart, &ps.rcPaint) == 0)
++					{
++						continue;
++					}
++
++					if (nParts > 2) //to not apply on status bar in find dialog
++					{
++						POINT edges[]{
++							{rcPart.right - 2, rcPart.top + 1},
++							{rcPart.right - 2, rcPart.bottom - 3}
++						};
++						::Polyline(hdc, edges, _countof(edges));
++					}
++
++					RECT rcDivider = { rcPart.right - borders.vertical, rcPart.top, rcPart.right, rcPart.bottom };
++
++					DWORD cchText = 0;
++					cchText = LOWORD(SendMessage(hWnd, SB_GETTEXTLENGTH, i, 0));
++					str.resize(cchText + 1); // technically the std::wstring might not have an internal null character at the end of the buffer, so add one
++					LRESULT lr = SendMessage(hWnd, SB_GETTEXT, i, reinterpret_cast<LPARAM>(&str[0]));
++					str.resize(cchText); // remove the extra NULL character
++					bool ownerDraw = false;
++					if (cchText == 0 && (lr & ~(SBT_NOBORDERS | SBT_POPOUT | SBT_RTLREADING)) != 0)
++					{
++						// this is a pointer to the text
++						ownerDraw = true;
++					}
++					::SetBkMode(hdc, TRANSPARENT);
++					::SetTextColor(hdc, DarkMode::getTextColor());
++
++					rcPart.left += borders.between;
++					rcPart.right -= borders.vertical;
++
++					if (ownerDraw)
++					{
++						UINT id = ::GetDlgCtrlID(hWnd);
++						DRAWITEMSTRUCT dis{
++							0
++							, 0
++							, static_cast<UINT>(i)
++							, ODA_DRAWENTIRE
++							, id
++							, hWnd
++							, hdc
++							, rcPart
++							, static_cast<ULONG_PTR>(lr)
++						};
++
++						SendMessage(::GetParent(hWnd), WM_DRAWITEM, id, reinterpret_cast<LPARAM>(&dis));
++					}
++					else
++					{
++						DrawText(hdc, str.data(), static_cast<int>(str.size()), &rcPart, DT_SINGLELINE | DT_VCENTER | DT_LEFT);
++					}
++
++					if (!isSizeGrip && i < (nParts - 1))
++					{
++						::FillRect(hdc, &rcDivider, DarkMode::getEdgeBrush());
++					}
++				}
++
++				if (isSizeGrip)
++				{
++					pStatusBarInfo->ensureTheme(hWnd);
++					SIZE gripSize{};
++					::GetThemePartSize(pStatusBarInfo->hTheme, hdc, SP_GRIPPER, 0, &rcClient, TS_DRAW, &gripSize);
++					RECT rc = rcClient;
++					rc.left = rc.right - gripSize.cx;
++					rc.top = rc.bottom - gripSize.cy;
++					::DrawThemeBackground(pStatusBarInfo->hTheme, hdc, SP_GRIPPER, 0, &rc, nullptr);
++				}
++
++				::SelectObject(hdc, holdFont);
++				::SelectObject(hdc, holdPen);
++
++				::EndPaint(hWnd, &ps);
++				return 0;
++			}
++
++			case WM_NCDESTROY:
++			{
++				::RemoveWindowSubclass(hWnd, StatusBarSubclass, uIdSubclass);
++				delete pStatusBarInfo;
++				break;
++			}
++
++			case WM_DPICHANGED:
++			case WM_THEMECHANGED:
++			{
++				pStatusBarInfo->closeTheme();
++
++				LOGFONT lf{};
++				NONCLIENTMETRICS ncm{};
++				ncm.cbSize = sizeof(NONCLIENTMETRICS);
++				if (::SystemParametersInfo(SPI_GETNONCLIENTMETRICS, sizeof(NONCLIENTMETRICS), &ncm, 0) != FALSE)
++				{
++					lf = ncm.lfStatusFont;
++					pStatusBarInfo->setFont(::CreateFontIndirect(&lf));
++				}
++
++				if (uMsg != WM_THEMECHANGED)
++				{
++					return 0;
++				}
++				break;
++			}
++		}
++		return ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
++	}
++
++	void subclassStatusBar(HWND hWnd)
++	{
++		if (::GetWindowSubclass(hWnd, StatusBarSubclass, g_statusBarSubclassID, nullptr) == FALSE)
++		{
++			LOGFONT lf{};
++			NONCLIENTMETRICS ncm{};
++			ncm.cbSize = sizeof(NONCLIENTMETRICS);
++			if (::SystemParametersInfo(SPI_GETNONCLIENTMETRICS, sizeof(NONCLIENTMETRICS), &ncm, 0) != FALSE)
++			{
++				lf = ncm.lfStatusFont;
++			}
++			auto pStatusBarInfo = reinterpret_cast<DWORD_PTR>(new StatusBarSubclassInfo(::CreateFontIndirect(&lf)));
++			::SetWindowSubclass(hWnd, StatusBarSubclass, g_statusBarSubclassID, pStatusBarInfo);
++		}
++	}
++
++	void subclassStatusBar(HWND hWnd, DarkModeParams p)
++	{
++		if (p._subclass)
++		{
++			DarkMode::subclassStatusBar(hWnd);
++		}
++	}
++
++	struct StaticTextSubclassInfo
++	{
++		bool isEnabled = true;
++
++		StaticTextSubclassInfo() = default;
++		StaticTextSubclassInfo(HWND hWnd)
++		{
++			auto style = ::GetWindowLongPtr(hWnd, GWL_STYLE);
++			isEnabled = (style & WS_DISABLED) != WS_DISABLED;
++		}
++
++		~StaticTextSubclassInfo() = default;
++	};
++
++	constexpr UINT_PTR g_staticTextSubclassID = 42;
++
++	static LRESULT CALLBACK StaticTextSubclass(
++		HWND hWnd,
++		UINT uMsg,
++		WPARAM wParam,
++		LPARAM lParam,
++		UINT_PTR uIdSubclass,
++		DWORD_PTR dwRefData
++	)
++	{
++		auto pStaticTextInfo = reinterpret_cast<StaticTextSubclassInfo*>(dwRefData);
++
++		switch (uMsg)
++		{
++			case WM_NCDESTROY:
++			{
++				::RemoveWindowSubclass(hWnd, StaticTextSubclass, uIdSubclass);
++				delete pStaticTextInfo;
++				break;
++			}
++
++			case WM_ENABLE:
++			{
++				pStaticTextInfo->isEnabled = (wParam == TRUE);
++
++				const auto style = ::GetWindowLongPtr(hWnd, GWL_STYLE);
++				if (!pStaticTextInfo->isEnabled)
++					::SetWindowLongPtr(hWnd, GWL_STYLE, style & ~WS_DISABLED);
++
++				RECT rcClient{};
++				::GetClientRect(hWnd, &rcClient);
++				::MapWindowPoints(hWnd, ::GetParent(hWnd), reinterpret_cast<LPPOINT>(&rcClient), 2);
++				::RedrawWindow(::GetParent(hWnd), &rcClient, nullptr, RDW_INVALIDATE | RDW_UPDATENOW);
++				
++				if (!pStaticTextInfo->isEnabled)
++					::SetWindowLongPtr(hWnd, GWL_STYLE, style | WS_DISABLED);
++
++				return 0;
++			}
++		}
++		return ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
++	}
++
++	void subclassStaticText(HWND hWnd)
++	{
++		if (::GetWindowSubclass(hWnd, StaticTextSubclass, g_staticTextSubclassID, nullptr) == FALSE)
++		{
++			auto pStaticTextInfo = reinterpret_cast<DWORD_PTR>(new StaticTextSubclassInfo(hWnd));
++			::SetWindowSubclass(hWnd, StaticTextSubclass, g_staticTextSubclassID, pStaticTextInfo);
++		}
++	}
++
++	void subclassStaticText(HWND hWnd, DarkModeParams p)
++	{
++		if (p._subclass)
++		{
++			DarkMode::subclassStaticText(hWnd);
++		}
++	}
++
++	void autoSubclassAndThemeChildControls(HWND hwndParent, bool subclass, bool theme)
++	{
++		DarkModeParams p{
++			DarkMode::isExperimentalActive() ? L"DarkMode_Explorer" : nullptr
++			, subclass
++			, theme
++		};
++
++		::EnableThemeDialogTexture(hwndParent, theme && !DarkMode::isEnabled() ? ETDT_ENABLETAB : ETDT_DISABLE);
++
++		::EnumChildWindows(hwndParent, [](HWND hWnd, LPARAM lParam) WINAPI_LAMBDA {
++			const auto& p = *reinterpret_cast<DarkModeParams*>(lParam);
++			std::wstring className = getWndClassName(hWnd);
++
++			if (className == WC_BUTTON)
++			{
++				DarkMode::subclassAndThemeButton(hWnd, p);
++				return TRUE;
++			}
++
++			if (className == WC_STATIC)
++			{
++				DarkMode::subclassStaticText(hWnd, p);
++				return TRUE;
++			}
++
++			if (className == WC_COMBOBOX)
++			{
++				DarkMode::subclassAndThemeComboBox(hWnd, p);
++				return TRUE;
++			}
++
++			if (className == WC_EDIT)
++			{
++				DarkMode::subclassAndThemeListBoxOrEditControl(hWnd, p, false);
++				return TRUE;
++			}
++
++			if (className == WC_LISTBOX)
++			{
++				DarkMode::subclassAndThemeListBoxOrEditControl(hWnd, p, true);
++				return TRUE;
++			}
++
++			if (className == WC_LISTVIEW)
++			{
++				DarkMode::subclassAndThemeListView(hWnd, p);
++				return TRUE;
++			}
++
++			if (className == WC_TREEVIEW)
++			{
++				DarkMode::themeTreeView(hWnd, p);
++				return TRUE;
++			}
++
++			if (className == TOOLBARCLASSNAME)
++			{
++				DarkMode::themeToolbar(hWnd, p);
++				return TRUE;
++			}
++
++			// For plugins
++			if (className == UPDOWN_CLASS)
++			{
++				DarkMode::subclassAndThemeUpDownControl(hWnd, p);
++				return TRUE;
++			}
++
++			if (className == WC_TABCONTROL)
++			{
++				DarkMode::subclassTabControl(hWnd, p);
++				return TRUE;
++			}
++
++			if (className == STATUSCLASSNAME)
++			{
++				DarkMode::subclassStatusBar(hWnd, p);
++				return TRUE;
++			}
++
++			if (className == WC_SCROLLBAR)
++			{
++				if (p._theme)
++				{
++					DarkMode::setDarkScrollBar(hWnd);
++				}
++				return TRUE;
++			}
++
++			if (className == WC_COMBOBOXEX)
++			{
++				DarkMode::subclassComboboxEx(hWnd, p);
++				return TRUE;
++			}
++
++			if (className == PROGRESS_CLASS)
++			{
++				DarkMode::themeProgressBar(hWnd, p);
++				return TRUE;
++			}
++
++			// Plugin might use rich edit control version 2.0 and later
++			if (className == L"RichEdit20W" || className == L"RICHEDIT50W")
++			{
++				DarkMode::themeRichEdit(hWnd, p);
++				return TRUE;
++			}
++
++			/*
++			// for debugging 
++			if (className == L"#32770")
++			{
++				return TRUE;
++			}
++
++			if (className == TRACKBAR_CLASS)
++			{
++				return TRUE;
++			}
++			*/
++
++			return TRUE;
++		}, reinterpret_cast<LPARAM>(&p));
++	}
++
++	void autoThemeChildControls(HWND hwndParent)
++	{
++		autoSubclassAndThemeChildControls(hwndParent, false, DarkMode::isWindows10());
++	}
++
++	void subclassAndThemeButton(HWND hWnd, DarkModeParams p)
++	{
++		auto nButtonStyle = ::GetWindowLongPtr(hWnd, GWL_STYLE);
++		switch (nButtonStyle & BS_TYPEMASK)
++		{
++			// Plugin might use BS_3STATE, BS_AUTO3STATE and BS_PUSHLIKE button style
++			case BS_CHECKBOX:
++			case BS_AUTOCHECKBOX:
++			case BS_3STATE:
++			case BS_AUTO3STATE:
++			case BS_RADIOBUTTON:
++			case BS_AUTORADIOBUTTON:
++			{
++				if ((nButtonStyle & BS_PUSHLIKE) == BS_PUSHLIKE)
++				{
++					if (p._theme)
++					{
++						::SetWindowTheme(hWnd, p._themeClassName, nullptr);
++					}
++					break;
++				}
++
++				if (DarkMode::isWindows11() && p._theme)
++				{
++					::SetWindowTheme(hWnd, p._themeClassName, nullptr);
++				}
++
++				if (p._subclass)
++				{
++					DarkMode::subclassButtonControl(hWnd);
++				}
++				break;
++			}
++
++			case BS_GROUPBOX:
++			{
++				if (p._subclass)
++				{
++					DarkMode::subclassGroupboxControl(hWnd);
++				}
++				break;
++			}
++
++			case BS_PUSHBUTTON:
++			case BS_DEFPUSHBUTTON:
++			case BS_SPLITBUTTON:
++			case BS_DEFSPLITBUTTON:
++			{
++				if (p._theme)
++				{
++					::SetWindowTheme(hWnd, p._themeClassName, nullptr);
++				}
++				break;
++			}
++
++			default:
++			{
++				break;
++			}
++		}
++	}
++
++	void subclassAndThemeComboBox(HWND hWnd, DarkModeParams p)
++	{
++		auto style = ::GetWindowLongPtr(hWnd, GWL_STYLE);
++
++		if ((style & CBS_DROPDOWNLIST) == CBS_DROPDOWNLIST || (style & CBS_DROPDOWN) == CBS_DROPDOWN)
++		{
++			COMBOBOXINFO cbi{};
++			cbi.cbSize = sizeof(COMBOBOXINFO);
++			BOOL result = ::GetComboBoxInfo(hWnd, &cbi);
++			if (result == TRUE)
++			{
++				if (p._theme && cbi.hwndList)
++				{
++					//dark scrollbar for listbox of combobox
++					::SetWindowTheme(cbi.hwndList, p._themeClassName, nullptr);
++				}
++			}
++
++			if (p._subclass)
++			{
++				HWND hParent = ::GetParent(hWnd);
++				if ((hParent == nullptr || getWndClassName(hParent) != WC_COMBOBOXEX))
++				{
++					DarkMode::subclassComboBoxControl(hWnd);
++				}
++			}
++
++			if (p._theme && DarkMode::isExperimentalSupported())
++			{
++				DarkMode::allowDarkModeForWindow(hWnd, DarkMode::isExperimentalActive());
++				::SetWindowTheme(hWnd, L"CFD", nullptr);
++			}
++		}
++	}
++
++	void subclassAndThemeListBoxOrEditControl(HWND hWnd, DarkModeParams p, bool isListBox)
++	{
++		const auto style = ::GetWindowLongPtr(hWnd, GWL_STYLE);
++		bool hasScrollBar = ((style & WS_HSCROLL) == WS_HSCROLL) || ((style & WS_VSCROLL) == WS_VSCROLL);
++		if (p._theme && (isListBox || hasScrollBar))
++		{
++			//dark scrollbar for listbox or edit control
++			::SetWindowTheme(hWnd, p._themeClassName, nullptr);
++		}
++
++		const auto exStyle = ::GetWindowLongPtr(hWnd, GWL_EXSTYLE);
++		bool hasClientEdge = (exStyle & WS_EX_CLIENTEDGE) == WS_EX_CLIENTEDGE;
++		bool isCBoxListBox = isListBox && (style & LBS_COMBOBOX) == LBS_COMBOBOX;
++
++		if (p._subclass && hasClientEdge && !isCBoxListBox)
++		{
++			DarkMode::subclassCustomBorderForListBoxAndEditControls(hWnd);
++		}
++
++#ifndef __MINGW64__ // mingw build for 64 bit has issue with GetWindowSubclass, it is undefined
++
++		bool changed = false;
++		if (::GetWindowSubclass(hWnd, CustomBorderSubclass, g_customBorderSubclassID, nullptr) == TRUE)
++		{
++			if (DarkMode::isEnabled())
++			{
++				if (hasClientEdge)
++				{
++					::SetWindowLongPtr(hWnd, GWL_EXSTYLE, exStyle & ~WS_EX_CLIENTEDGE);
++					changed = true;
++				}
++			}
++			else if (!hasClientEdge)
++			{
++				::SetWindowLongPtr(hWnd, GWL_EXSTYLE, exStyle | WS_EX_CLIENTEDGE);
++				changed = true;
++			}
++		}
++
++		if (changed)
++		{
++			::SetWindowPos(hWnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
++		}
++
++#endif // !__MINGW64__
++	}
++
++	void subclassAndThemeListView(HWND hWnd, DarkModeParams p)
++	{
++		if (p._theme)
++		{
++			DarkMode::setDarkListView(hWnd);
++			DarkMode::setDarkTooltips(hWnd, DarkMode::ToolTipsType::listview);
++		}
++
++		ListView_SetTextColor(hWnd, DarkMode::getViewTextColor());
++		ListView_SetTextBkColor(hWnd, DarkMode::getViewBackgroundColor());
++		ListView_SetBkColor(hWnd, DarkMode::getViewBackgroundColor());
++
++		if (p._subclass)
++		{
++			auto exStyle = ListView_GetExtendedListViewStyle(hWnd);
++			ListView_SetExtendedListViewStyle(hWnd, exStyle | LVS_EX_DOUBLEBUFFER);
++			DarkMode::subclassListViewControl(hWnd);
++		}
++	}
++
++	void themeTreeView(HWND hWnd, DarkModeParams p)
++	{
++		TreeView_SetTextColor(hWnd, DarkMode::getViewTextColor());
++		TreeView_SetBkColor(hWnd, DarkMode::getViewBackgroundColor());
++
++		//DarkMode::calculateTreeViewStyle();
++		DarkMode::setTreeViewStyle(hWnd, p._theme);
++
++		if (p._theme)
++		{
++			DarkMode::setDarkTooltips(hWnd, DarkMode::ToolTipsType::treeview);
++		}
++	}
++
++	void themeToolbar(HWND hWnd, DarkModeParams p)
++	{
++		DarkMode::setDarkLineAbovePanelToolbar(hWnd);
++
++		if (p._theme)
++		{
++			DarkMode::setDarkTooltips(hWnd, DarkMode::ToolTipsType::toolbar);
++		}
++	}
++
++	void themeRichEdit(HWND hWnd, DarkModeParams p)
++	{
++		if (p._theme)
++		{
++			//dark scrollbar for rich edit control
++			::SetWindowTheme(hWnd, p._themeClassName, nullptr);
++		}
++	}
++
++	void themeProgressBar(HWND hWnd, DarkModeParams p)
++	{
++		if (p._theme)
++		{
++			DarkMode::setBorder(hWnd, DarkMode::isEnabled(), WS_DLGFRAME);
++			DarkMode::disableVisualStyle(hWnd, DarkMode::isEnabled());
++			if (DarkMode::isEnabled())
++			{
++				SendMessage(hWnd, PBM_SETBKCOLOR, 0, static_cast<LPARAM>(DarkMode::getBackgroundColor()));
++				SendMessage(hWnd, PBM_SETBARCOLOR, 0, static_cast<LPARAM>(HEXRGB(0x06B025)));
++			}
++		}
++	}
++
++	static LRESULT darkToolBarNotifyCustomDraw(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, bool isPlugin)
++	{
++		auto nmtbcd = reinterpret_cast<LPNMTBCUSTOMDRAW>(lParam);
++		static int roundCornerValue = 0;
++
++		switch (nmtbcd->nmcd.dwDrawStage)
++		{
++			case CDDS_PREPAINT:
++			{
++				LRESULT lr = CDRF_DODEFAULT;
++				if (DarkMode::isEnabled())
++				{
++					if (DarkMode::isWindows11())
++					{
++						roundCornerValue = 5;
++					}
++
++					::FillRect(nmtbcd->nmcd.hdc, &nmtbcd->nmcd.rc, DarkMode::getDarkerBackgroundBrush());
++					lr |= CDRF_NOTIFYITEMDRAW;
++				}
++
++				if (isPlugin)
++				{
++					lr |= ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
++				}
++
++				return lr;
++			}
++
++			case CDDS_ITEMPREPAINT:
++			{
++				nmtbcd->hbrMonoDither = DarkMode::getBackgroundBrush();
++				nmtbcd->hbrLines = DarkMode::getEdgeBrush();
++				nmtbcd->hpenLines = DarkMode::getEdgePen();
++				nmtbcd->clrText = DarkMode::getDarkerTextColor();
++				nmtbcd->clrTextHighlight = DarkMode::getTextColor();
++				nmtbcd->clrBtnFace = DarkMode::getBackgroundColor();
++				nmtbcd->clrBtnHighlight = DarkMode::getSofterBackgroundColor();
++				nmtbcd->clrHighlightHotTrack = DarkMode::getHotBackgroundColor();
++				nmtbcd->nStringBkMode = TRANSPARENT;
++				nmtbcd->nHLStringBkMode = TRANSPARENT;
++
++				if ((nmtbcd->nmcd.uItemState & CDIS_HOT) == CDIS_HOT)
++				{
++					auto holdBrush = ::SelectObject(nmtbcd->nmcd.hdc, DarkMode::getHotBackgroundBrush());
++					auto holdPen = ::SelectObject(nmtbcd->nmcd.hdc, DarkMode::getHotEdgePen());
++					::RoundRect(nmtbcd->nmcd.hdc, nmtbcd->nmcd.rc.left, nmtbcd->nmcd.rc.top, nmtbcd->nmcd.rc.right, nmtbcd->nmcd.rc.bottom, roundCornerValue, roundCornerValue);
++					::SelectObject(nmtbcd->nmcd.hdc, holdBrush);
++					::SelectObject(nmtbcd->nmcd.hdc, holdPen);
++
++					nmtbcd->nmcd.uItemState &= ~(CDIS_CHECKED | CDIS_HOT);
++				}
++				else if ((nmtbcd->nmcd.uItemState & CDIS_CHECKED) == CDIS_CHECKED)
++				{
++					auto holdBrush = ::SelectObject(nmtbcd->nmcd.hdc, DarkMode::getSofterBackgroundBrush());
++					auto holdPen = ::SelectObject(nmtbcd->nmcd.hdc, DarkMode::getEdgePen());
++					::RoundRect(nmtbcd->nmcd.hdc, nmtbcd->nmcd.rc.left, nmtbcd->nmcd.rc.top, nmtbcd->nmcd.rc.right, nmtbcd->nmcd.rc.bottom, roundCornerValue, roundCornerValue);
++					::SelectObject(nmtbcd->nmcd.hdc, holdBrush);
++					::SelectObject(nmtbcd->nmcd.hdc, holdPen);
++
++					nmtbcd->nmcd.uItemState &= ~CDIS_CHECKED;
++				}
++
++				LRESULT lr = TBCDRF_USECDCOLORS;
++				if ((nmtbcd->nmcd.uItemState & CDIS_SELECTED) == CDIS_SELECTED)
++				{
++					lr |= TBCDRF_NOBACKGROUND;
++				}
++
++				if (isPlugin)
++				{
++					lr |= ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
++				}
++
++				return lr;
++			}
++
++			default:
++				break;
++		}
++		return ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
++	}
++
++	static void drawListviewItem(LPNMLVCUSTOMDRAW& lplvcd, bool isReport, bool hasGridlines)
++	{
++		HWND& hList = lplvcd->nmcd.hdr.hwndFrom;
++		const auto isSelected = ListView_GetItemState(hList, lplvcd->nmcd.dwItemSpec, LVIS_SELECTED) == LVIS_SELECTED;
++		const bool isHot = (lplvcd->nmcd.uItemState & CDIS_HOT) == CDIS_HOT;
++
++		if (DarkMode::isEnabled())
++		{
++			HBRUSH hBrush = nullptr;
++
++			if (isSelected)
++			{
++				lplvcd->clrText = DarkMode::getTextColor();
++				lplvcd->clrTextBk = DarkMode::getSofterBackgroundColor();
++				hBrush = DarkMode::getSofterBackgroundBrush();
++			}
++			else if (isHot)
++			{
++				lplvcd->clrText = DarkMode::getTextColor();
++				lplvcd->clrTextBk = DarkMode::getHotBackgroundColor();
++				hBrush = DarkMode::getHotBackgroundBrush();
++			}
++
++			if (hBrush != nullptr)
++			{
++				if (!isReport || (isReport && hasGridlines))
++				{
++					::FillRect(lplvcd->nmcd.hdc, &lplvcd->nmcd.rc, hBrush);
++				}
++				else
++				{
++					const auto hHeader = ListView_GetHeader(hList);
++					const auto nCol = Header_GetItemCount(hHeader);
++					const LONG paddingLeft = DarkMode::isThemeDark() ? 1 : 0;
++					const LONG paddingRight = DarkMode::isThemeDark() ? 2 : 1;
++
++					LVITEMINDEX lvii{ static_cast<int>(lplvcd->nmcd.dwItemSpec), 0 };
++					RECT rcSubitem{
++						lplvcd->nmcd.rc.left
++						, lplvcd->nmcd.rc.top
++						, lplvcd->nmcd.rc.left + ListView_GetColumnWidth(hList, 0) - paddingRight
++						, lplvcd->nmcd.rc.bottom
++					};
++					::FillRect(lplvcd->nmcd.hdc, &rcSubitem, hBrush);
++
++					for (int i = 1; i < nCol; ++i)
++					{
++						ListView_GetItemIndexRect(hList, &lvii, i, LVIR_BOUNDS, &rcSubitem);
++						rcSubitem.left -= paddingLeft;
++						rcSubitem.right -= paddingRight;
++						::FillRect(lplvcd->nmcd.hdc, &rcSubitem, hBrush);
++					}
++				}
++			}
++			else if (hasGridlines)
++			{
++				::FillRect(lplvcd->nmcd.hdc, &lplvcd->nmcd.rc, DarkMode::getViewBackgroundBrush());
++			}
++		}
++
++		if (isSelected)
++		{
++			::DrawFocusRect(lplvcd->nmcd.hdc, &lplvcd->nmcd.rc);
++		}
++		else if (isHot && !hasGridlines)
++		{
++			::FrameRect(lplvcd->nmcd.hdc, &lplvcd->nmcd.rc, DarkMode::isEnabled() ? DarkMode::getHotEdgeBrush() : ::GetSysColorBrush(COLOR_WINDOWTEXT));
++		}
++	}
++
++	static LRESULT darkListViewNotifyCustomDraw(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, bool isPlugin)
++	{
++		auto lplvcd = reinterpret_cast<LPNMLVCUSTOMDRAW>(lParam);
++		HWND& hList = lplvcd->nmcd.hdr.hwndFrom;
++		const auto lvStyle = ::GetWindowLongPtr(hList, GWL_STYLE) & LVS_TYPEMASK;
++		const bool isReport = (lvStyle == LVS_REPORT);
++		bool hasGridlines = false;
++		if (isReport)
++		{
++			const auto lvExStyle = ListView_GetExtendedListViewStyle(hList);
++			hasGridlines = (lvExStyle & LVS_EX_GRIDLINES) == LVS_EX_GRIDLINES;
++		}
++
++		switch (lplvcd->nmcd.dwDrawStage)
++		{
++			case CDDS_PREPAINT:
++			{
++				LRESULT lr = CDRF_NOTIFYITEMDRAW;
++				if (isReport && hasGridlines)
++				{
++					::FillRect(lplvcd->nmcd.hdc, &lplvcd->nmcd.rc, DarkMode::getViewBackgroundBrush());
++				}
++
++				if (isPlugin)
++				{
++					lr |= ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
++				}
++
++				return lr;
++			}
++
++			case CDDS_ITEMPREPAINT:
++			{
++				DarkMode::drawListviewItem(lplvcd, isReport, hasGridlines);
++
++				LRESULT lr = CDRF_NEWFONT;
++
++				if (isPlugin)
++				{
++					lr |= ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
++				}
++
++				return lr;
++			}
++
++			default:
++				break;
++		}
++		return ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
++	}
++
++	static LRESULT darkTreeViewNotifyCustomDraw(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, bool isPlugin)
++	{
++		auto lptvcd = reinterpret_cast<LPNMTVCUSTOMDRAW>(lParam);
++
++		switch (lptvcd->nmcd.dwDrawStage)
++		{
++			case CDDS_PREPAINT:
++			{
++				LRESULT lr = DarkMode::isEnabled() ? CDRF_NOTIFYITEMDRAW : CDRF_DODEFAULT;
++
++				if (isPlugin)
++				{
++					lr |= ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
++				}
++
++				return lr;
++			}
++
++			case CDDS_ITEMPREPAINT:
++			{
++				LRESULT lr = CDRF_DODEFAULT;
++
++				if (DarkMode::isEnabled())
++				{
++					if ((lptvcd->nmcd.uItemState & CDIS_SELECTED) == CDIS_SELECTED)
++					{
++						lptvcd->clrText = DarkMode::getTextColor();
++						lptvcd->clrTextBk = DarkMode::getSofterBackgroundColor();
++						::FillRect(lptvcd->nmcd.hdc, &lptvcd->nmcd.rc, DarkMode::getSofterBackgroundBrush());
++
++						lr |= CDRF_NEWFONT | CDRF_NOTIFYPOSTPAINT;
++					}
++					else if ((lptvcd->nmcd.uItemState & CDIS_HOT) == CDIS_HOT)
++					{
++						lptvcd->clrText = DarkMode::getTextColor();
++						lptvcd->clrTextBk = DarkMode::getHotBackgroundColor();
++
++						if (DarkMode::isWindows10() || g_treeViewStyle == TreeViewStyle::light)
++						{
++							::FillRect(lptvcd->nmcd.hdc, &lptvcd->nmcd.rc, DarkMode::getHotBackgroundBrush());
++							lr |= CDRF_NOTIFYPOSTPAINT;
++						}
++						lr |= CDRF_NEWFONT;
++					}
++				}
++
++				if (isPlugin)
++				{
++					lr |= ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
++				}
++
++				return lr;
++			}
++
++			case CDDS_ITEMPOSTPAINT:
++			{
++				if (DarkMode::isEnabled())
++				{
++					RECT rcFrame = lptvcd->nmcd.rc;
++					rcFrame.left -= 1;
++					rcFrame.right += 1;
++
++					if ((lptvcd->nmcd.uItemState & CDIS_HOT) == CDIS_HOT)
++					{
++						DarkMode::paintRoundFrameRect(lptvcd->nmcd.hdc, rcFrame, DarkMode::getHotEdgePen(), 0, 0);
++					}
++					else if ((lptvcd->nmcd.uItemState & CDIS_SELECTED) == CDIS_SELECTED)
++					{
++						DarkMode::paintRoundFrameRect(lptvcd->nmcd.hdc, rcFrame, DarkMode::getEdgePen(), 0, 0);
++					}
++				}
++
++				if (isPlugin)
++				{
++					break;
++				}
++
++				return CDRF_DODEFAULT;
++			}
++
++			default:
++				break;
++		}
++		return ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
++	}
++
++	constexpr UINT_PTR g_WindowCtlColorSubclassID = 42;
++
++	static LRESULT CALLBACK WindowCtlColorSubclass(
++		HWND hWnd,
++		UINT uMsg,
++		WPARAM wParam,
++		LPARAM lParam,
++		UINT_PTR uIdSubclass,
++		DWORD_PTR /*dwRefData*/
++	)
++	{
++		switch (uMsg)
++		{
++			case WM_ERASEBKGND:
++			{
++				if (DarkMode::isEnabled())
++				{
++					RECT rect{};
++					::GetClientRect(hWnd, &rect);
++					::FillRect(reinterpret_cast<HDC>(wParam), &rect, DarkMode::getDarkerBackgroundBrush());
++					return TRUE;
++				}
++				break;
++			}
++
++			case WM_NCDESTROY:
++			{
++				::RemoveWindowSubclass(hWnd, WindowCtlColorSubclass, uIdSubclass);
++				break;
++			}
++
++			case WM_CTLCOLOREDIT:
++			{
++				if (DarkMode::isEnabled())
++				{
++					return DarkMode::onCtlColorSofter(reinterpret_cast<HDC>(wParam));
++				}
++				break;
++			}
++
++			case WM_CTLCOLORLISTBOX:
++			{
++				if (DarkMode::isEnabled())
++				{
++					return DarkMode::onCtlColorListbox(wParam, lParam);
++				}
++				break;
++			}
++
++			case WM_CTLCOLORDLG:
++			{
++
++				if (DarkMode::isEnabled())
++				{
++					return DarkMode::onCtlColorDarker(reinterpret_cast<HDC>(wParam));
++				}
++				break;
++			}
++
++			case WM_CTLCOLORSTATIC:
++			{
++				if (DarkMode::isEnabled())
++				{
++					auto hWndChild = reinterpret_cast<HWND>(lParam);
++					auto hdc = reinterpret_cast<HDC>(wParam);
++					if (cmpWndClassName(hWndChild, WC_EDIT))
++					{
++						return DarkMode::onCtlColor(hdc);
++					}
++
++					DWORD_PTR dwRefData = 0;
++					if (::GetWindowSubclass(hWndChild, StaticTextSubclass, g_staticTextSubclassID, &dwRefData) == TRUE)
++					{
++						auto pStaticTextInfo = reinterpret_cast<StaticTextSubclassInfo*>(dwRefData);
++						return DarkMode::onCtlColorDarkerBGStaticText(hdc, pStaticTextInfo->isEnabled);
++					}
++					return DarkMode::onCtlColorDarker(hdc);
++				}
++				break;
++			}
++
++			case WM_PRINTCLIENT:
++			{
++				if (DarkMode::isEnabled())
++				{
++					return TRUE;
++				}
++				break;
++			}
++		}
++		return ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
++	}
++
++	void autoSubclassCtlColor(HWND hWnd)
++	{
++		if (::GetWindowSubclass(hWnd, WindowCtlColorSubclass, g_WindowCtlColorSubclassID, nullptr) == FALSE)
++		{
++			::SetWindowSubclass(hWnd, WindowCtlColorSubclass, g_WindowCtlColorSubclassID, 0);
++		}
++	}
++
++	constexpr UINT_PTR g_windowNotifySubclassID = 42;
++
++	static LRESULT CALLBACK WindowNotifySubclass(
++		HWND hWnd,
++		UINT uMsg,
++		WPARAM wParam,
++		LPARAM lParam,
++		UINT_PTR uIdSubclass,
++		DWORD_PTR /*dwRefData*/
++	)
++	{
++		switch (uMsg)
++		{
++			case WM_NCDESTROY:
++			{
++				::RemoveWindowSubclass(hWnd, WindowNotifySubclass, uIdSubclass);
++				break;
++			}
++
++			case WM_NOTIFY:
++			{
++				auto nmhdr = reinterpret_cast<LPNMHDR>(lParam);
++				std::wstring className = getWndClassName(nmhdr->hwndFrom);
++
++				switch (nmhdr->code)
++				{
++					case NM_CUSTOMDRAW:
++					{
++						if (className == TOOLBARCLASSNAME)
++						{
++							return DarkMode::darkToolBarNotifyCustomDraw(hWnd, uMsg, wParam, lParam, false);
++						}
++
++						if (className == WC_LISTVIEW)
++						{
++							return DarkMode::darkListViewNotifyCustomDraw(hWnd, uMsg, wParam, lParam, false);
++						}
++
++						if (className == WC_TREEVIEW)
++						{
++							return DarkMode::darkTreeViewNotifyCustomDraw(hWnd, uMsg, wParam, lParam, false);
++						}
++					}
++					break;
++				}
++				break;
++			}
++		}
++		return ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
++	}
++
++	void autoSubclassNotifyCustomDraw(HWND hWnd, bool subclassChildren)
++	{
++		if (::GetWindowSubclass(hWnd, WindowNotifySubclass, g_windowNotifySubclassID, nullptr) == FALSE)
++		{
++			::SetWindowSubclass(hWnd, WindowNotifySubclass, g_windowNotifySubclassID, 0);
++			if (subclassChildren)
++			{
++				DarkMode::autoSubclassAndThemeChildControls(hWnd);
++				if (g_enableWindowsMode)
++					DarkMode::autoSubclassWindowSettingChange(hWnd);
++			}
++		}
++	}
++
++	constexpr UINT_PTR g_windowMenuBarSubclassID = 42;
++
++	static LRESULT CALLBACK WindowMenuBarSubclass(
++		HWND hWnd,
++		UINT uMsg,
++		WPARAM wParam,
++		LPARAM lParam,
++		UINT_PTR uIdSubclass,
++		DWORD_PTR /*dwRefData*/
++	)
++	{
++		LRESULT result = FALSE;
++
++		if (DarkMode::isEnabled() && DarkMode::runUAHWndProc(hWnd, uMsg, wParam, lParam, &result))
++		{
++			return result;
++		}
++
++		switch (uMsg)
++		{
++			case WM_NCDESTROY:
++			{
++				::RemoveWindowSubclass(hWnd, WindowMenuBarSubclass, uIdSubclass);
++				break;
++			}
++
++			case WM_NCACTIVATE:
++			{
++				result = ::DefWindowProc(hWnd, uMsg, wParam, lParam);
++				DarkMode::drawUAHMenuNCBottomLine(hWnd);
++				return result;
++			}
++
++			case WM_NCPAINT:
++			{
++				result = ::DefWindowProc(hWnd, uMsg, wParam, lParam);
++				DarkMode::drawUAHMenuNCBottomLine(hWnd);
++				return result;
++			}
++		}
++		return ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
++	}
++
++	void autoSubclassWindowMenuBar(HWND hWnd)
++	{
++		if (::GetWindowSubclass(hWnd, WindowMenuBarSubclass, g_windowMenuBarSubclassID, nullptr) == FALSE)
++		{
++			::SetWindowSubclass(hWnd, WindowMenuBarSubclass, g_windowMenuBarSubclassID, 0);
++		}
++	}
++
++	constexpr UINT_PTR g_windowSettingChangeSubclassID = 42;
++
++	static LRESULT CALLBACK WindowSettingChangeSubclass(
++		HWND hWnd,
++		UINT uMsg,
++		WPARAM wParam,
++		LPARAM lParam,
++		UINT_PTR uIdSubclass,
++		DWORD_PTR /*dwRefData*/
++	)
++	{
++		switch (uMsg)
++		{
++			case WM_NCDESTROY:
++			{
++				::RemoveWindowSubclass(hWnd, WindowSettingChangeSubclass, uIdSubclass);
++				break;
++			}
++
++			case WM_SETTINGCHANGE:
++			{
++				if (DarkMode::handleSettingChange(lParam))
++				{
++					DarkMode::setDarkTitleBar(hWnd);
++					DarkMode::autoThemeChildControls(hWnd);
++					::RedrawWindow(hWnd, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_UPDATENOW);
++				}
++				break;
++			}
++		}
++		return ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
++	}
++
++	void autoSubclassWindowSettingChange(HWND hWnd)
++	{
++		if (::GetWindowSubclass(hWnd, WindowSettingChangeSubclass, g_windowSettingChangeSubclassID, nullptr) == FALSE)
++		{
++			::SetWindowSubclass(hWnd, WindowSettingChangeSubclass, g_windowSettingChangeSubclassID, 0);
++		}
++	}
++
++	void setDarkTitleBar(HWND hWnd)
++	{
++		constexpr DWORD win10Build2004 = 19041;
++		if (DarkMode::getWindowsBuildNumber() >= win10Build2004)
++		{
++			BOOL value = DarkMode::isExperimentalActive() ? TRUE : FALSE;
++			::DwmSetWindowAttribute(hWnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &value, sizeof(value));
++		}
++		else
++		{
++			DarkMode::allowDarkModeForWindow(hWnd, DarkMode::isExperimentalActive());
++			DarkMode::setTitleBarThemeColor(hWnd);
++		}
++	}
++
++	void setDarkExplorerTheme(HWND hWnd)
++	{
++		::SetWindowTheme(hWnd, DarkMode::isExperimentalActive() ? L"DarkMode_Explorer" : nullptr, nullptr);
++	}
++
++	void setDarkScrollBar(HWND hWnd)
++	{
++		DarkMode::setDarkExplorerTheme(hWnd);
++	}
++
++	void setDarkTooltips(HWND hWnd, ToolTipsType type)
++	{
++		UINT msg = 0;
++		switch (type)
++		{
++			case DarkMode::ToolTipsType::toolbar:
++				msg = TB_GETTOOLTIPS;
++				break;
++			case DarkMode::ToolTipsType::listview:
++				msg = LVM_GETTOOLTIPS;
++				break;
++			case DarkMode::ToolTipsType::treeview:
++				msg = TVM_GETTOOLTIPS;
++				break;
++			case DarkMode::ToolTipsType::tabbar:
++				msg = TCM_GETTOOLTIPS;
++				break;
++			case DarkMode::ToolTipsType::tooltip:
++				msg = 0;
++				break;
++		}
++
++		if (msg == 0)
++		{
++			DarkMode::setDarkExplorerTheme(hWnd);
++		}
++		else
++		{
++			auto hTips = reinterpret_cast<HWND>(::SendMessage(hWnd, msg, 0, 0));
++			if (hTips != nullptr)
++			{
++				DarkMode::setDarkExplorerTheme(hTips);
++			}
++		}
++	}
++
++	void setDarkLineAbovePanelToolbar(HWND hWnd)
++	{
++		COLORSCHEME scheme{};
++		scheme.dwSize = sizeof(COLORSCHEME);
++
++		if (DarkMode::isEnabled())
++		{
++			scheme.clrBtnHighlight = DarkMode::getDarkerBackgroundColor();
++			scheme.clrBtnShadow = DarkMode::getDarkerBackgroundColor();
++		}
++		else
++		{
++			scheme.clrBtnHighlight = CLR_DEFAULT;
++			scheme.clrBtnShadow = CLR_DEFAULT;
++		}
++
++		::SendMessage(hWnd, TB_SETCOLORSCHEME, 0, reinterpret_cast<LPARAM>(&scheme));
++	}
++
++	void setDarkListView(HWND hWnd)
++	{
++		if (DarkMode::isExperimentalSupported())
++		{
++			const bool useDark = DarkMode::isExperimentalActive();
++
++			HWND hHeader = ListView_GetHeader(hWnd);
++			DarkMode::allowDarkModeForWindow(hHeader, useDark);
++			::SetWindowTheme(hHeader, useDark ? L"ItemsView" : nullptr, nullptr);
++
++			DarkMode::allowDarkModeForWindow(hWnd, useDark);
++			::SetWindowTheme(hWnd, L"Explorer", nullptr);
++		}
++	}
++
++	void disableVisualStyle(HWND hWnd, bool doDisable)
++	{
++		if (doDisable)
++		{
++			::SetWindowTheme(hWnd, L"", L"");
++		}
++		else
++		{
++			::SetWindowTheme(hWnd, nullptr, nullptr);
++		}
++	}
++
++	// range to determine when it should be better to use classic style
++	constexpr double g_middleGrayRange = 2.0;
++
++	void calculateTreeViewStyle()
++	{
++		COLORREF bgColor = DarkMode::getViewBackgroundColor();
++
++		if (g_treeViewBg != bgColor || g_lightnessTreeView == 50.0)
++		{
++			g_lightnessTreeView = calculatePerceivedLightness(bgColor);
++			g_treeViewBg = bgColor;
++		}
++
++		if (g_lightnessTreeView < (50.0 - g_middleGrayRange))
++		{
++			g_treeViewStyle = TreeViewStyle::dark;
++		}
++		else if (g_lightnessTreeView > (50.0 + g_middleGrayRange))
++		{
++			g_treeViewStyle = TreeViewStyle::light;
++		}
++		else
++		{
++			g_treeViewStyle = TreeViewStyle::classic;
++		}
++	}
++
++	void updatePrevTreeViewStyle()
++	{
++		g_treeViewStylePrev = g_treeViewStyle;
++	}
++
++	TreeViewStyle getTreeViewStyle()
++	{
++		const auto style = g_treeViewStyle;
++		return style;
++	}
++
++	void setTreeViewStyle(HWND hWnd, bool force)
++	{
++		if (force || g_treeViewStylePrev != g_treeViewStyle)
++		{
++			auto style = ::GetWindowLongPtr(hWnd, GWL_STYLE);
++			const bool hasHotStyle = (style & TVS_TRACKSELECT) == TVS_TRACKSELECT;
++			bool change = false;
++			std::wstring strSubAppName;
++
++			switch (g_treeViewStyle)
++			{
++				case TreeViewStyle::light:
++				{
++					if (!hasHotStyle)
++					{
++						style |= TVS_TRACKSELECT;
++						change = true;
++					}
++					strSubAppName = L"Explorer";
++					break;
++				}
++
++				case TreeViewStyle::dark:
++				{
++					if (DarkMode::isExperimentalSupported())
++					{
++						if (!hasHotStyle)
++						{
++							style |= TVS_TRACKSELECT;
++							change = true;
++						}
++						strSubAppName = L"DarkMode_Explorer";
++						break;
++					}
++					[[fallthrough]];
++				}
++
++				case TreeViewStyle::classic:
++				{
++					if (hasHotStyle)
++					{
++						style &= ~TVS_TRACKSELECT;
++						change = true;
++					}
++					strSubAppName = L"";
++					break;
++				}
++			}
++
++			if (change)
++			{
++				::SetWindowLongPtr(hWnd, GWL_STYLE, style);
++			}
++
++			::SetWindowTheme(hWnd, strSubAppName.empty() ? nullptr : strSubAppName.c_str(), nullptr);
++		}
++	}
++
++	bool isThemeDark()
++	{
++		return g_treeViewStyle == TreeViewStyle::dark;
++	}
++
++	void setBorder(HWND hWnd, bool border, long borderStyle)
++	{
++		auto style = static_cast<long>(::GetWindowLongPtr(hWnd, GWL_STYLE));
++		const bool hasBorder = (style & borderStyle) == borderStyle;
++		bool change = false;
++
++		if (!hasBorder && border)
++		{
++			style |= borderStyle;
++			change = true;
++		}
++		else if (hasBorder && !border)
++		{
++			style &= ~borderStyle;
++			change = true;
++		}
++
++		if (change)
++		{
++			::SetWindowLongPtr(hWnd, GWL_STYLE, style);
++			::SetWindowPos(hWnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
++		}
++	}
++
++	LRESULT onCtlColor(HDC hdc)
++	{
++		if (!DarkMode::isEnabled())
++		{
++			return FALSE;
++		}
++
++		::SetTextColor(hdc, DarkMode::getTextColor());
++		::SetBkColor(hdc, DarkMode::getBackgroundColor());
++		return reinterpret_cast<LRESULT>(DarkMode::getBackgroundBrush());
++	}
++
++	LRESULT onCtlColorSofter(HDC hdc)
++	{
++		if (!DarkMode::isEnabled())
++		{
++			return FALSE;
++		}
++
++		::SetTextColor(hdc, DarkMode::getTextColor());
++		::SetBkColor(hdc, DarkMode::getSofterBackgroundColor());
++		return reinterpret_cast<LRESULT>(DarkMode::getSofterBackgroundBrush());
++	}
++
++	LRESULT onCtlColorDarker(HDC hdc)
++	{
++		if (!DarkMode::isEnabled())
++		{
++			return FALSE;
++		}
++
++		::SetTextColor(hdc, DarkMode::getTextColor());
++		::SetBkColor(hdc, DarkMode::getDarkerBackgroundColor());
++		return reinterpret_cast<LRESULT>(DarkMode::getDarkerBackgroundBrush());
++	}
++
++	LRESULT onCtlColorError(HDC hdc)
++	{
++		if (!DarkMode::isEnabled())
++		{
++			return FALSE;
++		}
++
++		::SetTextColor(hdc, DarkMode::getTextColor());
++		::SetBkColor(hdc, DarkMode::getErrorBackgroundColor());
++		return reinterpret_cast<LRESULT>(DarkMode::getErrorBackgroundBrush());
++	}
++	
++	LRESULT onCtlColorDarkerBGStaticText(HDC hdc, bool isTextEnabled)
++	{
++		if (!DarkMode::isEnabled())
++		{
++			::SetTextColor(hdc, ::GetSysColor(isTextEnabled ? COLOR_WINDOWTEXT : COLOR_GRAYTEXT));
++			return FALSE;
++		}
++
++		::SetTextColor(hdc, isTextEnabled ? DarkMode::getTextColor() : DarkMode::getDisabledTextColor());
++		::SetBkColor(hdc, DarkMode::getDarkerBackgroundColor());
++		return reinterpret_cast<LRESULT>(DarkMode::getDarkerBackgroundBrush());
++	}
++
++	INT_PTR onCtlColorListbox(WPARAM wParam, LPARAM lParam)
++	{
++		auto hdc = reinterpret_cast<HDC>(wParam);
++		auto hWnd = reinterpret_cast<HWND>(lParam);
++
++		const auto style = ::GetWindowLongPtr(hWnd, GWL_STYLE);
++		bool isComboBox = (style & LBS_COMBOBOX) == LBS_COMBOBOX;
++		if ((!isComboBox || !DarkMode::isExperimentalActive()) && ::IsWindowEnabled(hWnd))
++		{
++			return static_cast<INT_PTR>(DarkMode::onCtlColorSofter(hdc));
++		}
++		return static_cast<INT_PTR>(DarkMode::onCtlColor(hdc));
++	}
++}
+diff --git a/DarkMode/DarkModeSubclass.h b/DarkMode/DarkModeSubclass.h
+new file mode 100644
+index 000000000..cda8e5b5e
+--- /dev/null
++++ b/DarkMode/DarkModeSubclass.h
+@@ -0,0 +1,211 @@
++// Copyright (C)2024 ozone10
++
++// This program is free software: you can redistribute it and/or modify
++// it under the terms of the GNU General Public License as published by
++// the Free Software Foundation, either version 3 of the License, or
++// at your option any later version.
++//
++// This program is distributed in the hope that it will be useful,
++// but WITHOUT ANY WARRANTY; without even the implied warranty of
++// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
++// GNU General Public License for more details.
++//
++// You should have received a copy of the GNU General Public License
++// along with this program.  If not, see <https://www.gnu.org/licenses/>.
++
++// Based on Notepad++ dark mode code, original by adzm / Adam D. Walling
++// with modification from Notepad++ team.
++// Heavily modified by ozone10 (contributor of Notepad++)
++
++#pragma once
++
++#include <windows.h>
++
++
++namespace DarkMode
++{
++	struct Colors
++	{
++		COLORREF background = 0;
++		COLORREF softerBackground = 0;
++		COLORREF hotBackground = 0;
++		COLORREF pureBackground = 0;
++		COLORREF errorBackground = 0;
++		COLORREF text = 0;
++		COLORREF darkerText = 0;
++		COLORREF disabledText = 0;
++		COLORREF linkText = 0;
++		COLORREF edge = 0;
++		COLORREF hotEdge = 0;
++		COLORREF disabledEdge = 0;
++	};
++
++	struct ColorsView
++	{
++		COLORREF background = 0;
++		COLORREF text = 0;
++		COLORREF gridlines = 0;
++	};
++
++	struct DarkModeParams
++	{
++		const wchar_t* _themeClassName = nullptr;
++		bool _subclass = false;
++		bool _theme = false;
++	};
++
++	enum class ToolTipsType
++	{
++		tooltip,
++		toolbar,
++		listview,
++		treeview,
++		tabbar
++	};
++
++	enum ColorTone {
++		blackTone  = 0,
++		redTone    = 1,
++		greenTone  = 2,
++		blueTone   = 3,
++		purpleTone = 4,
++		cyanTone   = 5,
++		oliveTone  = 6,
++		customizedTone = 32
++	};
++
++	enum class TreeViewStyle
++	{
++		classic = 0,
++		light = 1,
++		dark = 2
++	};
++
++	void initDarkMode();
++
++	bool isEnabled();
++	bool isExperimentalActive();
++	bool isExperimentalSupported();
++
++	bool isWindowsModeEnabled();
++
++	bool isWindows10();
++	bool isWindows11();
++	DWORD getWindowsBuildNumber();
++
++	double calculatePerceivedLightness(COLORREF c);
++
++	void setDarkCustomColors(ColorTone colorTone);
++
++	COLORREF getBackgroundColor();
++	COLORREF getSofterBackgroundColor();
++	COLORREF getHotBackgroundColor();
++	COLORREF getDarkerBackgroundColor();
++	COLORREF getErrorBackgroundColor();
++
++	COLORREF getTextColor();
++	COLORREF getDarkerTextColor();
++	COLORREF getDisabledTextColor();
++	COLORREF getLinkTextColor();
++
++	COLORREF getEdgeColor();
++	COLORREF getHotEdgeColor();
++	COLORREF getDisabledEdgeColor();
++
++	HBRUSH getBackgroundBrush();
++	HBRUSH getDarkerBackgroundBrush();
++	HBRUSH getSofterBackgroundBrush();
++	HBRUSH getHotBackgroundBrush();
++	HBRUSH getErrorBackgroundBrush();
++
++	HBRUSH getEdgeBrush();
++	HBRUSH getHotEdgeBrush();
++	HBRUSH getDisabledEdgeBrush();
++
++	HPEN getDarkerTextPen();
++	HPEN getEdgePen();
++	HPEN getHotEdgePen();
++	HPEN getDisabledEdgePen();
++
++	void changeCustomTheme(const Colors& colors);
++
++	COLORREF getViewBackgroundColor();
++	COLORREF getViewTextColor();
++	COLORREF getViewGridlinesColor();
++	HBRUSH getViewBackgroundBrush();
++	HBRUSH getViewGridlinesBrush();
++
++	// handle events
++	bool handleSettingChange(LPARAM lParam);
++	bool isDarkModeReg();
++
++	// processes messages related to UAH / custom menubar drawing.
++	// return true if handled, false to continue with normal processing in your wndproc
++	bool runUAHWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, LRESULT* lr);
++	void drawUAHMenuNCBottomLine(HWND hWnd);
++
++	// from DarkMode.h
++	void initExperimentalDarkMode();
++	void setDarkMode(bool useDark, bool fixDarkScrollbar);
++	void allowDarkModeForApp(bool allow);
++	bool allowDarkModeForWindow(HWND hWnd, bool allow);
++	void setTitleBarThemeColor(HWND hWnd);
++
++	void setSysColor(int nIndex, COLORREF color);
++	bool hookSysColor();
++	void unhookSysColor();
++
++	// enhancements to DarkMode.h
++	void enableDarkScrollBarForWindowAndChildren(HWND hWnd);
++
++	inline void paintRoundFrameRect(HDC hdc, const RECT rect, const HPEN hpen, int width = 0, int height = 0);
++
++	void subclassButtonControl(HWND hWnd);
++	void subclassGroupboxControl(HWND hWnd);
++	void subclassTabControl(HWND hWnd);
++	void subclassComboBoxControl(HWND hWnd);
++	void subclassStatusBar(HWND hWnd);
++	bool subclassTabUpDownControl(HWND hWnd);
++
++	void subclassAndThemeButton(HWND hWnd, DarkModeParams p);
++	void subclassAndThemeComboBox(HWND hWnd, DarkModeParams p);
++	void subclassAndThemeListBoxOrEditControl(HWND hWnd, DarkModeParams p, bool isListBox);
++	void subclassAndThemeListView(HWND hWnd, DarkModeParams p);
++	void themeTreeView(HWND hWnd, DarkModeParams p);
++	void themeToolbar(HWND hWnd, DarkModeParams p);
++	void themeRichEdit(HWND hWnd, DarkModeParams p);
++	void themeProgressBar(HWND hWnd, DarkModeParams p);
++	void subclassTabControl(HWND hWnd, DarkModeParams p);
++	void subclassStatusBar(HWND hWnd, DarkModeParams p);
++	void subclassComboboxEx(HWND hWnd, DarkModeParams p);
++
++	void autoSubclassAndThemeChildControls(HWND hWndParent, bool subclass = true, bool theme = true);
++	void autoThemeChildControls(HWND hWndParent);
++
++	void autoSubclassCtlColor(HWND hWnd);
++	void autoSubclassNotifyCustomDraw(HWND hWnd, bool subclassChildren = false);
++	void autoSubclassWindowMenuBar(HWND hWnd);
++	void autoSubclassWindowSettingChange(HWND hWnd);
++
++	void setDarkTitleBar(HWND hWnd);
++	void setDarkExplorerTheme(HWND hWnd);
++	void setDarkScrollBar(HWND hWnd);
++	void setDarkTooltips(HWND hWnd, ToolTipsType type);
++	void setDarkLineAbovePanelToolbar(HWND hWnd);
++	void setDarkListView(HWND hWnd);
++
++	void disableVisualStyle(HWND hWnd, bool doDisable);
++	void calculateTreeViewStyle();
++	void updatePrevTreeViewStyle();
++	TreeViewStyle getTreeViewStyle();
++	void setTreeViewStyle(HWND hWnd, bool force = false);
++	bool isThemeDark();
++	void setBorder(HWND hWnd, bool border = true, long borderStyle = WS_BORDER);
++
++	LRESULT onCtlColor(HDC hdc);
++	LRESULT onCtlColorSofter(HDC hdc);
++	LRESULT onCtlColorDarker(HDC hdc);
++	LRESULT onCtlColorError(HDC hdc);
++	LRESULT onCtlColorDarkerBGStaticText(HDC hdc, bool isTextEnabled);
++	INT_PTR onCtlColorListbox(WPARAM wParam, LPARAM lParam);
++}
+diff --git a/DarkMode/IatHook.h b/DarkMode/IatHook.h
+new file mode 100644
+index 000000000..6f1a5d358
+--- /dev/null
++++ b/DarkMode/IatHook.h
+@@ -0,0 +1,94 @@
++// This file contains code from
++// https://github.com/stevemk14ebr/PolyHook_2_0/blob/master/sources/IatHook.cpp
++// which is licensed under the MIT License.
++// See PolyHook_2_0-LICENSE for more information.
++
++#pragma once
++
++#include <stdint.h>
++
++template <typename T, typename T1, typename T2>
++constexpr T RVA2VA(T1 base, T2 rva)
++{
++	return reinterpret_cast<T>(reinterpret_cast<ULONG_PTR>(base) + rva);
++}
++
++template <typename T>
++constexpr T DataDirectoryFromModuleBase(void *moduleBase, size_t entryID)
++{
++	auto dosHdr = static_cast<PIMAGE_DOS_HEADER>(moduleBase);
++	auto ntHdr = RVA2VA<PIMAGE_NT_HEADERS>(moduleBase, dosHdr->e_lfanew);
++	auto dataDir = ntHdr->OptionalHeader.DataDirectory;
++	return RVA2VA<T>(moduleBase, dataDir[entryID].VirtualAddress);
++}
++
++PIMAGE_THUNK_DATA FindAddressByName(void *moduleBase, PIMAGE_THUNK_DATA impName, PIMAGE_THUNK_DATA impAddr, const char *funcName)
++{
++	for (; impName->u1.Ordinal; ++impName, ++impAddr)
++	{
++		if (IMAGE_SNAP_BY_ORDINAL(impName->u1.Ordinal))
++			continue;
++
++		auto import = RVA2VA<PIMAGE_IMPORT_BY_NAME>(moduleBase, impName->u1.AddressOfData);
++		if (strcmp(reinterpret_cast<const char *>(import->Name), funcName) != 0)
++			continue;
++		return impAddr;
++	}
++	return nullptr;
++}
++
++PIMAGE_THUNK_DATA FindAddressByOrdinal(void *moduleBase, PIMAGE_THUNK_DATA impName, PIMAGE_THUNK_DATA impAddr, uint16_t ordinal)
++{
++	UNREFERENCED_PARAMETER(moduleBase);
++	for (; impName->u1.Ordinal; ++impName, ++impAddr)
++	{
++		if (IMAGE_SNAP_BY_ORDINAL(impName->u1.Ordinal) && IMAGE_ORDINAL(impName->u1.Ordinal) == ordinal)
++			return impAddr;
++	}
++	return nullptr;
++}
++
++PIMAGE_THUNK_DATA FindIatThunkInModule(void *moduleBase, const char *dllName, const char *funcName)
++{
++	auto imports = DataDirectoryFromModuleBase<PIMAGE_IMPORT_DESCRIPTOR>(moduleBase, IMAGE_DIRECTORY_ENTRY_IMPORT);
++	for (; imports->Name; ++imports)
++	{
++		if (_stricmp(RVA2VA<LPCSTR>(moduleBase, imports->Name), dllName) != 0)
++			continue;
++
++		auto origThunk = RVA2VA<PIMAGE_THUNK_DATA>(moduleBase, imports->OriginalFirstThunk);
++		auto thunk = RVA2VA<PIMAGE_THUNK_DATA>(moduleBase, imports->FirstThunk);
++		return FindAddressByName(moduleBase, origThunk, thunk, funcName);
++	}
++	return nullptr;
++}
++
++PIMAGE_THUNK_DATA FindDelayLoadThunkInModule(void *moduleBase, const char *dllName, const char *funcName)
++{
++	auto imports = DataDirectoryFromModuleBase<PIMAGE_DELAYLOAD_DESCRIPTOR>(moduleBase, IMAGE_DIRECTORY_ENTRY_DELAY_IMPORT);
++	for (; imports->DllNameRVA; ++imports)
++	{
++		if (_stricmp(RVA2VA<LPCSTR>(moduleBase, imports->DllNameRVA), dllName) != 0)
++			continue;
++
++		auto impName = RVA2VA<PIMAGE_THUNK_DATA>(moduleBase, imports->ImportNameTableRVA);
++		auto impAddr = RVA2VA<PIMAGE_THUNK_DATA>(moduleBase, imports->ImportAddressTableRVA);
++		return FindAddressByName(moduleBase, impName, impAddr, funcName);
++	}
++	return nullptr;
++}
++
++PIMAGE_THUNK_DATA FindDelayLoadThunkInModule(void *moduleBase, const char *dllName, uint16_t ordinal)
++{
++	auto imports = DataDirectoryFromModuleBase<PIMAGE_DELAYLOAD_DESCRIPTOR>(moduleBase, IMAGE_DIRECTORY_ENTRY_DELAY_IMPORT);
++	for (; imports->DllNameRVA; ++imports)
++	{
++		if (_stricmp(RVA2VA<LPCSTR>(moduleBase, imports->DllNameRVA), dllName) != 0)
++			continue;
++
++		auto impName = RVA2VA<PIMAGE_THUNK_DATA>(moduleBase, imports->ImportNameTableRVA);
++		auto impAddr = RVA2VA<PIMAGE_THUNK_DATA>(moduleBase, imports->ImportAddressTableRVA);
++		return FindAddressByOrdinal(moduleBase, impName, impAddr, ordinal);
++	}
++	return nullptr;
++}
+diff --git a/DarkMode/StdAfx.h b/DarkMode/StdAfx.h
+new file mode 100644
+index 000000000..35f8c8189
+--- /dev/null
++++ b/DarkMode/StdAfx.h
+@@ -0,0 +1,11 @@
++// StdAfx.h
++
++#ifndef ZIP7_INC_STDAFX_H
++#define ZIP7_INC_STDAFX_H
++
++#if defined(_MSC_VER) && _MSC_VER >= 1800
++#pragma warning(disable : 4464) // relative include path contains '..'
++#endif
++#include "../CPP/Common/Common.h"
++
++#endif
+diff --git a/DarkMode/UAHMenuBar.h b/DarkMode/UAHMenuBar.h
+new file mode 100644
+index 000000000..830060b99
+--- /dev/null
++++ b/DarkMode/UAHMenuBar.h
+@@ -0,0 +1,74 @@
++// MIT license, see LICENSE
++// Copyright(c) 2021 adzm / Adam D. Walling
++
++#pragma once
++#include <windows.h>
++
++// processes messages related to UAH / custom menubar drawing.
++// return true if handled, false to continue with normal processing in your wndproc
++bool UAHDarkModeWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam, LRESULT* lr);
++
++// window messages related to menu bar drawing
++#define WM_UAHDESTROYWINDOW    0x0090	// handled by DefWindowProc
++#define WM_UAHDRAWMENU         0x0091	// lParam is UAHMENU
++#define WM_UAHDRAWMENUITEM     0x0092	// lParam is UAHDRAWMENUITEM
++#define WM_UAHINITMENU         0x0093	// handled by DefWindowProc
++#define WM_UAHMEASUREMENUITEM  0x0094	// lParam is UAHMEASUREMENUITEM
++#define WM_UAHNCPAINTMENUPOPUP 0x0095	// handled by DefWindowProc
++
++// describes the sizes of the menu bar or menu item
++typedef union tagUAHMENUITEMMETRICS
++{
++	// cx appears to be 14 / 0xE less than rcItem's width!
++	// cy 0x14 seems stable, i wonder if it is 4 less than rcItem's height which is always 24 atm
++	struct {
++		DWORD cx;
++		DWORD cy;
++	} rgsizeBar[2];
++	struct {
++		DWORD cx;
++		DWORD cy;
++	} rgsizePopup[4];
++} UAHMENUITEMMETRICS;
++
++// not really used in our case but part of the other structures
++typedef struct tagUAHMENUPOPUPMETRICS
++{
++	DWORD rgcx[4];
++	DWORD fUpdateMaxWidths : 2; // from kernel symbols, padded to full dword
++} UAHMENUPOPUPMETRICS;
++
++// hmenu is the main window menu; hdc is the context to draw in
++typedef struct tagUAHMENU
++{
++	HMENU hmenu;
++	HDC hdc;
++	DWORD dwFlags; // no idea what these mean, in my testing it's either 0x00000a00 or sometimes 0x00000a10
++} UAHMENU;
++
++// menu items are always referred to by iPosition here
++typedef struct tagUAHMENUITEM
++{
++	int iPosition; // 0-based position of menu item in menubar
++	UAHMENUITEMMETRICS umim;
++	UAHMENUPOPUPMETRICS umpm;
++} UAHMENUITEM;
++
++// the DRAWITEMSTRUCT contains the states of the menu items, as well as
++// the position index of the item in the menu, which is duplicated in
++// the UAHMENUITEM's iPosition as well
++typedef struct UAHDRAWMENUITEM
++{
++	DRAWITEMSTRUCT dis; // itemID looks uninitialized
++	UAHMENU um;
++	UAHMENUITEM umi;
++} UAHDRAWMENUITEM;
++
++// the MEASUREITEMSTRUCT is intended to be filled with the size of the item
++// height appears to be ignored, but width can be modified
++typedef struct tagUAHMEASUREMENUITEM
++{
++	MEASUREITEMSTRUCT mis;
++	UAHMENU um;
++	UAHMENUITEM umi;
++} UAHMEASUREMENUITEM;
+diff --git a/LICENSE.md b/LICENSE.md
+new file mode 100644
+index 000000000..93392f4c2
+--- /dev/null
++++ b/LICENSE.md
+@@ -0,0 +1,631 @@
++### GNU GENERAL PUBLIC LICENSE
++
++Version 3, 29 June 2007
++
++Copyright (C) 2007 Free Software Foundation, Inc.
++<https://fsf.org/>
++
++Everyone is permitted to copy and distribute verbatim copies of this
++license document, but changing it is not allowed.
++
++### Preamble
++
++The GNU General Public License is a free, copyleft license for
++software and other kinds of works.
++
++The licenses for most software and other practical works are designed
++to take away your freedom to share and change the works. By contrast,
++the GNU General Public License is intended to guarantee your freedom
++to share and change all versions of a program--to make sure it remains
++free software for all its users. We, the Free Software Foundation, use
++the GNU General Public License for most of our software; it applies
++also to any other work released this way by its authors. You can apply
++it to your programs, too.
++
++When we speak of free software, we are referring to freedom, not
++price. Our General Public Licenses are designed to make sure that you
++have the freedom to distribute copies of free software (and charge for
++them if you wish), that you receive source code or can get it if you
++want it, that you can change the software or use pieces of it in new
++free programs, and that you know you can do these things.
++
++To protect your rights, we need to prevent others from denying you
++these rights or asking you to surrender the rights. Therefore, you
++have certain responsibilities if you distribute copies of the
++software, or if you modify it: responsibilities to respect the freedom
++of others.
++
++For example, if you distribute copies of such a program, whether
++gratis or for a fee, you must pass on to the recipients the same
++freedoms that you received. You must make sure that they, too, receive
++or can get the source code. And you must show them these terms so they
++know their rights.
++
++Developers that use the GNU GPL protect your rights with two steps:
++(1) assert copyright on the software, and (2) offer you this License
++giving you legal permission to copy, distribute and/or modify it.
++
++For the developers' and authors' protection, the GPL clearly explains
++that there is no warranty for this free software. For both users' and
++authors' sake, the GPL requires that modified versions be marked as
++changed, so that their problems will not be attributed erroneously to
++authors of previous versions.
++
++Some devices are designed to deny users access to install or run
++modified versions of the software inside them, although the
++manufacturer can do so. This is fundamentally incompatible with the
++aim of protecting users' freedom to change the software. The
++systematic pattern of such abuse occurs in the area of products for
++individuals to use, which is precisely where it is most unacceptable.
++Therefore, we have designed this version of the GPL to prohibit the
++practice for those products. If such problems arise substantially in
++other domains, we stand ready to extend this provision to those
++domains in future versions of the GPL, as needed to protect the
++freedom of users.
++
++Finally, every program is threatened constantly by software patents.
++States should not allow patents to restrict development and use of
++software on general-purpose computers, but in those that do, we wish
++to avoid the special danger that patents applied to a free program
++could make it effectively proprietary. To prevent this, the GPL
++assures that patents cannot be used to render the program non-free.
++
++The precise terms and conditions for copying, distribution and
++modification follow.
++
++### TERMS AND CONDITIONS
++
++#### 0. Definitions
++
++"This License" refers to version 3 of the GNU General Public License.
++
++"Copyright" also means copyright-like laws that apply to other kinds
++of works, such as semiconductor masks.
++
++"The Program" refers to any copyrightable work licensed under this
++License. Each licensee is addressed as "you". "Licensees" and
++"recipients" may be individuals or organizations.
++
++To "modify" a work means to copy from or adapt all or part of the work
++in a fashion requiring copyright permission, other than the making of
++an exact copy. The resulting work is called a "modified version" of
++the earlier work or a work "based on" the earlier work.
++
++A "covered work" means either the unmodified Program or a work based
++on the Program.
++
++To "propagate" a work means to do anything with it that, without
++permission, would make you directly or secondarily liable for
++infringement under applicable copyright law, except executing it on a
++computer or modifying a private copy. Propagation includes copying,
++distribution (with or without modification), making available to the
++public, and in some countries other activities as well.
++
++To "convey" a work means any kind of propagation that enables other
++parties to make or receive copies. Mere interaction with a user
++through a computer network, with no transfer of a copy, is not
++conveying.
++
++An interactive user interface displays "Appropriate Legal Notices" to
++the extent that it includes a convenient and prominently visible
++feature that (1) displays an appropriate copyright notice, and (2)
++tells the user that there is no warranty for the work (except to the
++extent that warranties are provided), that licensees may convey the
++work under this License, and how to view a copy of this License. If
++the interface presents a list of user commands or options, such as a
++menu, a prominent item in the list meets this criterion.
++
++#### 1. Source Code
++
++The "source code" for a work means the preferred form of the work for
++making modifications to it. "Object code" means any non-source form of
++a work.
++
++A "Standard Interface" means an interface that either is an official
++standard defined by a recognized standards body, or, in the case of
++interfaces specified for a particular programming language, one that
++is widely used among developers working in that language.
++
++The "System Libraries" of an executable work include anything, other
++than the work as a whole, that (a) is included in the normal form of
++packaging a Major Component, but which is not part of that Major
++Component, and (b) serves only to enable use of the work with that
++Major Component, or to implement a Standard Interface for which an
++implementation is available to the public in source code form. A
++"Major Component", in this context, means a major essential component
++(kernel, window system, and so on) of the specific operating system
++(if any) on which the executable work runs, or a compiler used to
++produce the work, or an object code interpreter used to run it.
++
++The "Corresponding Source" for a work in object code form means all
++the source code needed to generate, install, and (for an executable
++work) run the object code and to modify the work, including scripts to
++control those activities. However, it does not include the work's
++System Libraries, or general-purpose tools or generally available free
++programs which are used unmodified in performing those activities but
++which are not part of the work. For example, Corresponding Source
++includes interface definition files associated with source files for
++the work, and the source code for shared libraries and dynamically
++linked subprograms that the work is specifically designed to require,
++such as by intimate data communication or control flow between those
++subprograms and other parts of the work.
++
++The Corresponding Source need not include anything that users can
++regenerate automatically from other parts of the Corresponding Source.
++
++The Corresponding Source for a work in source code form is that same
++work.
++
++#### 2. Basic Permissions
++
++All rights granted under this License are granted for the term of
++copyright on the Program, and are irrevocable provided the stated
++conditions are met. This License explicitly affirms your unlimited
++permission to run the unmodified Program. The output from running a
++covered work is covered by this License only if the output, given its
++content, constitutes a covered work. This License acknowledges your
++rights of fair use or other equivalent, as provided by copyright law.
++
++You may make, run and propagate covered works that you do not convey,
++without conditions so long as your license otherwise remains in force.
++You may convey covered works to others for the sole purpose of having
++them make modifications exclusively for you, or provide you with
++facilities for running those works, provided that you comply with the
++terms of this License in conveying all material for which you do not
++control copyright. Those thus making or running the covered works for
++you must do so exclusively on your behalf, under your direction and
++control, on terms that prohibit them from making any copies of your
++copyrighted material outside their relationship with you.
++
++Conveying under any other circumstances is permitted solely under the
++conditions stated below. Sublicensing is not allowed; section 10 makes
++it unnecessary.
++
++#### 3. Protecting Users' Legal Rights From Anti-Circumvention Law
++
++No covered work shall be deemed part of an effective technological
++measure under any applicable law fulfilling obligations under article
++11 of the WIPO copyright treaty adopted on 20 December 1996, or
++similar laws prohibiting or restricting circumvention of such
++measures.
++
++When you convey a covered work, you waive any legal power to forbid
++circumvention of technological measures to the extent such
++circumvention is effected by exercising rights under this License with
++respect to the covered work, and you disclaim any intention to limit
++operation or modification of the work as a means of enforcing, against
++the work's users, your or third parties' legal rights to forbid
++circumvention of technological measures.
++
++#### 4. Conveying Verbatim Copies
++
++You may convey verbatim copies of the Program's source code as you
++receive it, in any medium, provided that you conspicuously and
++appropriately publish on each copy an appropriate copyright notice;
++keep intact all notices stating that this License and any
++non-permissive terms added in accord with section 7 apply to the code;
++keep intact all notices of the absence of any warranty; and give all
++recipients a copy of this License along with the Program.
++
++You may charge any price or no price for each copy that you convey,
++and you may offer support or warranty protection for a fee.
++
++#### 5. Conveying Modified Source Versions
++
++You may convey a work based on the Program, or the modifications to
++produce it from the Program, in the form of source code under the
++terms of section 4, provided that you also meet all of these
++conditions:
++
++-   a) The work must carry prominent notices stating that you modified
++    it, and giving a relevant date.
++
++-   b) The work must carry prominent notices stating that it is
++    released under this License and any conditions added under
++    section 7. This requirement modifies the requirement in section 4
++    to "keep intact all notices".
++
++-   c) You must license the entire work, as a whole, under this
++    License to anyone who comes into possession of a copy. This
++    License will therefore apply, along with any applicable section 7
++    additional terms, to the whole of the work, and all its parts,
++    regardless of how they are packaged. This License gives no
++    permission to license the work in any other way, but it does not
++    invalidate such permission if you have separately received it.
++
++-   d) If the work has interactive user interfaces, each must display
++    Appropriate Legal Notices; however, if the Program has interactive
++    interfaces that do not display Appropriate Legal Notices, your
++    work need not make them do so.
++
++A compilation of a covered work with other separate and independent
++works, which are not by their nature extensions of the covered work,
++and which are not combined with it such as to form a larger program,
++in or on a volume of a storage or distribution medium, is called an
++"aggregate" if the compilation and its resulting copyright are not
++used to limit the access or legal rights of the compilation's users
++beyond what the individual works permit. Inclusion of a covered work
++in an aggregate does not cause this License to apply to the other
++parts of the aggregate.
++
++#### 6. Conveying Non-Source Forms
++
++You may convey a covered work in object code form under the terms of
++sections 4 and 5, provided that you also convey the machine-readable
++Corresponding Source under the terms of this License, in one of these
++ways:
++
++-   a) Convey the object code in, or embodied in, a physical product
++    (including a physical distribution medium), accompanied by the
++    Corresponding Source fixed on a durable physical medium
++    customarily used for software interchange.
++
++-   b) Convey the object code in, or embodied in, a physical product
++    (including a physical distribution medium), accompanied by a
++    written offer, valid for at least three years and valid for as
++    long as you offer spare parts or customer support for that product
++    model, to give anyone who possesses the object code either (1) a
++    copy of the Corresponding Source for all the software in the
++    product that is covered by this License, on a durable physical
++    medium customarily used for software interchange, for a price no
++    more than your reasonable cost of physically performing this
++    conveying of source, or (2) access to copy the Corresponding
++    Source from a network server at no charge.
++
++-   c) Convey individual copies of the object code with a copy of the
++    written offer to provide the Corresponding Source. This
++    alternative is allowed only occasionally and noncommercially, and
++    only if you received the object code with such an offer, in accord
++    with subsection 6b.
++
++-   d) Convey the object code by offering access from a designated
++    place (gratis or for a charge), and offer equivalent access to the
++    Corresponding Source in the same way through the same place at no
++    further charge. You need not require recipients to copy the
++    Corresponding Source along with the object code. If the place to
++    copy the object code is a network server, the Corresponding Source
++    may be on a different server (operated by you or a third party)
++    that supports equivalent copying facilities, provided you maintain
++    clear directions next to the object code saying where to find the
++    Corresponding Source. Regardless of what server hosts the
++    Corresponding Source, you remain obligated to ensure that it is
++    available for as long as needed to satisfy these requirements.
++
++-   e) Convey the object code using peer-to-peer transmission,
++    provided you inform other peers where the object code and
++    Corresponding Source of the work are being offered to the general
++    public at no charge under subsection 6d.
++
++A separable portion of the object code, whose source code is excluded
++from the Corresponding Source as a System Library, need not be
++included in conveying the object code work.
++
++A "User Product" is either (1) a "consumer product", which means any
++tangible personal property which is normally used for personal,
++family, or household purposes, or (2) anything designed or sold for
++incorporation into a dwelling. In determining whether a product is a
++consumer product, doubtful cases shall be resolved in favor of
++coverage. For a particular product received by a particular user,
++"normally used" refers to a typical or common use of that class of
++product, regardless of the status of the particular user or of the way
++in which the particular user actually uses, or expects or is expected
++to use, the product. A product is a consumer product regardless of
++whether the product has substantial commercial, industrial or
++non-consumer uses, unless such uses represent the only significant
++mode of use of the product.
++
++"Installation Information" for a User Product means any methods,
++procedures, authorization keys, or other information required to
++install and execute modified versions of a covered work in that User
++Product from a modified version of its Corresponding Source. The
++information must suffice to ensure that the continued functioning of
++the modified object code is in no case prevented or interfered with
++solely because modification has been made.
++
++If you convey an object code work under this section in, or with, or
++specifically for use in, a User Product, and the conveying occurs as
++part of a transaction in which the right of possession and use of the
++User Product is transferred to the recipient in perpetuity or for a
++fixed term (regardless of how the transaction is characterized), the
++Corresponding Source conveyed under this section must be accompanied
++by the Installation Information. But this requirement does not apply
++if neither you nor any third party retains the ability to install
++modified object code on the User Product (for example, the work has
++been installed in ROM).
++
++The requirement to provide Installation Information does not include a
++requirement to continue to provide support service, warranty, or
++updates for a work that has been modified or installed by the
++recipient, or for the User Product in which it has been modified or
++installed. Access to a network may be denied when the modification
++itself materially and adversely affects the operation of the network
++or violates the rules and protocols for communication across the
++network.
++
++Corresponding Source conveyed, and Installation Information provided,
++in accord with this section must be in a format that is publicly
++documented (and with an implementation available to the public in
++source code form), and must require no special password or key for
++unpacking, reading or copying.
++
++#### 7. Additional Terms
++
++"Additional permissions" are terms that supplement the terms of this
++License by making exceptions from one or more of its conditions.
++Additional permissions that are applicable to the entire Program shall
++be treated as though they were included in this License, to the extent
++that they are valid under applicable law. If additional permissions
++apply only to part of the Program, that part may be used separately
++under those permissions, but the entire Program remains governed by
++this License without regard to the additional permissions.
++
++When you convey a copy of a covered work, you may at your option
++remove any additional permissions from that copy, or from any part of
++it. (Additional permissions may be written to require their own
++removal in certain cases when you modify the work.) You may place
++additional permissions on material, added by you to a covered work,
++for which you have or can give appropriate copyright permission.
++
++Notwithstanding any other provision of this License, for material you
++add to a covered work, you may (if authorized by the copyright holders
++of that material) supplement the terms of this License with terms:
++
++-   a) Disclaiming warranty or limiting liability differently from the
++    terms of sections 15 and 16 of this License; or
++
++-   b) Requiring preservation of specified reasonable legal notices or
++    author attributions in that material or in the Appropriate Legal
++    Notices displayed by works containing it; or
++
++-   c) Prohibiting misrepresentation of the origin of that material,
++    or requiring that modified versions of such material be marked in
++    reasonable ways as different from the original version; or
++
++-   d) Limiting the use for publicity purposes of names of licensors
++    or authors of the material; or
++
++-   e) Declining to grant rights under trademark law for use of some
++    trade names, trademarks, or service marks; or
++
++-   f) Requiring indemnification of licensors and authors of that
++    material by anyone who conveys the material (or modified versions
++    of it) with contractual assumptions of liability to the recipient,
++    for any liability that these contractual assumptions directly
++    impose on those licensors and authors.
++
++All other non-permissive additional terms are considered "further
++restrictions" within the meaning of section 10. If the Program as you
++received it, or any part of it, contains a notice stating that it is
++governed by this License along with a term that is a further
++restriction, you may remove that term. If a license document contains
++a further restriction but permits relicensing or conveying under this
++License, you may add to a covered work material governed by the terms
++of that license document, provided that the further restriction does
++not survive such relicensing or conveying.
++
++If you add terms to a covered work in accord with this section, you
++must place, in the relevant source files, a statement of the
++additional terms that apply to those files, or a notice indicating
++where to find the applicable terms.
++
++Additional terms, permissive or non-permissive, may be stated in the
++form of a separately written license, or stated as exceptions; the
++above requirements apply either way.
++
++#### 8. Termination
++
++You may not propagate or modify a covered work except as expressly
++provided under this License. Any attempt otherwise to propagate or
++modify it is void, and will automatically terminate your rights under
++this License (including any patent licenses granted under the third
++paragraph of section 11).
++
++However, if you cease all violation of this License, then your license
++from a particular copyright holder is reinstated (a) provisionally,
++unless and until the copyright holder explicitly and finally
++terminates your license, and (b) permanently, if the copyright holder
++fails to notify you of the violation by some reasonable means prior to
++60 days after the cessation.
++
++Moreover, your license from a particular copyright holder is
++reinstated permanently if the copyright holder notifies you of the
++violation by some reasonable means, this is the first time you have
++received notice of violation of this License (for any work) from that
++copyright holder, and you cure the violation prior to 30 days after
++your receipt of the notice.
++
++Termination of your rights under this section does not terminate the
++licenses of parties who have received copies or rights from you under
++this License. If your rights have been terminated and not permanently
++reinstated, you do not qualify to receive new licenses for the same
++material under section 10.
++
++#### 9. Acceptance Not Required for Having Copies
++
++You are not required to accept this License in order to receive or run
++a copy of the Program. Ancillary propagation of a covered work
++occurring solely as a consequence of using peer-to-peer transmission
++to receive a copy likewise does not require acceptance. However,
++nothing other than this License grants you permission to propagate or
++modify any covered work. These actions infringe copyright if you do
++not accept this License. Therefore, by modifying or propagating a
++covered work, you indicate your acceptance of this License to do so.
++
++#### 10. Automatic Licensing of Downstream Recipients
++
++Each time you convey a covered work, the recipient automatically
++receives a license from the original licensors, to run, modify and
++propagate that work, subject to this License. You are not responsible
++for enforcing compliance by third parties with this License.
++
++An "entity transaction" is a transaction transferring control of an
++organization, or substantially all assets of one, or subdividing an
++organization, or merging organizations. If propagation of a covered
++work results from an entity transaction, each party to that
++transaction who receives a copy of the work also receives whatever
++licenses to the work the party's predecessor in interest had or could
++give under the previous paragraph, plus a right to possession of the
++Corresponding Source of the work from the predecessor in interest, if
++the predecessor has it or can get it with reasonable efforts.
++
++You may not impose any further restrictions on the exercise of the
++rights granted or affirmed under this License. For example, you may
++not impose a license fee, royalty, or other charge for exercise of
++rights granted under this License, and you may not initiate litigation
++(including a cross-claim or counterclaim in a lawsuit) alleging that
++any patent claim is infringed by making, using, selling, offering for
++sale, or importing the Program or any portion of it.
++
++#### 11. Patents
++
++A "contributor" is a copyright holder who authorizes use under this
++License of the Program or a work on which the Program is based. The
++work thus licensed is called the contributor's "contributor version".
++
++A contributor's "essential patent claims" are all patent claims owned
++or controlled by the contributor, whether already acquired or
++hereafter acquired, that would be infringed by some manner, permitted
++by this License, of making, using, or selling its contributor version,
++but do not include claims that would be infringed only as a
++consequence of further modification of the contributor version. For
++purposes of this definition, "control" includes the right to grant
++patent sublicenses in a manner consistent with the requirements of
++this License.
++
++Each contributor grants you a non-exclusive, worldwide, royalty-free
++patent license under the contributor's essential patent claims, to
++make, use, sell, offer for sale, import and otherwise run, modify and
++propagate the contents of its contributor version.
++
++In the following three paragraphs, a "patent license" is any express
++agreement or commitment, however denominated, not to enforce a patent
++(such as an express permission to practice a patent or covenant not to
++sue for patent infringement). To "grant" such a patent license to a
++party means to make such an agreement or commitment not to enforce a
++patent against the party.
++
++If you convey a covered work, knowingly relying on a patent license,
++and the Corresponding Source of the work is not available for anyone
++to copy, free of charge and under the terms of this License, through a
++publicly available network server or other readily accessible means,
++then you must either (1) cause the Corresponding Source to be so
++available, or (2) arrange to deprive yourself of the benefit of the
++patent license for this particular work, or (3) arrange, in a manner
++consistent with the requirements of this License, to extend the patent
++license to downstream recipients. "Knowingly relying" means you have
++actual knowledge that, but for the patent license, your conveying the
++covered work in a country, or your recipient's use of the covered work
++in a country, would infringe one or more identifiable patents in that
++country that you have reason to believe are valid.
++
++If, pursuant to or in connection with a single transaction or
++arrangement, you convey, or propagate by procuring conveyance of, a
++covered work, and grant a patent license to some of the parties
++receiving the covered work authorizing them to use, propagate, modify
++or convey a specific copy of the covered work, then the patent license
++you grant is automatically extended to all recipients of the covered
++work and works based on it.
++
++A patent license is "discriminatory" if it does not include within the
++scope of its coverage, prohibits the exercise of, or is conditioned on
++the non-exercise of one or more of the rights that are specifically
++granted under this License. You may not convey a covered work if you
++are a party to an arrangement with a third party that is in the
++business of distributing software, under which you make payment to the
++third party based on the extent of your activity of conveying the
++work, and under which the third party grants, to any of the parties
++who would receive the covered work from you, a discriminatory patent
++license (a) in connection with copies of the covered work conveyed by
++you (or copies made from those copies), or (b) primarily for and in
++connection with specific products or compilations that contain the
++covered work, unless you entered into that arrangement, or that patent
++license was granted, prior to 28 March 2007.
++
++Nothing in this License shall be construed as excluding or limiting
++any implied license or other defenses to infringement that may
++otherwise be available to you under applicable patent law.
++
++#### 12. No Surrender of Others' Freedom
++
++If conditions are imposed on you (whether by court order, agreement or
++otherwise) that contradict the conditions of this License, they do not
++excuse you from the conditions of this License. If you cannot convey a
++covered work so as to satisfy simultaneously your obligations under
++this License and any other pertinent obligations, then as a
++consequence you may not convey it at all. For example, if you agree to
++terms that obligate you to collect a royalty for further conveying
++from those to whom you convey the Program, the only way you could
++satisfy both those terms and this License would be to refrain entirely
++from conveying the Program.
++
++#### 13. Use with the GNU Affero General Public License
++
++Notwithstanding any other provision of this License, you have
++permission to link or combine any covered work with a work licensed
++under version 3 of the GNU Affero General Public License into a single
++combined work, and to convey the resulting work. The terms of this
++License will continue to apply to the part which is the covered work,
++but the special requirements of the GNU Affero General Public License,
++section 13, concerning interaction through a network will apply to the
++combination as such.
++
++#### 14. Revised Versions of this License
++
++The Free Software Foundation may publish revised and/or new versions
++of the GNU General Public License from time to time. Such new versions
++will be similar in spirit to the present version, but may differ in
++detail to address new problems or concerns.
++
++Each version is given a distinguishing version number. If the Program
++specifies that a certain numbered version of the GNU General Public
++License "or any later version" applies to it, you have the option of
++following the terms and conditions either of that numbered version or
++of any later version published by the Free Software Foundation. If the
++Program does not specify a version number of the GNU General Public
++License, you may choose any version ever published by the Free
++Software Foundation.
++
++If the Program specifies that a proxy can decide which future versions
++of the GNU General Public License can be used, that proxy's public
++statement of acceptance of a version permanently authorizes you to
++choose that version for the Program.
++
++Later license versions may give you additional or different
++permissions. However, no additional obligations are imposed on any
++author or copyright holder as a result of your choosing to follow a
++later version.
++
++#### 15. Disclaimer of Warranty
++
++THERE IS NO WARRANTY FOR THE PROGRAM, TO THE EXTENT PERMITTED BY
++APPLICABLE LAW. EXCEPT WHEN OTHERWISE STATED IN WRITING THE COPYRIGHT
++HOLDERS AND/OR OTHER PARTIES PROVIDE THE PROGRAM "AS IS" WITHOUT
++WARRANTY OF ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING, BUT NOT
++LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
++A PARTICULAR PURPOSE. THE ENTIRE RISK AS TO THE QUALITY AND
++PERFORMANCE OF THE PROGRAM IS WITH YOU. SHOULD THE PROGRAM PROVE
++DEFECTIVE, YOU ASSUME THE COST OF ALL NECESSARY SERVICING, REPAIR OR
++CORRECTION.
++
++#### 16. Limitation of Liability
++
++IN NO EVENT UNLESS REQUIRED BY APPLICABLE LAW OR AGREED TO IN WRITING
++WILL ANY COPYRIGHT HOLDER, OR ANY OTHER PARTY WHO MODIFIES AND/OR
++CONVEYS THE PROGRAM AS PERMITTED ABOVE, BE LIABLE TO YOU FOR DAMAGES,
++INCLUDING ANY GENERAL, SPECIAL, INCIDENTAL OR CONSEQUENTIAL DAMAGES
++ARISING OUT OF THE USE OR INABILITY TO USE THE PROGRAM (INCLUDING BUT
++NOT LIMITED TO LOSS OF DATA OR DATA BEING RENDERED INACCURATE OR
++LOSSES SUSTAINED BY YOU OR THIRD PARTIES OR A FAILURE OF THE PROGRAM
++TO OPERATE WITH ANY OTHER PROGRAMS), EVEN IF SUCH HOLDER OR OTHER
++PARTY HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
++
++#### 17. Interpretation of Sections 15 and 16
++
++If the disclaimer of warranty and limitation of liability provided
++above cannot be given local legal effect according to their terms,
++reviewing courts shall apply local law that most closely approximates
++an absolute waiver of all civil liability in connection with the
++Program, unless a warranty or assumption of liability accompanies a
++copy of the Program in return for a fee.
++
++END OF TERMS AND CONDITIONS
+diff --git a/build.cmd b/build.cmd
+new file mode 100644
+index 000000000..64682f170
+--- /dev/null
++++ b/build.cmd
+@@ -0,0 +1,30 @@
++@echo off
++
++cd /d "%~dp0"
++
++for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do (
++  set InstallDir=%%i
++)
++
++setlocal
++
++if "%1" == "" set ARCH=x64
++if "%1" == "x64" set ARCH=x64
++if "%1" == "x86" set ARCH=x64_x86
++if "%1" == "arm64" set ARCH=x64_arm64
++
++if exist "%InstallDir%\VC\Auxiliary\Build\vcvarsall.bat" (
++  call "%InstallDir%\VC\Auxiliary\Build\vcvarsall.bat" %ARCH%
++
++  pushd CPP\7zip
++  nmake PLATFORM=%1
++  popd
++
++  if not exist "%ARCH%\" mkdir "%ARCH%"
++  copy "CPP\7zip\Bundles\SFXWin\%ARCH%\7z.sfx" "%ARCH%"
++  copy "CPP\7zip\UI\FileManager\%ARCH%\7zFM.exe" "%ARCH%"
++  copy "CPP\7zip\UI\GUI\%ARCH%\7zG.exe" "%ARCH%"
++  copy "DarkMode\7zDark.ini" "%ARCH%"
++)
++
++endlocal

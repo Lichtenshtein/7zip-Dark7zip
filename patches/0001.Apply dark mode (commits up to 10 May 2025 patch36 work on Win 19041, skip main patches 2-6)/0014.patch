@@ -1,0 +1,441 @@
+From c61d3921870d4b2390977a8681d09d17372574f9 Mon Sep 17 00:00:00 2001
+From: ozone10 <positronix10@gmail.com>
+Date: Thu, 27 Mar 2025 23:04:10 +0100
+Subject: [PATCH] Build tweaks
+
+---
+ .github/workflows/build_win.yml |   8 +++-
+ .gitignore                      |   6 +--
+ DarkMode/icons/Add.bmp          | Bin 0 -> 6966 bytes
+ DarkMode/icons/Add2.bmp         | Bin 0 -> 2358 bytes
+ DarkMode/icons/Copy.bmp         | Bin 0 -> 6966 bytes
+ DarkMode/icons/Copy2.bmp        | Bin 0 -> 2358 bytes
+ DarkMode/icons/Delete.bmp       | Bin 0 -> 6966 bytes
+ DarkMode/icons/Delete2.bmp      | Bin 0 -> 2358 bytes
+ DarkMode/icons/Extract.bmp      | Bin 0 -> 6966 bytes
+ DarkMode/icons/Extract2.bmp     | Bin 0 -> 2358 bytes
+ DarkMode/icons/Info.bmp         | Bin 0 -> 6966 bytes
+ DarkMode/icons/Info2.bmp        | Bin 0 -> 2358 bytes
+ DarkMode/icons/Move.bmp         | Bin 0 -> 6966 bytes
+ DarkMode/icons/Move2.bmp        | Bin 0 -> 2358 bytes
+ DarkMode/icons/Test.bmp         | Bin 0 -> 6966 bytes
+ DarkMode/icons/Test2.bmp        | Bin 0 -> 2358 bytes
+ build.cmd                       |  68 ++++++++++++++++++++++----------
+ 17 files changed, 58 insertions(+), 24 deletions(-)
+ create mode 100644 DarkMode/icons/Add.bmp
+ create mode 100644 DarkMode/icons/Add2.bmp
+ create mode 100644 DarkMode/icons/Copy.bmp
+ create mode 100644 DarkMode/icons/Copy2.bmp
+ create mode 100644 DarkMode/icons/Delete.bmp
+ create mode 100644 DarkMode/icons/Delete2.bmp
+ create mode 100644 DarkMode/icons/Extract.bmp
+ create mode 100644 DarkMode/icons/Extract2.bmp
+ create mode 100644 DarkMode/icons/Info.bmp
+ create mode 100644 DarkMode/icons/Info2.bmp
+ create mode 100644 DarkMode/icons/Move.bmp
+ create mode 100644 DarkMode/icons/Move2.bmp
+ create mode 100644 DarkMode/icons/Test.bmp
+ create mode 100644 DarkMode/icons/Test2.bmp
+diff --git a/DarkMode/icons/Add.bmp b/DarkMode/icons/Add.bmp
+new file mode 100644
+index 0000000000000000000000000000000000000000..2fa9f3d37e4c224c601351702986dcd13ee348e2
+GIT binary patch
+literal 6966
+zcmeHM%Wl&^6ivwn1oQ{kus{%Ythy-W6&|Zp3TnkaR4pr@f*nFa4YcqZl&`2r36*$=
+z1u6=S;;|DJrV?F4kTB<X#;Rpa!g%7iAf?jHI5YR2d*;ra@tw3hJ9VNE{!QVt1UUye
+z1(_(E#3%kRzBwsHb`%QLYIQ8*7#w&G1VM19-S%c&*IgCDZ9sg;PbGYAVC<>qdFQG7
+zujH)|;;`em_Y~g%t%>-sxl7xFoCo4LCxqA8=PY&@W5@BXgIj5Pd-oUxeP<oVxxq2?
+z@9gWl9{O(PJqN7+1b93IkKg114xf-a6;mG2y#~7vY97E4wY+kQeh~9@<-3PGSmJz4
+zxkq}$!8+ZB{V#>}B9A%1-(%%(4{^T|@v&`zQ3l=~G4cG!7RSU6@tTJp=1eaO?vYP5
+zhaR!<Jd*v;?RJkudlfzwBi~uI%q6Y?#KV5b{9FR}WrhFIG*5$iWrJceNA4luzo!qx
+z=Z=YusSdD<!2PDM%f@!~N&x<WslGawxCXvyj7+c{r*nbav93EN`jHN~r{PaK`1zvZ
+zG#%j#+v3bwQ~Yabux$7vcUXTgR!`FS8l(%nH^k)n4$@1G+3@Fkn!XUT*GW9v@4(xY
+z{M)C~U|8}$LthX-jjutvz+xR4G@H%iI=!Gi`zqp^qSc;DtyXJN@&BRoWz!e&XDz0)
+z&yqiVjDY|Do<CcR3GN<Ob@A`l7v)mFab3Txy~F%(=*DgO!2P*gQ*R}Wy$yeypSUB0
+z@8H!mz6R;yEWRZ9yPpT?CC6;|!%vgGa8}PG@oc}V`XSr{h>vm2oR)v0ekj`V)!AVU
+z9>_HiZ&_>Ubdr7G-+*i;`*q)m3H-2rW38yu8KzIx&+b<>hlOFVbhdckE=g?Or?ao0
+z=@VzeE$PF>T|->f@v!M*P69W&zs%WSnA%`%SJWK7XE6uGJ-k2iZfeTIR*!W#c)yIT
+z!-DC4i2I}sxG$=>2Z+l$vEw?UdZus8A^!WxJ8&_+*Fblg^`(kIuD_qeW1{wh+SB1X
+z6KA)m@jZ>U<oo_n3ZGS94V=UCU2^w2z?hF?=KU<sC2=2o!uNxUY4Dd8cTsPdwt4gI
+r=MOnm#NFc}^5Pk|vtHtTnP&=x&s!K<<6V@x{cy(p<NwFxnFD_SuAWjA
+
+literal 0
+HcmV?d00001
+
+diff --git a/DarkMode/icons/Add2.bmp b/DarkMode/icons/Add2.bmp
+new file mode 100644
+index 0000000000000000000000000000000000000000..59eaee10d62b6ee821f068331e33d08a0c5b59b5
+GIT binary patch
+literal 2358
+zcmc(gJx>%-6o%JIX^c`Cv9M7$+EeSsQj+}#fIor|>=xs%5HZ1zO7tHXAr^#CikivH
+zo!Oxi<8HLY@p<8%co~`Xs++jU%RQg(xgTc^otf#0*5PlOzin{A<5cT15<mQ#XOD1X
+zXtlcC?tep36z83DbI#>2!TUVVzY3DUI=)$O?oanf&Ka->#{g8|gLB0y+&!?2{21Fu
+z@B4zjkR-|Jm^x)yPQkHF?g4np8Ll_w;k!Z1bMT!STm63jVpFW_p1UM|pBkM}v7s+b
+zi`(RUrUoTWuAw{e``%B}^h%f?BWGE5&DYoxS3L*rCHx1Y_FZk<c`ej)P50-}T`ibR
+zEB7)9_aMviC!xJA!(9n=d#J;s_u$Qc_7(Cxwu-eK#@6K+e*fm;nzekm)!)0OH?1-J
+z%7u%5&R-Z0vU+*N^rkhQzgSfb<Ka#9T`rrhwc40@V|)?ou{Y;^AHY8}KF{AX{a^X%
+zll$T{KHU$tho(2Jc8(^$+1dZG`$2z2jd8#4y4B+>ci~r0jk7=JjNgA>L+Y%V?W8s4
+ze%R+TFwkrdIpDsBotf!whW1c~|1H=IZJ`WD2M*?gTMX@zIl~0L9b!KH&3q&0D*2kb
+z%=TaBn`$J<-X&u86gTP|^}WG)%X72Ma;okRbzftLc+Ju^&E3!+%Iu-7ndoD;f5&aP
+zx+}Q#9z#%pU9f^p{~vqEkH9-1-vHZ^ax6b~C1;XcdiU`A(9HVgA(@%z=IebD%RR2R
+EALRh$M*si-
+
+literal 0
+HcmV?d00001
+
+diff --git a/DarkMode/icons/Copy.bmp b/DarkMode/icons/Copy.bmp
+new file mode 100644
+index 0000000000000000000000000000000000000000..d3614a368bcf51962130a601b013d4f006f9c60f
+GIT binary patch
+literal 6966
+zcmeHKy-ve05DqWEh6HqBU|?kGio}A{I<yaiT9{F#J``<Af_RCland({cBzms=j1F|
+zQGV<=2}n57#ZG+Z@4NHa^4+@qo|8O%cwd2BgIt0fIT!GT2gZZrRMH=gGaiqv*cjLx
+zP|ShNCMJ|d%P5L=(6Tb&I$;>SP)cw9!af5ovogNrWAy1aeF($YMScfL<LP$0J+I=k
+zUawEU=Le84u>FSh7*yG`H4gY*%0Hg!VsIbO_oc3FQ~Dy`RpQ<hW|Q+^{8*E7b~%?W
+ze-^j|WXXK817Q`ybr#GY4%_lchd=Y(Sq0x>e**H{h7YRzSwLLmeqh0H%HHlP&nd2x
+z==$W4+BUxq%KUxeB^-deZXDUG`-r|TbZx8jHTb9bt`PSuCVMA6<o}T!GyT@!pX7F3
+zJmlZ_IcNE+)k!w~`Ej!OlOLDtK5r|3#QhE0vn;0kZHjMdFLROmkUy(5hsy8Irue4z
+zGH1CDHQ)&M0Iy#rMfYe^d{cXwbG8pY%*8&=wnEnw-_&04C~9#XcrNW_AB4UszNx+7
+zQMWb4H?^<JTi5|U)+=|V=akTwTjmW;k^iUszso-0uM!S*?$5kl;I$gmZC!Gfv7q)E
+zVGMaKGO1O+K<z2d*>xZ4kU9ELTqhRR#O|zXzIk}K4m_9k3che1kJp}gbJ>4tcP|^K
+H{}-np$%c2M
+
+literal 0
+HcmV?d00001
+
+diff --git a/DarkMode/icons/Copy2.bmp b/DarkMode/icons/Copy2.bmp
+new file mode 100644
+index 0000000000000000000000000000000000000000..403b6d6c936eb060729ad80944b13a088841a112
+GIT binary patch
+literal 2358
+zcmds1F-yZh6ix+;E~SHlqobP?p@WlD97>Xs#lN6yagpL+3Jxw7{25ZMKcP*sIOy1^
+z*t-rY=pSeY^Zb%Ddc@0xK&J-2zL)pD_uaco@72uex)wfF{O$l-a}=~~czBTaN)e)f
+zrdgJ?6yTg!7@IhZ@hLzO_=vqS#%y3M&%PsVK12OvJmxo8=R65;E|9wi=Nov)qmO=E
+z)Nt5xRvkD^a0%<}XK~{^_`#WU;`c?{pda*Qt8}SvZjh&+kfUFbV_yG*YqZES4rCfx
+z`ZQ=9k!ySclnGD2qvyR<aUGRDx%EwGegQA&Z<k0bh_$g#PxTV=XW;p;mvKC>N`1#X
+z4SR;RSd-?1`v|;=d8Iyj3H8Zd5o^+Xa`iU&zL;0)JBA(Ti+q(&68;kCW45riY~Ql|
+z%6M^1#>e@50KJ$aS{Yx=Cw&<|=pFjO9-5=ks3g|N_+mck%lO0Lu!wopjlT2WYz}H=
+z{G_J%uHs{jnmCsituOWw`}ps-!uy5$AIDS{_p1Z`RK*c<;2wthuHF>mGN1ZZ8C(tw
+zWcjoh_+7xq+4la;<=<It+|IRU<TNU2TCz9|kBiY<G2fw)HlwGQn{Hlh*?M_mKlw9&
+A_W%F@
+
+literal 0
+HcmV?d00001
+
+diff --git a/DarkMode/icons/Delete.bmp b/DarkMode/icons/Delete.bmp
+new file mode 100644
+index 0000000000000000000000000000000000000000..50ec755cb1d8274f368bc3d15c866c9c71492b6a
+GIT binary patch
+literal 6966
+zcmeI1J!lj`6vr=GC<yi%3&8}eBvp)^oQi@5uJEG}^okS)JENu$?F@FtPGYI1@}m>M
+z!jCf=jGb6*c4ziZ@U&Bc5DVA;%e(<uXU*>HyYm7GyqnzHncw@*f97s?lIrMie`V!o
+z7_Yk#Lx=%HUu7p=@q_D)ttL#OQmNHy>#;^XP)Z$%BK=w^y@W^##*)^$0mk9~u?JB5
+zbV0rUn4hY5a}MxqGqisv{qX-{yWQSWv_6f&*h}oew;%{M6=nGLkD~Yx*L~y5u;aja
+zORO-A587O(TlhatHL-_g%GLtoj`2dBE6d6|Ua5GBYGVDb<{gvO53Fm<x}McXIuG6V
+z*t4@`*;vauv9Jzz%d+y0hi5OjW;O4atbTDEA243%7g>Fz^QZ^gbh5bE8c4H~SI3@H
+z<jsd+ILP{=^q5Y(Pm*K<>MbLF(f4S&2DB#>dGo|DEWJ$Z^f>AFtyZg_{c5||MfDQ{
+zysyN>XJDI)DVc*`BV232#r4$x-gu(+x|otV+`CSiTKb`j>#6@SF~L6WVoK()#uMz-
+zw2SMfU)>@m*cV(($sG32G}oGNaeegDGnDZpzUg90=1}Jm)xuhzaB+R~!;@2nsUNtQ
+zk~ysLg7Hd?xVS$0!Q98pcP^%64t2gzt!A^i-Np6M9|WIv82$RQiz$_(XLQuTeM|qu
+zy=J3}>!Y7o#3Xhn&jESv_0T_uXr$+smACz%9S<cd>$=P4q+9IMD%GIpw+^sz7ACgZ
+zFU__*usimw3+?wwKfc$_*m}|}ombfZDQPymxj}5K@fB&d<$*n8^s8~3lWM^}&)(dY
+zVx~FR_fOfQqv>m9-(%m58vXi7Syt9~@IO+GD2n!E_3_PP{|vD=AAA{E<FK~R*qfw_
+z?O$iOEPboxp?R*0x~)fI`d6Euy^cA~n|a2QHfLLWb|%?_d7JCC7T>R9tP$tq_%b~s
+zQLuJ8Gvl+P$9he-)x&4|S)PO42Y<G+-8iFLJw7e;^(k|oroU_c;K1*yPS<>x>tlNN
+He@wpt!Vho-
+
+literal 0
+HcmV?d00001
+
+diff --git a/DarkMode/icons/Delete2.bmp b/DarkMode/icons/Delete2.bmp
+new file mode 100644
+index 0000000000000000000000000000000000000000..13255e943d7a6d710383bd5cc4f7dddf2ef1aed2
+GIT binary patch
+literal 2358
+zcmchX&r1|x7{^!0)Qe{+j3^2Jfbvju@n9ASdzZXMc~2pdj#2#u3W`Ug{)T0hZhNy8
+zV`t`_ADzM=#qtpK_IaFnV0hix-D#zP?>_JQJm2qkpP6~)ot~Q-shnO@{7!<g3<H&`
+zthlJ}jHXBvl}fc*{qG2ZXu+89Gx!5+7YJt`&7)p=4a4w3>KoNrKQ|^?>V%YIwo{F{
+z*X=*xzk?gpYW6}muGSlk#vmFaTFn(jczZz*zAvg5<<Wfr&7!*Gt+fMie$dC8PP}$C
+zdU}iYr+BohOD>M%OK>dyPnBc0AJzoA*XZWaEQ;0`Go~CjMp1Mp<IHLeA1lzkMmLZD
+z{j9g!%5kI2m~edGzo9kPrzlU~lbQd#a@@!quE6=-YPE*6R>FT+w7iEGs&ym&8{B7-
+z&-dyt8vMV2^}Ig6#=kDe=gRq?erIQ9LH+QK<sNh|v84Yd{YQDduH~7_^TU5dbN}G~
+zQatkSPrYPjs9E=%qW_OzM|m3C<+F3qdR{W2JdMoPtoX|}pt-U!2;#eGkHL(q#s7)a
+z<QsNtz3!7Fxhx)dJ$5zB<!fpuoz4$e<L<Nb>jeK-T5C3&7uhf4{Rw=RT7L)+>2;Sm
+zd4|t0&-)s_N5Gylj>KE<qbSO`3x4^2d{a5BZ%K|mOP}NFp^>@0!hL-M$M~&+HCclL
+c&-2EW*H2`ouJbIn@cf#>Y)P&k&-2p$1)%^6N&o-=
+
+literal 0
+HcmV?d00001
+
+diff --git a/DarkMode/icons/Extract.bmp b/DarkMode/icons/Extract.bmp
+new file mode 100644
+index 0000000000000000000000000000000000000000..469ac08a043720575a08717d15168a3f1736bd4b
+GIT binary patch
+literal 6966
+zcmeI0&ui2`6vwyzI*54lXGIi5MG-31st8iWOE<}OJ@n$ugP?za)`OxTVnOiaK}118
+zQCjgA9<94cT2DnmC?e8Lwgo}Os<aiv+UNI8Cfg8_>~1$%itfU6GV|WN_nDdZCYc`6
+z+L}}1*M`4aQCd(op){p7;4glVo6DWzbfi+*Y_?GvYtV>+|0o7VMvAIs*)MI|o<L2t
+z6ltR$wNj6>q)@Og)xsM!7IV0m<Qxixq9*<SvaDkF=;-L$TK%yNwgtPeX;YH>0Q)(I
+zzt~+Xw|~54S!W#EcE4X1S6jv^#j);wrm?ZHX377<FN>=!?NeO#{B|1lqrZicU!S6m
+zT-N>j5?4EjpA7W`N`XxESfzfT|Bwu2m<F`%m5zx+FPL9>0v>XTa+P|!7MAlhtFL|{
+zJ-wrxeq8cEeqHPF@bEldqqIf&^y!b&Kzdh{eq6E;{-c7&RNtZgAlar--=KlamLT6!
+zhe%hS$>*<RDy>1farTAqZ<Gw5Dc7|Od2kJF=I6cmLx%R8bAtwttaMqVjA*!P3Fh!f
+zw#O;2?RIsNsDt>~4;bDE22*VpZ8N<YeRt6JyTmHyqP|D_soN)Xhguh--RJaa-;vXM
+zlVE3?5&UN*Q=iv2uQ|?{laTeJOh_G>>uTveNV)b!kUfy{A7o_qd+o&a9LjHWtdM*&
+zWTy87`6Ifpfb#+IlofL_)$?9GKDS`wuAIXJ&ZPrhc^uDS{A?RBe%bM@y`>>->0JDY
+zIXH30do)RT<=|ZGgpG;h=iKFYlE_=Fmvb}BPE^0xCtbZI_hE`&sm)RP)ySgw*$x?<
+z+u#@RE6$!g<<hIGu`g^;stIT5b!p=#<vP|?Ya>j*9KZ0dXLcgSKT7||S>+tP$gB#p
+z>FpP5Zz?zC*eT58uvcE|b0z%j183lRFg%tV9Lv+l4@15iPKoyc^4QDc<ga#Hj)^_?
+z*_V5NLA}Q7JM0;p?clkOGAX%AXD7GaarHQR*caA6@9aT!_eVaD_&fyjam3RVcP?zR
+zUT43<Z*|HT;`{sQx!xmPezESRde3R&-J4hUxqFgSjeB;Fn+Ij;To^-%e>O)F|Mu~+
+zU=F+w97~fCbEt%$^Whsx<oCAM_k4H;?~L4oFEp5LnGa0WFo2!EK@0V~dsV~N(2f2-
+J$iK8ce*uNmERp~K
+
+literal 0
+HcmV?d00001
+
+diff --git a/DarkMode/icons/Extract2.bmp b/DarkMode/icons/Extract2.bmp
+new file mode 100644
+index 0000000000000000000000000000000000000000..7251ca456ffbc23a52045b9e131f95a3fd16d1ef
+GIT binary patch
+literal 2358
+zcmds&&1(};6vg8wy3kfdaih2r!IdK2Da970nHifRr6TCYKfsTTf}&Ls+*sVXD!3Ar
+zsyjCdb!O^!#A+KXNHQ}}u()wyZPSHbe=jeS4lk3MiYo&r_uc!>Iq$vuGL!vI+v-f^
+z)5iA>u(^sQnQe^tFz>I`(1lDUm&^S(2*Yq!5JYYegk>O$#3b5F`FwswT2HihIEQCc
+zDup-To^2Lr&!c+;eg#2rFU_C2$9za^O`C6~#yV&4;M_sG$)~P*GGNvhlNXD{ma6|b
+zQ&+9`oAt%!jeHu_|H6NqJ{>i6Nq>?4rQ+G6;@X2U+`h`>#<}=bFPuqvX6=n@jbe)b
+zG;4@>&MWb=+tYM-_iK(lExuiMr%6rHU)9mQMn6UT3d*c=O`i8`N@{BUzC8x#2k1!7
+zC&%^v)&TtP;&yKl&$`3-Cz#b^>xhgvTWkJa*GA?(fEjU}14-X_T<1?u;R_ypii6)y
+z@>@WihrZ3DGXJz^1Kju2XW@3mzHzMc*LOTlUp~tH-eob5`(93MH~Tz6&#&S+Setus
+za6SHcP!`{@<GPBbzpCMLSnt!hnB*=rmf>70nm1q$eRs@F^RKRP8!o-KPQ~0mMSW-L
+z4ECp(+t8oiKWBYVIfrXMmXYk9Sd$jzNoNZ^ds*E-6#f5#zk2swj`L*H&zo}^&9}-r
+zp8c6P#Qtv5gIe!+-qul9y(x=p9ZGuO{{=iu*35BbZ@zsT{ar8$W`HQ3=(~MKKFj{I
+zrj~cc6@7;2<iy0p8go7^$45WEYTvH)7H`#aCyiSu6jt)TGQ=9Zzw5#JW2Ua=uYSYo
+v`Sq<%lVj#l6m_u91@7W{5~Wgf%;e7dFZ^yWb<O7Z_kk&Kv-_IW{A=ECr|jnz
+
+literal 0
+HcmV?d00001
+
+diff --git a/DarkMode/icons/Info.bmp b/DarkMode/icons/Info.bmp
+new file mode 100644
+index 0000000000000000000000000000000000000000..aa5238c35541d11e63e9a8e168a6d57c939f543d
+GIT binary patch
+literal 6966
+zcmeHMJ#Q015OpvG2*@9xp+I0ds(?a(5IzcGOGb$(p^g$NAc77dqL?J`HwYE<DG+u{
+zBtAref{ZQS-q{pKBvONsSl+waBi1SL?Jf3&!jZ<e-ko{#c6N4e))~tU9Zq?FL-@=<
+zPC|}C22w}xi9d{&27U26QmK4C-<N(2c0C8AlzZxRXT-McMIr1m#D)A+!gd*B3y$NQ
+zq3-{Zw?c@0mSx{nd?lVb;=<+*ZFh4Xi06b5PGgI+s4~Wu<y;20%=-GqK??d#SeA8#
+zW9YAL>Dvzat|dJOtp5ObJOGd1<N^+#kULpj9?-o6yANs}zz~I`a*BQs^JV3`g*=$y
+zd~~@7dc?sx-Gcouh4n0nIl$kX^0$e&UkLb^K7la?yiH=F{m>Lg#}4tDgdgTiONYBG
+zW>;h>Ta3b1b7&D8?Vjw1X0y3J*sJg{9mR>`;4djUy38f60mQ+6==!+??z0O2qi&wY
+z;m<t;{P*;M_}tc+v#t)X)4=_vu*bCRV#J@A>RjR)xVkaY;bK{hv*eC-t?K9pI&tD3
+z*uc*h6{q2#?_ZxdbCwkULL4j;{>UBHAB@%GIKDdR0`CnmxxStB!eb`<`JSdP#B4Q;
+zXZjs@8$SQ~u{aop{EyQY#Es*tlP<7WN6Jd2a;TGDc+7-<tyUXU{C|Y;Ouq;GS&PNN
+zFyT)hJ>YMeKV{5eCC;3Y|GmhcHO2&YkBf1*nCSYox0nBA6Z`FK!2PMerq29!<K67T
+z`H4G%_YPj{7B0@>^FDw3vo5B5HM&>69>0nD?FQSrcJNc7FPzmQx;9aIs($eH0OF%n
+zGs|LbF4(`A$D=4891qnGX&oC~9jw89e+|T2)>=_^vN-<oFaKipMWlXP{l;1`N<Z$n
+zUq9Pl)f}dx?B#0iH2B+|l&+qN(#QLD#>eJ;y8HDr{o`!7?)$KD*ASyooOH*TlfVt`
+zFB7_UCVE)gc{PXc-I#;o?%f}GH#OlD$A)z|ct3Ajhbf)?5cWYEaGzFjmx#+UvBP@3
+z_)g!LL;LS1@4!X-UIX1>)|V;<iT-}l9uKu2)SmX<nK-*ef$wQNGp_3%ps=m_3gGOW
+z?>={@0gTCZ%%t1?xg_p^kN191F_jTd+(n&P+9u6+Cx6JPG-|JN$crc7&U%UWWu7S%
+Xw%0JW#JebUcf#rS_x~T0WDfiR*BLIz
+
+literal 0
+HcmV?d00001
+
+diff --git a/DarkMode/icons/Info2.bmp b/DarkMode/icons/Info2.bmp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f9e6e96cad77196fbb544a45989b603c5597b34b
+GIT binary patch
+literal 2358
+zcmc(gJ5Ll*6vu~3X^c=Au`p3|qdm25Xq3h5Hvs$ynh=8BV*C^$CitjCOFIJ_O$ebB
+zALGuQ*`X8TZq&pEuD`R~6R+dUIvY*g<j;Bk&wZS^RHr9~gWhj~zZG!8VJJ9_#*cXO
+z*dY!bK~S&P{~MAd88ODp8WTSSZ{j%qA`l&{5t{+W2VEmIN5KLd9bmy*W0DoP8(<0j
+zKE8J@_8EIV48tR3`lM+(2FDh)``{saxKLC_>>@dj!2vxs+wJzrqFnJi?v(sJdQ|)6
+z`mt6knWW|uJ!p~NL(asld#}}Mjr;Yg+ve1yU9VkL+m}%kop(Jph0BkL4)-GQ{eJ7V
+z8?|rXd$v|>w+}h1dG(3pTt?yUL{a>}_xrlF!4TXQ9QgjM4v*Xicm8v((C6@3WF?!g
+zc3FOR=fX9kwQ$RP@2H(8%koPtT+DO)M0wC<mY3DelY{XmE7C)GxKsHqm(<Ra1M=U2
+zzpFfszoB-K<ZfSq=S6Y#Gbgu&Q*AjPe0SCUTgiO>az5D4=+XCn2k9wi57xAXy<EqZ
+znJS*o7uU{mHX(R#UtT$*wOQ%S=d8xu_tmA(s`|3hu20>BTfQ%Ao3$I+xZ14q5$Moo
+zM13ORzJ;GR(_HfXs`KuQ+l}cDJ+K$``x1^S9J~)^!S{>K9)^i+lk>6YeaqJPHZ|v{
+zmv@)9{rC4xa>H=<6gj(+SF{hGQ*}5mJ8qVlj;TLSx*pr)%UilC?`~e6_*g?l-b9zX
+z^(SuSk+XtZ?xPDV*a6G<<o{y>{T_G?B-X*VC^cGNR#G!cEwkJEK4hl9I*87jXy&qW
+KQkMH)<^2HguEV7O
+
+literal 0
+HcmV?d00001
+
+diff --git a/DarkMode/icons/Move.bmp b/DarkMode/icons/Move.bmp
+new file mode 100644
+index 0000000000000000000000000000000000000000..2698f272255920694ec3205601548dcf9bc352a9
+GIT binary patch
+literal 6966
+zcmeI0u?oU45QgImIEg4O4i1h^eE=81CQzSNx6(vWaIq@-IOjF3LziwRT>S%o3N57n
+z-F>}~u3a)SaU?u1Su56pH869YdGPZvtX1DICd)DiIRFD-01SWuFwnsOdAFy+o+)=D
+zjr%5fTe2u#6~;iP-I%>UdlbWq^6f+$OR)~YKAJiphK`;gS=&|}f_<xJNjL`PH8jjt
+zJy1qPdX=g<`Sd8}`<o9z{}Oqr_XKy3d8zpEo2kTmB-YgY{r1MYx2pE9R^H+Lr{@*!
+jF}J4wmKx6h?ES!Jn2Sd568#rz;@>YA00Us)e;N1yo$^7<
+
+literal 0
+HcmV?d00001
+
+diff --git a/DarkMode/icons/Move2.bmp b/DarkMode/icons/Move2.bmp
+new file mode 100644
+index 0000000000000000000000000000000000000000..e2770dc236473a3d25235a93ff91509eef62ac28
+GIT binary patch
+literal 2358
+zcmds&K~Gab5XXxL2qxl{giH0(0)`_-!2_T`V;gILgae;I!Gwel00$C?90(u7qaX*l
+zKrt0Bzy;IT^zDNtO)zRg;DnLkKl|Rmvc45+I2d0towqx)znPtRyY0@j*T?kJj^8At
+zF_fBE9B+7FUvCH`n25!)+3Y_jv@=vox%4Qlr9VO+hLYEFutnueL^pijf3B38g3Lt7
+zeO^cTbQ8E+U{R#74L)X!N~LlWy!T4^<dFSRsdSr`Q*}0bu(yRWT}k@3)PEk2V;K7g
+za%HxfESJmmW^D7Fa!<$XoS7Yu$Emj?aWMw!Cu@;&39>0;mj?Tj&Hw%`MSYzK9i!(#
+zg7)8r`#^7m1NMpM`ExRMX|TDMH1MQF^Ehu?T9bFBP6xsXYOW?_?9##?Ld|WijPEs{
+z@ehSl1^>7Da9_Fh%zykaL0=am>!W)s@m!kLGq3FWOMm+xC5d}s*v<Z4jnCg_F1>9q
+zXgJkM&$^rG$FjlZ?-Ra~=T+;&{`!1bG0b@Sd|2nJ8orLf`_Q$@Y=C_f2*2Zegn8pG
+zxbrvp%bGuF&-2=p+T9bMYV((MF3tA<GsS-0e4N#3Fi%WA<~|^9)V(<a+XQU-{**N?
+z&G#_a8}R=kK0*G@yORw2sw;<Zeipv@z+a6U{A1YXWo+wWu~>)i;iVDBjCuBseg1^c
+zXZXIrK5B%6xh?K@p-{LbbGF8s1?GF+?uc!>Y>YL7VQxF%ybkv&y_m(^3frOIT*h+Q
+a!x-3yk6K;m#V?HU|DdM0POkO;>-;G>mL&lI
+
+literal 0
+HcmV?d00001
+
+diff --git a/DarkMode/icons/Test.bmp b/DarkMode/icons/Test.bmp
+new file mode 100644
+index 0000000000000000000000000000000000000000..b3adf5480af45ca1078fe3c40cc6e583b4516b9d
+GIT binary patch
+literal 6966
+zcmeHMO-~d-5MAV=QMqYMym&B*H%}Z8zwjf`EC~eSe<0vVC3-U^hE>47A^r)8tP4gl
+zCL+2*n4SR-BZ-`KO>Ezr?vY_LJ4`pTgNG&Qo!;uMSFft8d#ab-zOLhi;I9jxooHv#
+zPNKCHPT&)N7%z9IrUZpTe}8|gwPLX6IUuFnx4P=}xUM@Pgj+%L(SGU1eg$JsJ<mJG
+zx&KSv3L*A8j(bn@m3XFUK6LI<cQ5@wJO_pF*0wl{WyaWXylddrxwN!#hz+tcj^kYC
+z805=a^IZ?JfxLad`nQ3{L-6=RF5s|;+$pBzfw@<q_g?z}3{lD}r)UQ;pVqc($b(V(
+zla_lpk2qMT+tB~5v7YDQ1MEH4_BIjs%OM}zCop<}w@FO&AKBuh(L=n3V23$V%Yu7o
+zQ~OXOHu_E359{me2g1Dy8zZ6Zte(szt^t~d{gC;&1ny%R|3fqKlzRyH3$%gw+{r2~
+z!~u3YaKCHp-Yl`BSo&Pz8u(ep$Z^)rlRMURIchJiFDnB_<!s*@Ia{2Qvp0^!%}J8M
+z&Q~3$?xcApV>ojrHUCnQ9{Ga%M{t)xD;K}WnVZLwbn3^DJFGt#t0(niw%>s_M@+77
+zBMcSy;wQx&K9q}#+6O$-uLIxHw1t?xZe+_;4!jM;fAv(H?zXt=n8(TDbn9i{f10+?
+z{Q5E5@4#XmDXZ1$;W!M$dEsB&Be4$F#Bd!}R#rMR|DSQTY-AyS)?#t`vfTF){3~&J
+zV(J5JG=YC&{>1qdm6_yHlk#VtF~QyAN|cvLKdld{_73vDVuGJE7u=tzHTA}m=Iu1L
+zEtg&u=i}z%{KOq0cn43!joZj@7GG5S-Oo1qQ5}8Ga=*_+<zXLos<ef(x+j$F_NnWK
+zU=JWZyRMlV@u{mH+8fQYkz)-Ws5KC8S!>x~B<T<n_(A=~S}|#^&6uj6-EZ25VH=Dj
+z9lUQx6*lkF+1JmsjkDpFvf<*cAuc8HF&Se{0yn(B44UYg&c)h}Yaf1O;e+NL+#h*2
+zHRWSEpLIESzlf~Eu+4s;4!Do#xJ$%kn%Jg%Z06H8e2D&j@(x^5-)k_poAsrRL9V}_
+zME%wKLGS6{or$wsl=z;;v(xwegKX?;SqYqj^IdWG)_^e-#mu{}&Lwdle1i9bj;Y+?
+ziMyybM%}#mHnNADYDevL0eLY6?yQ%1U*?&@#{N9UCV3a-+(tMpdF%f%dFH@hk~dHG
+
+literal 0
+HcmV?d00001
+
+diff --git a/DarkMode/icons/Test2.bmp b/DarkMode/icons/Test2.bmp
+new file mode 100644
+index 0000000000000000000000000000000000000000..d1d08d32bf5c4f08af57c81cd9d66520b46d139e
+GIT binary patch
+literal 2358
+zcmc(gO=}ZT6o%tUyAc!oDAt7=HQ0UE8U)cK5`RHkS9Ph2QtB=he}%O|{a9K30YV|8
+zLMh!CZIzJBOwyed6LcG|&&k{qr<0_e1i`@DbI;d%?mhR+Z6-f8mgxMZ_?rgf7Dp22
+zS@FZ~91jo}5{W{g@ZaG3e$sW_8Q1k*gB{QFehOp_*6>Y(6T|M2oMT`CjwUeRi|hI;
+za2LT6>!;YhTHg=!`AVg7G)|pHqcH);Cb@0!oHJY=l!tGUn3v!;H8$$?`q@FTVz=B4
+z;`gYLIVd*lt5*GM<b0<FCHmKpp4ffwRjbtt;rux3TCH};*4PlPXb#+q_}jzmJIZ0t
+zA-$Rp`{+vw?q;p#Jqz1)ZAv#znNn`fe7K%c+aL*#+y{65cdl5^Vl&8eG%w)Je}vx{
+zC%0qPZ;nS}!n(b4;hI)E+%n(Ws;e|_Z=HenQ-`~hYug%S^Zxc}jp--hVxGNM>SHal
+zysWxN+mnFX$(7B!{A9P5=m*rG|0_~M`M6X0E|*mA@H@Ht-Tl)4jt$N@HQ;{)e@po+
+ze^K>-KbwSW&aCH8?z6|J!JIr4PR*14V0*0kVN!a-U6-Th)4XVZ(BDv_=YBQ5pWIiY
+zl)W2{k=}zfwQ-g^=rU71^QkfYr1Z{|^7o9BO{zaMpEGK+-&cz|t7;onvd<TwNu6#@
+z;ez`CcHT_)%Bb9MWZ>X^a2KK+oM8;#7BSyOdEdynNWQ$gyzRa3o7AgRcFz&BD{;e|
+z1J0|Kn{75GqI(bPw#F9m@|Ld3yBqe0*X$uJZ=#LeJd9g&rB`sveYAi9+h7@+{C_O6
+qegZxN@inn6N{;5omE@$zWp+E?hs^XZ3t96fy0g(aiOc=3;{E_+@8Pfj
+
+literal 0
+HcmV?d00001
+
+diff --git a/build.cmd b/build.cmd
+index 0e8caa635..edccf32ec 100644
+--- a/build.cmd
++++ b/build.cmd
+@@ -6,6 +6,11 @@ for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio
+   set InstallDir=%%i
+ )
+ 
++if not exist "%InstallDir%\VC\Auxiliary\Build\vcvarsall.bat" (
++  echo vcvarsall.bat not found. Exiting.
++  exit /b 1
++)
++
+ setlocal
+ 
+ set PLATFORM=%1
+@@ -18,30 +23,53 @@ if "%PLATFORM%" == "x64" set ARCH=x64
+ if "%PLATFORM%" == "x86" set ARCH=x64_x86
+ if "%PLATFORM%" == "arm64" set ARCH=x64_arm64
+ 
+-if exist "%InstallDir%\VC\Auxiliary\Build\vcvarsall.bat" (
+-  call "%InstallDir%\VC\Auxiliary\Build\vcvarsall.bat" %ARCH%
++call "%InstallDir%\VC\Auxiliary\Build\vcvarsall.bat" %ARCH%
+ 
+-  rem pushd CPP\7zip
+-  rem nmake
+-  rem popd
++if exist "CPP\7zip\UI\FileManager\%PLATFORM%\resource.res" (
++  del /F /Q "CPP\7zip\UI\FileManager\%PLATFORM%\resource.res"
++)
+ 
+-  pushd CPP\7zip\UI\FileManager
+-  nmake
+-  popd
++rem pushd CPP\7zip
++rem nmake
++rem popd
+ 
+-  pushd CPP\7zip\UI\GUI
+-  nmake
+-  popd
++pushd CPP\7zip\UI\FileManager
++nmake
++popd
+ 
+-  pushd CPP\7zip\Bundles\SFXWin
+-  nmake
+-  popd
++pushd CPP\7zip\UI\GUI
++nmake
++popd
+ 
+-  if not exist "%PLATFORM%-bin\" mkdir "%PLATFORM%-bin"
+-  copy "CPP\7zip\Bundles\SFXWin\%PLATFORM%\7z.sfx" "%PLATFORM%-bin"
+-  copy "CPP\7zip\UI\FileManager\%PLATFORM%\7zFM.exe" "%PLATFORM%-bin"
+-  copy "CPP\7zip\UI\GUI\%PLATFORM%\7zG.exe" "%PLATFORM%-bin"
+-  copy "DarkMode\7zDark.ini" "%PLATFORM%-bin"
+-)
++pushd CPP\7zip\Bundles\SFXWin
++nmake
++popd
++
++if not exist "%PLATFORM%-bin\" mkdir "%PLATFORM%-bin"
++copy "CPP\7zip\Bundles\SFXWin\%PLATFORM%\7z.sfx" "%PLATFORM%-bin"
++copy "CPP\7zip\UI\FileManager\%PLATFORM%\7zFM.exe" "%PLATFORM%-bin"
++copy "CPP\7zip\UI\GUI\%PLATFORM%\7zG.exe" "%PLATFORM%-bin"
++copy "DarkMode\7zDark.ini" "%PLATFORM%-bin"
++
++echo Building fluent version
++if not exist "tmp\" mkdir "tmp"
++move "CPP\7zip\UI\FileManager\*.bmp" "tmp" >nul
++xcopy "DarkMode\icons\*.bmp" "CPP\7zip\UI\FileManager" /Y >nul
++del /F /Q "CPP\7zip\UI\FileManager\%PLATFORM%\resource.res"
++
++pushd CPP\7zip\UI\FileManager
++nmake
++popd
++
++if not exist "%PLATFORM%-fluent-bin\" mkdir "%PLATFORM%-fluent-bin"
++copy "CPP\7zip\Bundles\SFXWin\%PLATFORM%\7z.sfx" "%PLATFORM%-fluent-bin"
++copy "CPP\7zip\UI\FileManager\%PLATFORM%\7zFM.exe" "%PLATFORM%-fluent-bin"
++copy "CPP\7zip\UI\GUI\%PLATFORM%\7zG.exe" "%PLATFORM%-fluent-bin"
++copy "DarkMode\7zDark.ini" "%PLATFORM%-fluent-bin"
++
++xcopy "tmp\*.bmp" "CPP\7zip\UI\FileManager" /Y >nul
++rmdir /S /Q "tmp"
++
++rem pause
+ 
+ endlocal

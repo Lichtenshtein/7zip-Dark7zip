@@ -1,0 +1,156 @@
+From 3cb041379a224a8b915c0050f3c0dc051125914d Mon Sep 17 00:00:00 2001
+From: keklick1337 <86933883+keklick1337@users.noreply.github.com>
+Date: Fri, 6 Dec 2024 20:28:30 +0400
+Subject: [PATCH] fix bugs and add message * fixed bug with -p password input +
+ message to display incorrect password with -fp
+
+---
+ CPP/7zip/Archive/7z/7zIn.cpp                |  7 +++---
+ CPP/7zip/Archive/Zip/ZipHandler.cpp         | 24 +++++++++++++--------
+ CPP/7zip/UI/Console/OpenCallbackConsole.cpp | 19 ++++++++--------
+ CPP/7zip/UI/Console/OpenCallbackConsole.h   |  6 +++---
+ 4 files changed, 31 insertions(+), 25 deletions(-)
+
+diff --git a/CPP/7zip/Archive/7z/7zIn.cpp b/CPP/7zip/Archive/7z/7zIn.cpp
+index aef7a3c..00c32ba 100644
+--- a/CPP/7zip/Archive/7z/7zIn.cpp
++++ b/CPP/7zip/Archive/7z/7zIn.cpp
+@@ -1230,13 +1230,12 @@ HRESULT CInArchive::ReadAndDecodePackedStreams(
+ 			if (folders.FolderCRCs.ValidAndDefined(i)) {
+ 				if (CrcCalc(data, unpackSize) != folders.FolderCRCs.Vals[i]) {
+ 					CMyComBSTR_Wipe passwordBSTR;
+-					RINOK(getNextPassword->CryptoGetNextPassword(&passwordBSTR))
+-					if (passwordBSTR)
+-					{
++					//RINOK(getNextPassword->CryptoGetNextPassword(&passwordBSTR))
++					getNextPassword->CryptoGetNextPassword(&passwordBSTR);
++					if (passwordBSTR) {
+ 						password = passwordBSTR;
+ 						passwordTested = false;
+ 					}
+-
+ 				}
+ 				else {
+ 					getNextPassword->CryptoPasswordValid();
+diff --git a/CPP/7zip/Archive/Zip/ZipHandler.cpp b/CPP/7zip/Archive/Zip/ZipHandler.cpp
+index de83c9a..67337c4 100644
+--- a/CPP/7zip/Archive/Zip/ZipHandler.cpp
++++ b/CPP/7zip/Archive/Zip/ZipHandler.cpp
+@@ -1322,9 +1322,11 @@ HRESULT CZipDecoder::Decode(
+ 						  // abc321 code \/
+ 						  if (getNextPassword)
+ 						  {
+-							  RINOK(getNextPassword->CryptoGetNextPassword(&password))
+-							  if (password && (&password != NULL) && (wcslen(&password[0]) > 0))
+-								  passwordTested = false;
++							  //RINOK(getNextPassword->CryptoGetNextPassword(&password))
++							  if (getNextPassword->CryptoGetNextPassword(&password) == S_OK) {
++								  if (password && (&password != NULL) && (wcslen(&password[0]) > 0))
++									  passwordTested = false;
++							  }
+ 						  }
+ 						  if (passwordTested) {
+ 							  // abc321 code /\~
+@@ -1353,9 +1355,11 @@ HRESULT CZipDecoder::Decode(
+ 						  // this part of code has not been tested yet
+ 						  if (getNextPassword)
+ 						  {
+-							  RINOK(getNextPassword->CryptoGetNextPassword(&password))
+-							  if (password && (&password != NULL) && (wcslen(&password[0]) > 0))
+-								  passwordTested = false;
++							  //RINOK(getNextPassword->CryptoGetNextPassword(&password))
++							  if (getNextPassword->CryptoGetNextPassword(&password) == S_OK) {
++								  if (password && (&password != NULL) && (wcslen(&password[0]) > 0))
++									  passwordTested = false;
++							  }
+ 						  }
+ 						  if (passwordTested) {
+ 							  // abc321 code /\~
+@@ -1393,9 +1397,11 @@ HRESULT CZipDecoder::Decode(
+ 					  if (v1 != v2) {
+ 						  if (getNextPassword)
+ 						  {
+-							  RINOK(getNextPassword->CryptoGetNextPassword(&password))
+-							  if (password && (&password != NULL) && (wcslen(&password[0]) > 0))
+-								  passwordTested = false;
++							  //RINOK(getNextPassword->CryptoGetNextPassword(&password))
++							  if (getNextPassword->CryptoGetNextPassword(&password) == S_OK) {
++								  if (password && (&password != NULL) && (wcslen(&password[0]) > 0))
++									  passwordTested = false;
++							  }
+ 						  }
+ 					  }
+ 					  if (passwordTested)
+@@ -1484,6 +1484,8 @@ HRESULT CZipDecoder::Decode(
+ 			  result =
+ 				  cryptoSetPassword->CryptoSetPassword(
+ 				  (const Byte *)(const char *)charPassword, charPassword.Len());
++			  if ((result == E_INVALIDARG) && (charPassword.Len() > 1) && !passwordTested) // abc321 on 20250619
++				  result = S_OK; // abc321
+ 			  if (result != S_OK)
+ 			  {
+ 				  res = NExtract::NOperationResult::kWrongPassword;
+diff --git a/CPP/7zip/UI/Console/OpenCallbackConsole.cpp b/CPP/7zip/UI/Console/OpenCallbackConsole.cpp
+index 277410d..078ca18 100644
+--- a/CPP/7zip/UI/Console/OpenCallbackConsole.cpp
++++ b/CPP/7zip/UI/Console/OpenCallbackConsole.cpp
+@@ -103,12 +103,15 @@ HRESULT COpenCallbackConsole::Open_CryptoGetNextPassword(BSTR *password)
+ 		ClosePercents();
+ 		Password = "";
+ 		PasswordBruteforced = false;
+-		RINOK(PasswordReader->GetNextPassword(&Password));
+-		if (wcslen(Password) > 0)
+-			PasswordBruteforced = true;
++		//RINOK(PasswordReader->GetNextPassword(&Password));
++		if (PasswordReader->GetNextPassword(&Password) == S_OK) {
++			if (wcslen(Password) > 0)
++				PasswordBruteforced = true;
++			return StringToBstr(Password, password);
++		}
+ 	}
+ 
+-	return StringToBstr(Password, password);
++	return S_FALSE;
+ }
+ 
+ HRESULT COpenCallbackConsole::Print_CryptoPasswordValid()
+@@ -116,12 +119,10 @@ HRESULT COpenCallbackConsole::Print_CryptoPasswordValid()
+ 	RINOK(CheckBreak2())
+ 
+ 		if (PasswordReader) {
+-			if (_so && PasswordBruteforced && wcslen(Password) > 0) {
++			if (_so && PasswordBruteforced && !PasswordPrinted && wcslen(Password) > 0) {
+ 				// Encoding to CP866 should implemented if needed
+-        if (! PasswordPrinted) {
+-				  *_so << "Password '" << Password << "' is valid for archive" << endl;
+-          PasswordPrinted = true; // by keklick1337
+-        }
++				*_so << "Password '" << Password << "' is valid for archive" << endl;
++				PasswordPrinted = true;
+ 			}
+ 		}
+ 
+diff --git a/CPP/7zip/UI/Console/OpenCallbackConsole.h b/CPP/7zip/UI/Console/OpenCallbackConsole.h
+index 7fc9eb8..212bcde 100644
+--- a/CPP/7zip/UI/Console/OpenCallbackConsole.h
++++ b/CPP/7zip/UI/Console/OpenCallbackConsole.h
+@@ -179,7 +179,7 @@ class COpenCallbackConsole: public IOpenCallbackUI
+       // , PasswordWasAsked(false)
+ 	  , PasswordReader(NULL) // by abc321
+ 	  , PasswordBruteforced(false) // by abc321
+-	  , PasswordPrinted(false) // by keklick1337
++	  , PasswordPrinted(false) // by abc321
+       #endif
+       
+       {}
+@@ -206,8 +206,8 @@ class COpenCallbackConsole: public IOpenCallbackUI
+   UString Password;
+   CPasswordReader *PasswordReader; // by abc321
+   bool PasswordBruteforced; // by abc321
+-  bool PasswordPrinted; //by keklick1337
+-  #endif
++  bool PasswordPrinted; // by abc321
++#endif
+ };
+ 
+ #endif

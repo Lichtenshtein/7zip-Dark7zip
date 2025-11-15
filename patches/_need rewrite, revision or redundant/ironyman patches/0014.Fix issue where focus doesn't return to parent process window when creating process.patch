@@ -1,0 +1,44 @@
+From 70fdc409eb8d7ed065cbe1c7d29bcaeca9b65264 Mon Sep 17 00:00:00 2001
+From: ironyman <ironyman13@gmail.com>
+Date: Thu, 4 Jan 2024 02:13:09 -0800
+Subject: [PATCH] Fix issue where focus doesn't return to parent process window
+ when creating process
+
+---
+ CPP/7zip/UI/FileManager/PanelKey.cpp | 1 +
+ CPP/Windows/ProcessUtils.cpp         | 3 +--
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/CPP/7zip/UI/FileManager/PanelKey.cpp b/CPP/7zip/UI/FileManager/PanelKey.cpp
+index 3ea1c9b..0823d79 100644
+--- a/CPP/7zip/UI/FileManager/PanelKey.cpp
++++ b/CPP/7zip/UI/FileManager/PanelKey.cpp
+@@ -383,6 +383,7 @@ bool CPanel::OnKeyDown(LPNMLVKEYDOWN keyDownInfo, LRESULT &result)
+         auto that = this;
+         if (findProc->WaitAndRun([that, cwd](UString path)
+           {
++            SetForegroundWindow(g_HWND);
+             path.Insert(0, cwd.Ptr());
+             if (!PathIsDirectory(path))
+             {
+diff --git a/CPP/Windows/ProcessUtils.cpp b/CPP/Windows/ProcessUtils.cpp
+index 8c4c476..d309247 100644
+--- a/CPP/Windows/ProcessUtils.cpp
++++ b/CPP/Windows/ProcessUtils.cpp
+@@ -238,7 +238,7 @@ WRes CProcess::Create(LPCWSTR imageName, const UString &params, LPCWSTR curDir)
+     }
+ 
+     result = CreateProcessW(imageName, params2.Ptr_non_const(),
+-        NULL, NULL, _readStdout, _readStdout ? CREATE_NEW_CONSOLE : 0, NULL, curDir, &si, &pi);
++        NULL, NULL, _readStdout, 0, NULL, curDir, &si, &pi);
+ 
+     // Child process will have this handle, we don't need it. When child process
+     // exits they will close their instance of this handle and our _hStdoutRead
+@@ -317,7 +317,6 @@ struct CThreadProcessWaitSync
+   }
+   void Process()
+   {
+-    CHAR chBuf[4096];
+     BOOL bSuccess = FALSE;
+ 
+     for (;;)

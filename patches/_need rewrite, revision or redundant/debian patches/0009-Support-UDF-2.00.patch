@@ -1,0 +1,313 @@
+From: Rom Cyncynatus <rom.cyncynatus@gmail.com>
+Date: Sat, 11 Jun 2022 10:00:00 +0300
+Subject: Support UDF 2.00
+
+---
+ CPP/7zip/Archive/Udf/UdfIn.cpp | 196 ++++++++++++++++++-----------------------
+ CPP/7zip/Archive/Udf/UdfIn.h   |  30 ++++++-
+ 2 files changed, 114 insertions(+), 112 deletions(-)
+
+diff --git a/CPP/7zip/Archive/Udf/UdfIn.cpp b/CPP/7zip/Archive/Udf/UdfIn.cpp
+index a7cbe04..5d48149 100755
+--- a/CPP/7zip/Archive/Udf/UdfIn.cpp
++++ b/CPP/7zip/Archive/Udf/UdfIn.cpp
+@@ -135,37 +135,12 @@ void CRegId::Parse(const Byte *buf)
+ }
+ */
+ 
+-// ECMA 3/7.1
+-
+-struct CExtent
+-{
+-  UInt32 Len;
+-  UInt32 Pos;
+-
+-  void Parse(const Byte *buf);
+-};
+-
+ void CExtent::Parse(const Byte *buf)
+ {
+   Len = Get32(buf);
+   Pos = Get32(buf + 4);
+ }
+ 
+-// ECMA 3/7.2
+-
+-struct CTag
+-{
+-  UInt16 Id;
+-  UInt16 Version;
+-  // Byte Checksum;
+-  // UInt16 SerialNumber;
+-  // UInt16 Crc;
+-  // UInt16 CrcLen;
+-  // UInt32 TagLocation;
+-  
+-  HRESULT Parse(const Byte *buf, size_t size);
+-};
+-
+ HRESULT CTag::Parse(const Byte *buf, size_t size)
+ {
+   if (size < 16)
+@@ -320,8 +295,21 @@ void CIcbTag::Parse(const Byte *p)
+   Flags = Get16(p + 18);
+ }
+ 
+-void CItem::Parse(const Byte *p)
++HRESULT CItem::Parse(const Byte *p, const size_t size, const int curPartitionRef)
+ {
++  RINOK(DescTag.Parse(p, size));
++  if (DescTag.Id != DESC_TYPE_File && DescTag.Id != DESC_TYPE_ExtendedFile)
++    return S_FALSE;
++  if ((DescTag.Id == DESC_TYPE_File && size < 176) || (DescTag.Id == DESC_TYPE_ExtendedFile && size < 216))
++    return S_FALSE;
++
++  IcbTag.Parse(p + 16);
++  if (IcbTag.FileType != ICB_FILE_TYPE_DIR &&
++      IcbTag.FileType != ICB_FILE_TYPE_FILE)
++    return S_FALSE;
++
++  bool isExtendedFile = DescTag.Id == DESC_TYPE_ExtendedFile;
++
+   // Uid = Get32(p + 36);
+   // Gid = Get32(p + 40);
+   // Permissions = Get32(p + 44);
+@@ -330,14 +318,81 @@ void CItem::Parse(const Byte *p)
+   // RecordDisplayAttr = p[51];
+   // RecordLen = Get32(p + 52);
+   Size = Get64(p + 56);
+-  NumLogBlockRecorded = Get64(p + 64);
+-  ATime.Parse(p + 72);
+-  MTime.Parse(p + 84);
+-  AttribTime.Parse(p + 96);
++  NumLogBlockRecorded = Get64(p + 64 + (isExtendedFile ? 8 : 0));
++  ATime.Parse(p + 72 + (isExtendedFile ? 8 : 0));
++  MTime.Parse(p + 84 + (isExtendedFile ? 8 : 0));
++  AttribTime.Parse(p + 96 + (isExtendedFile ? 20 : 0));
+   // CheckPoint = Get32(p + 108);
+   // ExtendedAttrIcb.Parse(p + 112);
+   // ImplId.Parse(p + 128);
+   // UniqueId = Get64(p + 160);
++
++  UInt32 extendedAttrLen = Get32(p + 168 + (isExtendedFile ? 40 : 0));
++  UInt32 allocDescriptorsLen = Get32(p + 172 + (isExtendedFile ? 40 : 0));
++
++  if ((extendedAttrLen & 3) != 0)
++    return S_FALSE;
++  size_t pos = 176 + (isExtendedFile ? 40 : 0);
++  if (extendedAttrLen > size - pos)
++    return S_FALSE;
++  /*
++  if (extendedAttrLen != 16)
++  {
++    if (extendedAttrLen < 24)
++      return S_FALSE;
++    CTag attrTag;
++    RINOK(attrTag.Parse(p + pos, size));
++    if (attrTag.Id != DESC_TYPE_ExtendedAttrHeader)
++      return S_FALSE;
++    // UInt32 implAttrLocation = Get32(p + pos + 16);
++    // UInt32 applicationlAttrLocation = Get32(p + pos + 20);
++  }
++  */
++  pos += extendedAttrLen;
++
++  int desctType = IcbTag.GetDescriptorType();
++  if (allocDescriptorsLen > size - pos)
++    return S_FALSE;
++  if (desctType == ICB_DESC_TYPE_INLINE)
++  {
++    IsInline = true;
++    InlineData.CopyFrom(p + pos, allocDescriptorsLen);
++  }
++  else
++  {
++    IsInline = false;
++    if (desctType != ICB_DESC_TYPE_SHORT && desctType != ICB_DESC_TYPE_LONG)
++      return S_FALSE;
++    for (UInt32 i = 0; i < allocDescriptorsLen;)
++    {
++      CMyExtent e;
++      if (desctType == ICB_DESC_TYPE_SHORT)
++      {
++        if (i + 8 > allocDescriptorsLen)
++          return S_FALSE;
++        CShortAllocDesc sad;
++        sad.Parse(p + pos + i);
++        e.Pos = sad.Pos;
++        e.Len = sad.Len;
++        e.PartitionRef = curPartitionRef;
++        i += 8;
++      }
++      else
++      {
++        if (i + 16 > allocDescriptorsLen)
++          return S_FALSE;
++        CLongAllocDesc ladNew;
++        ladNew.Parse(p + pos + i);
++        e.Pos = ladNew.Location.Pos;
++        e.PartitionRef = ladNew.Location.PartitionRef;
++        e.Len = ladNew.Len;
++        i += 16;
++      }
++      Extents.Add(e);
++    }
++  }
++
++  return S_OK;
+ }
+ 
+ // 4/14.4
+@@ -431,89 +486,10 @@ HRESULT CInArchive::ReadItem(int volIndex, int fsIndex, const CLongAllocDesc &la
+   const size_t size = lad.GetLen();
+   CByteBuffer buf(size);
+   RINOK(Read(volIndex, lad, buf));
+-
+-  CTag tag;
+-  const Byte *p = buf;
+-  RINOK(tag.Parse(p, size));
+-  if (size < 176)
+-    return S_FALSE;
+-  if (tag.Id != DESC_TYPE_File)
+-    return S_FALSE;
+-
+-  item.IcbTag.Parse(p + 16);
+-  if (item.IcbTag.FileType != ICB_FILE_TYPE_DIR &&
+-      item.IcbTag.FileType != ICB_FILE_TYPE_FILE)
+-    return S_FALSE;
+-
+-  item.Parse(p);
++  RINOK(item.Parse(buf, size, lad.Location.PartitionRef));
+ 
+   _processedProgressBytes += (UInt64)item.NumLogBlockRecorded * vol.BlockSize + size;
+ 
+-  UInt32 extendedAttrLen = Get32(p + 168);
+-  UInt32 allocDescriptorsLen = Get32(p + 172);
+-
+-  if ((extendedAttrLen & 3) != 0)
+-    return S_FALSE;
+-  size_t pos = 176;
+-  if (extendedAttrLen > size - pos)
+-    return S_FALSE;
+-  /*
+-  if (extendedAttrLen != 16)
+-  {
+-    if (extendedAttrLen < 24)
+-      return S_FALSE;
+-    CTag attrTag;
+-    RINOK(attrTag.Parse(p + pos, size));
+-    if (attrTag.Id != DESC_TYPE_ExtendedAttrHeader)
+-      return S_FALSE;
+-    // UInt32 implAttrLocation = Get32(p + pos + 16);
+-    // UInt32 applicationlAttrLocation = Get32(p + pos + 20);
+-  }
+-  */
+-  pos += extendedAttrLen;
+-
+-  int desctType = item.IcbTag.GetDescriptorType();
+-  if (allocDescriptorsLen > size - pos)
+-    return S_FALSE;
+-  if (desctType == ICB_DESC_TYPE_INLINE)
+-  {
+-    item.IsInline = true;
+-    item.InlineData.CopyFrom(p + pos, allocDescriptorsLen);
+-  }
+-  else
+-  {
+-    item.IsInline = false;
+-    if (desctType != ICB_DESC_TYPE_SHORT && desctType != ICB_DESC_TYPE_LONG)
+-      return S_FALSE;
+-    for (UInt32 i = 0; i < allocDescriptorsLen;)
+-    {
+-      CMyExtent e;
+-      if (desctType == ICB_DESC_TYPE_SHORT)
+-      {
+-        if (i + 8 > allocDescriptorsLen)
+-          return S_FALSE;
+-        CShortAllocDesc sad;
+-        sad.Parse(p + pos + i);
+-        e.Pos = sad.Pos;
+-        e.Len = sad.Len;
+-        e.PartitionRef = lad.Location.PartitionRef;
+-        i += 8;
+-      }
+-      else
+-      {
+-        if (i + 16 > allocDescriptorsLen)
+-          return S_FALSE;
+-        CLongAllocDesc ladNew;
+-        ladNew.Parse(p + pos + i);
+-        e.Pos = ladNew.Location.Pos;
+-        e.PartitionRef = ladNew.Location.PartitionRef;
+-        e.Len = ladNew.Len;
+-        i += 16;
+-      }
+-      item.Extents.Add(e);
+-    }
+-  }
+-
+   if (item.IcbTag.IsDir())
+   {
+     if (!item.CheckChunkSizes() || !CheckItemExtents(volIndex, item))
+diff --git a/CPP/7zip/Archive/Udf/UdfIn.h b/CPP/7zip/Archive/Udf/UdfIn.h
+index d944fcd..7e86832 100755
+--- a/CPP/7zip/Archive/Udf/UdfIn.h
++++ b/CPP/7zip/Archive/Udf/UdfIn.h
+@@ -186,6 +186,31 @@ enum EIcbDescriptorType
+   ICB_DESC_TYPE_INLINE = 3
+ };
+ 
++// ECMA 3/7.1
++
++struct CExtent
++{
++  UInt32 Len;
++  UInt32 Pos;
++
++  void Parse(const Byte *buf);
++};
++
++// ECMA 3/7.2
++
++struct CTag
++{
++  UInt16 Id;
++  UInt16 Version;
++  // Byte Checksum;
++  // UInt16 SerialNumber;
++  // UInt16 Crc;
++  // UInt16 CrcLen;
++  // UInt32 TagLocation;
++
++  HRESULT Parse(const Byte *buf, size_t size);
++};
++
+ struct CIcbTag
+ {
+   // UInt32 PriorDirectNum;
+@@ -221,7 +246,7 @@ struct CMyExtent
+ {
+   UInt32 Pos;
+   UInt32 Len;
+-  unsigned PartitionRef;
++  int PartitionRef;
+   
+   UInt32 GetLen() const { return Len & 0x3FFFFFFF; }
+   UInt32 GetType() const { return Len >> 30; }
+@@ -230,6 +255,7 @@ struct CMyExtent
+ 
+ struct CItem
+ {
++  CTag DescTag;
+   CIcbTag IcbTag;
+ 
+   // UInt32 Uid;
+@@ -254,7 +280,7 @@ struct CItem
+   CRecordVector<CMyExtent> Extents;
+   CUIntVector SubFiles;
+ 
+-  void Parse(const Byte *buf);
++  HRESULT Parse(const Byte *p, const size_t size, const int curPartitionRef);
+ 
+   bool IsRecAndAlloc() const
+   {

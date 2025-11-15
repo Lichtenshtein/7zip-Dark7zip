@@ -1,0 +1,21 @@
+From ea31ef8b37c496aa9b81a2efe5a21d3af2e37b67 Mon Sep 17 00:00:00 2001
+From: Matthew Little <zone117x@gmail.com>
+Date: Thu, 2 May 2024 15:40:37 +0200
+Subject: [PATCH] disable -Werror
+
+---
+ CPP/7zip/7zip_gcc.mak | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/CPP/7zip/7zip_gcc.mak b/CPP/7zip/7zip_gcc.mak
+index f757a40..c203e56 100644
+--- a/CPP/7zip/7zip_gcc.mak
++++ b/CPP/7zip/7zip_gcc.mak
+@@ -26,6 +26,6 @@ PROGPATH_STATIC = $(O)/$(PROG)s
+ 
+ 
+ ifneq ($(CC), xlc)
+-CFLAGS_WARN_WALL = -Werror -Wall -Wextra
++CFLAGS_WARN_WALL = -Wall -Wextra
+ endif
+ 

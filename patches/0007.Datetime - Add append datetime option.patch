@@ -1,0 +1,65 @@
+From 20fd08a794fc24de4082b75e415e8c444cf67a7b Mon Sep 17 00:00:00 2001
+From: Himmelt <master@void-3.cn>
+Date: Tue, 29 Apr 2025 15:02:56 +0800
+Subject: [PATCH] Add append datetime option
+
+---
+ CPP/7zip/UI/GUI/CompressDialog.cpp  | 1 +
+ CPP/7zip/UI/GUI/CompressDialog.rc   | 3 ++-
+ CPP/7zip/UI/GUI/CompressDialogRes.h | 2 ++
+ Lang/en.ttt                         | 2 ++
+ Lang/zh-cn.txt                      | 2 ++
+ 5 files changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/CPP/7zip/UI/GUI/CompressDialog.cpp b/CPP/7zip/UI/GUI/CompressDialog.cpp
+index 58f863e8e..161a957e7 100644
+--- a/CPP/7zip/UI/GUI/CompressDialog.cpp
++++ b/CPP/7zip/UI/GUI/CompressDialog.cpp
+@@ -58,6 +58,7 @@ static const UInt32 kLangIDs[] =
+   IDB_COMPRESS_OPTIONS, // IDS_OPTIONS
+ 
+   IDG_COMPRESS_OPTIONS,
++  IDX_ADD_DATETIME_TO_FILENAME,
+   IDX_COMPRESS_SFX,
+   IDX_COMPRESS_SHARED,
+   IDX_COMPRESS_DEL,
+diff --git a/CPP/7zip/UI/GUI/CompressDialog.rc b/CPP/7zip/UI/GUI/CompressDialog.rc
+index 9c3ed887c..f5cc3aea8 100644
+--- a/CPP/7zip/UI/GUI/CompressDialog.rc
++++ b/CPP/7zip/UI/GUI/CompressDialog.rc
+@@ -124,7 +124,8 @@ BEGIN
+             g4x2, yOpt + 30, g4xs2, 10
+   CONTROL   "Delete files after compression", IDX_COMPRESS_DEL, MY_CHECKBOX,
+             g4x2, yOpt + 46, g4xs2, 10
+-
++  CONTROL   "Append date and time to filename", IDX_ADD_DATETIME_TO_FILENAME, MY_CHECKBOX,
++            g4x2, yOpt + 62, g4xs2, 10
+ 
+   GROUPBOX  "Encryption", IDG_COMPRESS_ENCRYPTION, g4x, yPsw, g4xs, GROUP_Y_SIZE_ENCRYPT
+ 
+diff --git a/CPP/7zip/UI/GUI/CompressDialogRes.h b/CPP/7zip/UI/GUI/CompressDialogRes.h
+index d04d4b9c1..03d624488 100644
+--- a/CPP/7zip/UI/GUI/CompressDialogRes.h
++++ b/CPP/7zip/UI/GUI/CompressDialogRes.h
+@@ -68,6 +68,8 @@
+ 
+ #define IDX_COMPRESS_DEL                4019
+ 
++#define IDX_ADD_DATETIME_TO_FILENAME    4020
++
+ #define IDX_COMPRESS_NT_SYM_LINKS       4040
+ #define IDX_COMPRESS_NT_HARD_LINKS      4041
+ #define IDX_COMPRESS_NT_ALT_STREAMS     4042
+diff --git a/Lang/en.ttt b/Lang/en.ttt
+index 11a79522b..03a8a6b87 100644
+--- a/Lang/en.ttt
++++ b/Lang/en.ttt
+@@ -380,6 +380,8 @@ Encrypt file &names
+ Memory usage for Compressing:
+ Memory usage for Decompressing:
+ Delete files after compression
++4020
++Append date and time to filename
+ 4040
+ Store symbolic links
+ Store hard links

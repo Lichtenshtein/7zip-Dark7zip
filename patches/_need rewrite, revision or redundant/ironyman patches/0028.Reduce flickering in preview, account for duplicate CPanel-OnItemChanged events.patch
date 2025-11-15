@@ -1,0 +1,141 @@
+From 69e546f101cedb5ba4dd8fc50b18000849a39768 Mon Sep 17 00:00:00 2001
+From: ironyman <ironyman13@gmail.com>
+Date: Mon, 6 May 2024 17:06:05 -0700
+Subject: [PATCH] Reduce flickering in preview, account for duplicate
+ CPanel::OnItemChanged events
+
+---
+ CPP/7zip/UI/FileManager/App.cpp        |  1 +
+ CPP/7zip/UI/FileManager/App.h          |  1 +
+ CPP/7zip/UI/FileManager/MultiPanel.cpp | 17 ++++++++++++-----
+ CPP/7zip/UI/FileManager/Panel.h        |  1 +
+ CPP/Common/MyString.cpp                | 17 +++++++++++++++++
+ CPP/Common/MyString.h                  |  1 +
+ 6 files changed, 33 insertions(+), 5 deletions(-)
+
+diff --git a/CPP/7zip/UI/FileManager/App.cpp b/CPP/7zip/UI/FileManager/App.cpp
+index 931aa35..dd136bd 100644
+--- a/CPP/7zip/UI/FileManager/App.cpp
++++ b/CPP/7zip/UI/FileManager/App.cpp
+@@ -80,6 +80,7 @@ void CPanelCallbackImp::PanelWasFocused() { _app->SetFocusedPanel(_index); _app-
+ void CPanelCallbackImp::DragBegin() { _app->DragBegin(_index); }
+ void CPanelCallbackImp::DragEnd() { _app->DragEnd(); }
+ void CPanelCallbackImp::RefreshTitle(bool always) { _app->RefreshTitlePanel(_index, always); }
++int CPanelCallbackImp::GetIndex() { return _index; }
+ 
+ void CApp::ReloadLangItems()
+ {
+diff --git a/CPP/7zip/UI/FileManager/App.h b/CPP/7zip/UI/FileManager/App.h
+index 577aeca..a69aa68 100644
+--- a/CPP/7zip/UI/FileManager/App.h
++++ b/CPP/7zip/UI/FileManager/App.h
+@@ -62,6 +62,7 @@ class CPanelCallbackImp Z7_final: public CPanelCallback
+   virtual HRESULT OnOpenParentFolder() Z7_override;
+   virtual UString OnSetComboText(UString const& text) Z7_override;
+   virtual bool IsMultiPanelMode() Z7_override;
++  int GetIndex() Z7_override;
+ };
+ 
+ 
+diff --git a/CPP/7zip/UI/FileManager/MultiPanel.cpp b/CPP/7zip/UI/FileManager/MultiPanel.cpp
+index 4d48b9f..f691eb8 100644
+--- a/CPP/7zip/UI/FileManager/MultiPanel.cpp
++++ b/CPP/7zip/UI/FileManager/MultiPanel.cpp
+@@ -141,6 +141,7 @@ HRESULT CApp::SyncMultiPanel()
+   if (selected.Size() > 0)
+   {
+     preview = Panels[1].GetItemFullPath(selected[0]).Ptr();
++    preview.TrimPathSepar();
+   }
+ 
+   // Update parent panel
+@@ -163,9 +164,14 @@ HRESULT CApp::SyncMultiPanel()
+   // Update preview panel
+   if (Panels[2].PanelCreated)
+   {
+-    if (preview.Len() > 0 && PathIsDirectory(preview) && Panels[2].PanelCreated && preview != Panels[2].GetFsPath())
++    if (preview.Len() > 0 && PathIsDirectory(preview) && Panels[2].PanelCreated)
+     {
+-      Panels[2].BindToPathAndRefresh(preview);
++      auto panelPath = Panels[2].GetFsPath();
++      panelPath.TrimPathSepar();
++      if (panelPath != preview)
++      {
++        Panels[2].BindToPathAndRefresh(preview);
++      }
+     }
+     else
+     {
+@@ -206,7 +212,7 @@ HRESULT CPanelCallbackImp::OnSelectedItemChanged()
+ 
+   if (multiPanelReentrancyCount++ == 0)
+   {
+-    // _app->SyncMultiPanel();
++    _app->SyncMultiPanel();
+     --multiPanelReentrancyCount;
+   }
+   return S_OK;
+@@ -237,8 +243,9 @@ HRESULT CPanelCallbackImp::OnOpenFolder(std::optional<std::reference_wrapper<boo
+   }
+ 
+   _app->Panels[1]._appState->FolderHistory.AddString(_app->Panels[1]._currentFolderPrefix);
+-  _app->SyncMultiPanel();
+-
++  // You don't need to sync the panels here, because SetItemState_Selected will trigger OnSelectedItemChanged
++  // which will sync.
++  // _app->SyncMultiPanel();
+   _app->Panels[1]._listView.SetItemState_Selected(0, true);
+   _app->Panels[1].SetFocusToList();
+ 
+diff --git a/CPP/7zip/UI/FileManager/Panel.h b/CPP/7zip/UI/FileManager/Panel.h
+index c6ef4d8..d3be929 100644
+--- a/CPP/7zip/UI/FileManager/Panel.h
++++ b/CPP/7zip/UI/FileManager/Panel.h
+@@ -89,6 +89,7 @@ DECLARE_INTERFACE(CPanelCallback)
+   virtual HRESULT OnOpenParentFolder() = 0;
+   virtual UString OnSetComboText(UString const& text) = 0;
+   virtual bool IsMultiPanelMode() = 0;
++  virtual int GetIndex() = 0;
+ };
+ Z7_PURE_INTERFACES_END
+ 
+diff --git a/CPP/Common/MyString.cpp b/CPP/Common/MyString.cpp
+index e12269d..12d62d1 100644
+--- a/CPP/Common/MyString.cpp
++++ b/CPP/Common/MyString.cpp
+@@ -1454,6 +1454,23 @@ void UString::TrimRight() throw()
+   }
+ }
+ 
++void UString::TrimPathSepar() throw()
++{
++  const wchar_t *p = _chars;
++  unsigned i;
++  for (i = _len; i != 0; i--)
++  {
++    wchar_t c = p[(size_t)i - 1];
++    if (c != '\\' && c != '/')
++      break;
++  }
++  if (i != _len)
++  {
++    _chars[i] = 0;
++    _len = i;
++  }
++}
++
+ void UString::InsertAtFront(wchar_t c)
+ {
+   if (_limit == _len)
+diff --git a/CPP/Common/MyString.h b/CPP/Common/MyString.h
+index bc51a07..854d556 100644
+--- a/CPP/Common/MyString.h
++++ b/CPP/Common/MyString.h
+@@ -744,6 +744,7 @@ class UString
+ 
+   void TrimLeft() throw();
+   void TrimRight() throw();
++  void TrimPathSepar() throw();
+   void Trim()
+   {
+     TrimRight();

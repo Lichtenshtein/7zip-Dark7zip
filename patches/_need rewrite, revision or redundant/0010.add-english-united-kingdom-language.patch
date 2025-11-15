@@ -1,0 +1,22 @@
+From c977ab31542355b4ce27c43b2625cc1819b4e74d Mon Sep 17 00:00:00 2001
+From: PopuriO2 <36154203+PopuriAO29@users.noreply.github.com>
+Date: Sun, 14 Jan 2024 03:16:13 +0000
+Subject: [PATCH] 24.00: Add English United Kingdom language
+
+per following this: https://sourceforge.net/p/sevenzip/feature-requests/1600/
+---
+ DOC/7zip.wxs | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/DOC/7zip.wxs b/DOC/7zip.wxs
+index df1d3207..f30268ed 100644
+--- a/DOC/7zip.wxs
++++ b/DOC/7zip.wxs
+@@ -273,6 +273,7 @@
+               <File Id="el.txt" Name="el.txt" />
+               <File Id="eo.txt" Name="eo.txt" />
+               <File Id="es.txt" Name="es.txt" />
++              <File Id="en-GB.txt" Name="en-GB.txt" />
+               <File Id="et.txt" Name="et.txt" />
+               <File Id="eu.txt" Name="eu.txt" />
+               <File Id="ext.txt" Name="ext.txt" />

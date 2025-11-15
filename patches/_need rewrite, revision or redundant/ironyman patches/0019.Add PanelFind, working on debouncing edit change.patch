@@ -1,0 +1,664 @@
+From ac49136b3dfe51ffe4a669f7309732fbb007e789 Mon Sep 17 00:00:00 2001
+From: ironyman <ironyman13@gmail.com>
+Date: Mon, 19 Feb 2024 12:49:54 -0800
+Subject: [PATCH] Add PanelFind, working on debouncing edit change
+
+---
+ .vscode/settings.json                 |   6 +-
+ .vscode/tasks.json                    |   7 ++
+ CPP/7zip/UI/FileManager/App.h         |   2 +
+ CPP/7zip/UI/FileManager/Debounce.cpp  |  35 +++++++
+ CPP/7zip/UI/FileManager/Debounce.h    |  79 +++++++++++++++
+ CPP/7zip/UI/FileManager/FM.mak        |   2 +
+ CPP/7zip/UI/FileManager/Panel.cpp     |  35 +++++--
+ CPP/7zip/UI/FileManager/Panel.h       |  25 ++++-
+ CPP/7zip/UI/FileManager/PanelFind.cpp | 133 ++++++++++++++++++++++++++
+ CPP/7zip/UI/FileManager/PanelFind.h   |  36 +++++++
+ CPP/Common/Common.h                   |   1 +
+ CPP/Common/Debug.cpp                  |  24 +++++
+ CPP/Common/MyString.h                 |   1 +
+ 13 files changed, 374 insertions(+), 12 deletions(-)
+ create mode 100644 CPP/7zip/UI/FileManager/Debounce.cpp
+ create mode 100644 CPP/7zip/UI/FileManager/Debounce.h
+ create mode 100644 CPP/7zip/UI/FileManager/PanelFind.cpp
+ create mode 100644 CPP/7zip/UI/FileManager/PanelFind.h
+
+diff --git a/.vscode/settings.json b/.vscode/settings.json
+index 1a6884c..99424d0 100644
+--- a/.vscode/settings.json
++++ b/.vscode/settings.json
+@@ -109,6 +109,10 @@
+         "xmemory": "cpp",
+         "xtree": "cpp",
+         "xutility": "cpp",
+-        "*.rh": "cpp"
++        "*.rh": "cpp",
++        "cstdarg": "cpp",
++        "chrono": "cpp",
++        "forward_list": "cpp",
++        "iomanip": "cpp"
+     }
+ }
+\ No newline at end of file
+diff --git a/.vscode/tasks.json b/.vscode/tasks.json
+index f87dacd..c7da16d 100644
+--- a/.vscode/tasks.json
++++ b/.vscode/tasks.json
+@@ -40,6 +40,13 @@
+                         "line": 2,
+                         "message": 3
+                     },
++                    {
++                        // Regular expression to match filename (on earlier line than actual warnings)
++                        "regexp": "^(.*?) : error (.*?): (.*)$",
++                        "file": 1,
++                        "code": 2,
++                        "message": 3
++                    },
+                 ]
+             },
+             "presentation": {
+diff --git a/CPP/7zip/UI/FileManager/App.h b/CPP/7zip/UI/FileManager/App.h
+index 8e5486b..c67d120 100644
+--- a/CPP/7zip/UI/FileManager/App.h
++++ b/CPP/7zip/UI/FileManager/App.h
+@@ -53,6 +53,8 @@ class CPanelCallbackImp Z7_final: public CPanelCallback
+   virtual void DragBegin() Z7_override;
+   virtual void DragEnd() Z7_override;
+   virtual void RefreshTitle(bool always) Z7_override;
++
++  // Multi panel callbacks.
+   virtual HRESULT OnRefreshList(bool& shouldReturn) Z7_override;
+   virtual HRESULT OnBind(bool& shouldReturn) Z7_override;
+   virtual HRESULT OnSelectedItemChanged() Z7_override;
+diff --git a/CPP/7zip/UI/FileManager/Debounce.cpp b/CPP/7zip/UI/FileManager/Debounce.cpp
+new file mode 100644
+index 0000000..69caf14
+--- /dev/null
++++ b/CPP/7zip/UI/FileManager/Debounce.cpp
+@@ -0,0 +1,35 @@
++#include <StdAfx.h>
++#include <functional>
++#include <chrono>
++#include <thread>
++#include "Debounce.h"
++
++template<typename F>
++void Debounce<F>::operator()(auto&&... args)
++{
++    std::lock_guard<std::mutex> guard(this->selfDeletionMutex);
++
++    if (this->timer == nullptr)
++    {
++        this->timer = CreateThreadpoolTimer((PTP_TIMER_CALLBACK)TimerCallback<F, decltype(args)...>, (PVOID)&this->context, NULL);
++    }
++    if (this->context != nullptr)
++    {
++        contextDeletionFutures.emplace(std::async(std::launch::async, [](Debounce *parent, CallbackContext<F, decltype(args)...> *callContext)
++        {
++            // Avoid deleting the context while it's being used.
++            std::this_thread::sleep_for(std::chrono::milliseconds(2*parent->delayMs));
++            delete callContext;
++        }, this, (CallbackContext<F, decltype(args)...> *)this->context));
++    }
++
++    auto callContext = new CallbackContext<F, decltype(args)...> { std::tuple<decltype(args)...>(std::forward<decltype(args)>(args)...), this->callback, };
++
++    this->context = (PVOID)callContext;
++    SetThreadpoolTimer(this->timer, &this->delay, 0, 0);
++
++    while (!contextDeletionFutures.empty() && contextDeletionFutures.front().wait_for(std::chrono::nanoseconds(1)) == std::future_status::ready)
++    {
++        contextDeletionFutures.pop();
++    }
++}
+diff --git a/CPP/7zip/UI/FileManager/Debounce.h b/CPP/7zip/UI/FileManager/Debounce.h
+new file mode 100644
+index 0000000..6957462
+--- /dev/null
++++ b/CPP/7zip/UI/FileManager/Debounce.h
+@@ -0,0 +1,79 @@
++#ifndef ZIP7_INC_DEBOUNCE_H
++#define ZIP7_INC_DEBOUNCE_H
++#include "../../../Common/MyWindows.h"
++#include <queue>
++#include <future>
++#include <mutex>
++#include <tuple>
++
++template<typename F>
++struct Debounce
++{
++    template<typename F, typename ...Args>
++    struct CallbackContext {
++        std::tuple<Args...> arguments;
++        F callback;
++    };
++    F callback;
++    PTP_TIMER timer;
++    FILETIME delay;
++    PVOID context;
++    int delayMs;
++    std::queue<std::future<void>> contextDeletionFutures;
++    // Actually it just synchronizes accesses to the queue because this object can't be deleted while it's being used.
++    // There needs to be a lock outside of this object to handle that.
++    std::mutex selfDeletionMutex;
++
++    Debounce(F callback, const int &delayMs)
++    {
++        this->delayMs = delayMs;
++        this->delay.dwHighDateTime = 0;
++        this->delay.dwLowDateTime = -delayMs*1000*10;
++        this->callback = callback;
++        this->timer = nullptr;
++        this->context = nullptr;
++    }
++    ~Debounce()
++    {
++        std::lock_guard<std::mutex> guard(this->selfDeletionMutex);
++        while (!this->contextDeletionFutures.empty())
++        {
++            this->contextDeletionFutures.front().wait();
++            this->contextDeletionFutures.pop();
++        }
++    }
++
++    // This must be defined in class body.
++    // Putting this in cpp file will error.
++    // Debounce.cpp(18): error C2768: 'Debounce<F>::TimerCallback': illegal use of explicit template arguments
++    // template<typename F>
++    // template<typename G, typename ...Args>
++    // static
++    // VOID
++    // CALLBACK
++    // Debounce<F>::TimerCallback<G, Args...>(
++    //     PTP_CALLBACK_INSTANCE Instance,
++    //     PVOID                 Parameter,
++    //     PTP_TIMER             Timer
++    // )
++    // {
++    template<typename G, typename ...Args>
++    static
++    VOID
++    CALLBACK
++    TimerCallback(
++        PTP_CALLBACK_INSTANCE Instance,
++        PVOID                 Parameter,
++        PTP_TIMER             Timer
++    )
++    {
++        UNREFERENCED_PARAMETER(Instance);
++        UNREFERENCED_PARAMETER(Timer);
++        auto callContext = *reinterpret_cast<CallbackContext<G, Args...>**>(Parameter);
++        std::apply(callContext->callback, callContext->arguments);
++    }
++
++    void operator()(auto&&... args);
++};
++
++#endif
+\ No newline at end of file
+diff --git a/CPP/7zip/UI/FileManager/FM.mak b/CPP/7zip/UI/FileManager/FM.mak
+index 6d293e2..1fbde41 100644
+--- a/CPP/7zip/UI/FileManager/FM.mak
++++ b/CPP/7zip/UI/FileManager/FM.mak
+@@ -14,6 +14,7 @@ FM_OBJS = \
+   $O\App.obj \
+   $O\BrowseDialog.obj \
+   $O\ClassDefs.obj \
++  $O\Debounce.obj \
+   $O\EnumFormatEtc.obj \
+   $O\ExtractCallback.obj \
+   $O\FileFolderPluginOpen.obj \
+@@ -30,6 +31,7 @@ FM_OBJS = \
+   $O\OpenCallback.obj \
+   $O\OptionsDialog.obj \
+   $O\Panel.obj \
++  $O\PanelFind.obj \
+   $O\PanelCopy.obj \
+   $O\PanelCrc.obj \
+   $O\PanelDrag.obj \
+diff --git a/CPP/7zip/UI/FileManager/Panel.cpp b/CPP/7zip/UI/FileManager/Panel.cpp
+index 9f2fecf..fd65317 100644
+--- a/CPP/7zip/UI/FileManager/Panel.cpp
++++ b/CPP/7zip/UI/FileManager/Panel.cpp
+@@ -92,6 +92,7 @@ HRESULT CPanel::Create(HWND mainWindow, HWND parentWindow, UINT id,
+   _baseID = id;
+   _comboBoxID = _baseID + 3;
+   _statusBarID = _comboBoxID + 1;
++  _panelFindID = _statusBarID + 1;
+ 
+   UString cfp = currentFolderPrefix;
+ 
+@@ -108,7 +109,7 @@ HRESULT CPanel::Create(HWND mainWindow, HWND parentWindow, UINT id,
+   if (needOpenArc && !openRes.ArchiveIsOpened)
+     return S_OK;
+ 
+-  if (!CreateEx(0, kClassName, NULL, WS_CHILD | WS_VISIBLE,
++  if (!CreateEx(0, kClassName, NULL, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS,
+       0, 0, _xSize, 260,
+       parentWindow, (HMENU)(UINT_PTR)id, g_hInstance))
+     return E_FAIL;
+@@ -118,7 +119,6 @@ HRESULT CPanel::Create(HWND mainWindow, HWND parentWindow, UINT id,
+ }
+ 
+ // extern UInt32 g_NumMessages;
+-
+ LRESULT CPanel::OnMessage(UINT message, WPARAM wParam, LPARAM lParam)
+ {
+   // g_NumMessages++;
+@@ -144,6 +144,12 @@ LRESULT CPanel::OnMessage(UINT message, WPARAM wParam, LPARAM lParam)
+       LoadFullPathAndShow();
+       return 0;
+     #endif
++    case WM_COMMAND:
++      if (HIWORD(wParam) == EN_CHANGE && LOWORD(wParam) == _panelFindID)
++      {
++        OnPanelFindEditChange();
++      }
++      break;
+     case WM_TIMER:
+       OnTimer();
+       return 0;
+@@ -165,17 +171,21 @@ LRESULT CMyListView::OnMessage(UINT message, WPARAM wParam, LPARAM lParam)
+   if (message == WM_CHAR)
+   {
+     UINT scanCode = (UINT)((lParam >> 16) & 0xFF);
+-    bool extended = ((lParam & 0x1000000) != 0);
++    // bool extended = ((lParam & 0x1000000) != 0);
+     UINT virtualKey = MapVirtualKey(scanCode, 1);
+     if (virtualKey == VK_MULTIPLY || virtualKey == VK_ADD ||
+         virtualKey == VK_SUBTRACT)
+       return 0;
+-    if ((wParam == '/' && extended)
+-        || wParam == '\\' || wParam == '/')
++    if (wParam == '\\')
+     {
+       _panel->OpenDrivesFolder();
+       return 0;
+     }
++    else if (wParam == '/')
++    {
++      _panel->EnterFindMode();
++      return 0;
++    }
+   }
+   else if (message == WM_SYSCHAR)
+   {
+@@ -432,6 +442,9 @@ bool CPanel::OnCreate(CREATESTRUCT * /* createStruct */)
+   _ascending = true;
+   _lastFocusedIsList = true;
+ 
++  // Create _panelFind on top of _listView
++  _panelFind.Create(L"Window name", g_hInstance, this, (HWND)*this, _panelFindID);
++
+   DWORD style = WS_CHILD | WS_VISIBLE; //  | WS_BORDER ; // | LVS_SHAREIMAGELISTS; //  | LVS_SHOWSELALWAYS;
+ 
+   style |= LVS_SHAREIMAGELISTS;
+@@ -445,7 +458,9 @@ bool CPanel::OnCreate(CREATESTRUCT * /* createStruct */)
+ 
+   style |= kStyles[_listViewMode]
+     | WS_TABSTOP
+-    | LVS_EDITLABELS;
++    | LVS_EDITLABELS
++    | WS_CLIPCHILDREN
++    | WS_CLIPSIBLINGS;
+   if (_mySelectMode)
+     style |= LVS_SINGLESEL;
+ 
+@@ -536,6 +551,13 @@ bool CPanel::OnCreate(CREATESTRUCT * /* createStruct */)
+       (LPCTBBUTTON)&tbb, Z7_ARRAY_SIZE(tbb),
+       0, 0, 0, 0, sizeof (TBBUTTON)));
+ 
++  // Creating child window here means it goes behind the list view.
++  // _panelFind.Attach(::CreateWindowEx(0, L"EDIT", L"E:\\bk",
++  //                     WS_VISIBLE | WS_CHILD | WS_BORDER | ES_LEFT,
++  //                     87, 81, 150, 17,
++  //                     main_window.hwnd,
++  //                     (HMENU)5, hInstance, NULL);)
++
+   #ifndef UNDER_CE
+   // Load ComboBoxEx class
+   icex.dwSize = sizeof(INITCOMMONCONTROLSEX);
+@@ -687,6 +709,7 @@ void CPanel::ChangeWindowSize(int xSize, int ySize)
+         MyMax(xSize - kStartXPos - 10, kStartXPos), 0);
+   }
+   _listView.Move(0, kHeaderSize, xSize, yListViewSize);
++  _panelFind.Move(0, kHeaderSize + yListViewSize - kStatusBarSize, xSize, kStatusBarSize);
+   _statusBar.Move(0, kHeaderSize + yListViewSize, xSize, kStatusBarSize);
+   // _statusBar2.MoveWindow(0, kHeaderSize + yListViewSize + kStatusBarSize, xSize, kStatusBar2Size);
+   // _statusBar.MoveWindow(0, 100, xSize, kStatusBarSize);
+diff --git a/CPP/7zip/UI/FileManager/Panel.h b/CPP/7zip/UI/FileManager/Panel.h
+index d349c00..5e7e935 100644
+--- a/CPP/7zip/UI/FileManager/Panel.h
++++ b/CPP/7zip/UI/FileManager/Panel.h
+@@ -43,6 +43,8 @@
+ #include "MyCom2.h"
+ #include "ProgressDialog2.h"
+ #include "SysIconUtils.h"
++#include "PanelFind.h"
++#include "Debounce.h"
+ 
+ #include <optional>
+ #include <functional>
+@@ -78,6 +80,8 @@ DECLARE_INTERFACE(CPanelCallback)
+   virtual void DragBegin() = 0;
+   virtual void DragEnd() = 0;
+   virtual void RefreshTitle(bool always) = 0;
++
++  // Multi panel callbacks.
+   virtual HRESULT OnRefreshList(bool& shouldReturn) = 0;
+   virtual HRESULT OnBind(bool& shouldReturn) = 0;
+   virtual HRESULT OnSelectedItemChanged() = 0;
+@@ -85,7 +89,6 @@ DECLARE_INTERFACE(CPanelCallback)
+   virtual HRESULT OnOpenParentFolder() = 0;
+   virtual UString OnSetComboText(UString const& text) = 0;
+   virtual bool IsMultiPanelMode() = 0;
+-
+ };
+ Z7_PURE_INTERFACES_END
+ 
+@@ -298,8 +301,6 @@ struct CCopyToOptions
+       {}
+ };
+ 
+-
+-
+ struct COpenResult
+ {
+   // bool needOpenArc;
+@@ -322,6 +323,7 @@ class CPanel Z7_final: public NWindows::NControl::CWindow2
+   UINT _baseID;
+   unsigned _comboBoxID;
+   UINT _statusBarID;
++  UINT _panelFindID;
+ 
+   CAppState *_appState;
+ 
+@@ -349,7 +351,6 @@ class CPanel Z7_final: public NWindows::NControl::CWindow2
+   bool OnNotifyReBar(LPNMHDR lParam, LRESULT &result);
+   bool OnNotifyComboBox(LPNMHDR lParam, LRESULT &result);
+   void OnItemChanged(NMLISTVIEW *item);
+-  void OnNotifyActivateItems();
+   bool OnNotifyList(LPNMHDR lParam, LRESULT &result);
+   void OnDrag(LPNMLISTVIEW nmListView, bool isRightButton = false);
+   bool OnKeyDown(LPNMLVKEYDOWN keyDownInfo, LRESULT &result);
+@@ -360,6 +361,7 @@ class CPanel Z7_final: public NWindows::NControl::CWindow2
+ 
+ 
+ public:
++  void OnNotifyActivateItems();
+   HWND _mainWindow;
+   CPanelCallback *_panelCallback;
+ 
+@@ -614,7 +616,10 @@ class CPanel Z7_final: public NWindows::NControl::CWindow2
+ 
+       _needSaveInfo(false),
+       _startGroupSelect(0),
+-      _selectionIsDefined(false)
++      _selectionIsDefined(false),
++      _debounceOnPanelFindEditChange([](CPanel *panel) {
++        panel->OnPanelFindEditChangeDebouncedHandler();
++      }, 400)
+   {}
+ 
+   void SetExtendedStyle()
+@@ -995,6 +1000,16 @@ class CPanel Z7_final: public NWindows::NControl::CWindow2
+   UString GetItemsInfoString(const CRecordVector<UInt32> &indices);
+   void SetComboText(UString const& text);
+ 
++  CPanelFind _panelFind;
++  bool _findMode = false;
++  Debounce<void (*)(CPanel*)> _debounceOnPanelFindEditChange;
++  void EnterFindMode();
++  void ExitFindMode();
++  void FindNextItem(UString const& text);
++  void OnPanelFindEditChange();
++  void OnPanelFindEditChangeDebouncedHandler();
++  // CPanel::OnPanelFindEditChangeDebouncedHandler, 400);
++
+   // friend HRESULT CApp::InitializeMultiPanel();
+   friend class CApp;
+   friend class CPanelCallbackImp;
+diff --git a/CPP/7zip/UI/FileManager/PanelFind.cpp b/CPP/7zip/UI/FileManager/PanelFind.cpp
+new file mode 100644
+index 0000000..b50f771
+--- /dev/null
++++ b/CPP/7zip/UI/FileManager/PanelFind.cpp
+@@ -0,0 +1,133 @@
++#include "StdAfx.h"
++#include <windowsx.h>
++#include "PanelFind.h"
++#include "Panel.h"
++#include "../../../Windows/Window.h"
++
++bool CPanelFind::Create(PCWSTR text, HINSTANCE hInstance, CPanel *panel, HWND hwndParent, UINT id)
++{
++  this->_panel = panel;
++  bool success = this->CreateEx(WS_EX_CLIENTEDGE, L"EDIT", text,
++    WS_CHILD | WS_BORDER | ES_LEFT | WS_CLIPCHILDREN | WS_CLIPSIBLINGS | ES_AUTOHSCROLL,
++    0, 0, 0, 32, hwndParent, (HMENU)(ULONGLONG)id, hInstance);
++  if (!success)
++  {
++    return success;
++  }
++
++  NONCLIENTMETRICS ncm;
++  ncm.cbSize = sizeof(ncm);
++
++  SystemParametersInfo(SPI_GETNONCLIENTMETRICS, ncm.cbSize, &ncm, 0);
++  HFONT hFont = CreateFontIndirect(&ncm.lfMessageFont);
++
++  SendMessage(*this, WM_SETFONT, (WPARAM)hFont, MAKELPARAM(true,0));
++  SetWindowProc();
++  return success;
++}
++
++static LRESULT APIENTRY PanelFindEditSubclassProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
++{
++  NWindows::CWindow window(hwnd);
++  CPanelFind *w = (CPanelFind *)(window.GetUserDataLongPtr());
++  if (w == NULL)
++    return 0;
++  return w->OnMessage(message, wParam, lParam);
++}
++
++LRESULT CPanelFind::OnMessage(UINT message, WPARAM wParam, LPARAM lParam)
++{
++  switch (message)
++  {
++    case WM_CHAR:
++    {
++      switch (wParam)
++      {
++        case VK_ESCAPE:
++          _panel->ExitFindMode();
++          // MessageBoxA(*this, "Escape key pressed!", "Key Press", MB_OK);
++          // Return immediately to prevent audible bell.
++          return 0;
++        case VK_RETURN:
++          if (NWindows::IsKeyDown(VK_CONTROL))
++          {
++            _panel->ExitFindMode();
++            _panel->OnNotifyActivateItems();
++          }
++          else
++          {
++            int textLen = Edit_GetTextLength(*this);
++            UString text;
++            Edit_GetText(*this, text.GetBuf(textLen), textLen);
++            _panel->FindNextItem(text);
++          }
++          return 0;
++      }
++
++      // LRESULT result = CallWindowProc(_origWindowProc, *this, message, wParam, lParam);
++      // int textLen = Edit_GetTextLength(*this);
++      // UString text;
++      // Edit_GetText(*this, text.GetBuf(textLen), textLen);
++      // _panel->FindNextItem(text);
++      // return result;
++    }
++  }
++
++  #ifndef _UNICODE
++  if (g_IsNT)
++    return CallWindowProcW(_origWindowProc, *this, message, wParam, lParam);
++  else
++  #endif
++    return CallWindowProc(_origWindowProc, *this, message, wParam, lParam);
++}
++
++void CPanelFind::SetWindowProc()
++{
++  SetUserDataLongPtr((LONG_PTR)this);
++  #ifndef _UNICODE
++  if (g_IsNT)
++    _origWindowProc = (WNDPROC)SetLongPtrW(GWLP_WNDPROC, (LONG_PTR)PanelFindEditSubclassProc);
++  else
++  #endif
++    _origWindowProc = (WNDPROC)SetLongPtr(GWLP_WNDPROC, (LONG_PTR)PanelFindEditSubclassProc);
++}
++
++void CPanel::EnterFindMode()
++{
++  this->_findMode = true;
++  ShowWindow(this->_panelFind, TRUE);
++  ::SetFocus(this->_panelFind);
++  int length = Edit_GetTextLength(this->_panelFind);
++  Edit_SetSel(this->_panelFind, 0, length);
++
++}
++
++void CPanel::ExitFindMode()
++{
++  this->_findMode = false;
++  ShowWindow(this->_panelFind, FALSE);
++  SetFocusToList();
++}
++
++void CPanel::OnPanelFindEditChange()
++{
++  if (!this->_findMode)
++  {
++    return;
++  }
++  this->_debounceOnPanelFindEditChange(this);
++}
++
++void CPanel::OnPanelFindEditChangeDebouncedHandler()
++{
++  int textLen = Edit_GetTextLength(this->_panelFind);
++  UString text;
++  Edit_GetText(this->_panelFind, text.GetBuf(textLen), textLen);
++  FindNextItem(text);
++}
++
++void CPanel::FindNextItem(UString const& text)
++{
++  // MessageBox(*this, (LPCWSTR)text.GetBuf(),  NULL, MB_OK);
++  Z7DbgPrintW((LPCWSTR)text.GetBuf());
++}
+\ No newline at end of file
+diff --git a/CPP/7zip/UI/FileManager/PanelFind.h b/CPP/7zip/UI/FileManager/PanelFind.h
+new file mode 100644
+index 0000000..64dc180
+--- /dev/null
++++ b/CPP/7zip/UI/FileManager/PanelFind.h
+@@ -0,0 +1,36 @@
++// Panel.h
++
++#ifndef ZIP7_INC_PANEL_FIND_H
++#define ZIP7_INC_PANEL_FIND_H
++
++#include "../../../Common/MyWindows.h"
++
++#if defined(__MINGW32__) || defined(__MINGW64__)
++#include <shlobj.h>
++#else
++#include <ShlObj.h>
++#endif
++
++#include "../../../Common/Common.h"
++// #include "Panel.h"
++// #include "App.h"
++#include "../../../Windows/Window.h"
++#include "../../../Windows/Control/Window2.h"
++
++class CPanel;
++
++class CPanelFind Z7_final: public NWindows::NControl::CWindow2
++{
++//   virtual bool OnCommand(unsigned code, unsigned itemID, LPARAM lParam, LRESULT &result) Z7_override;
++//   virtual bool OnCreate(CREATESTRUCT *createStruct) Z7_override;
++
++  WNDPROC _origWindowProc;
++  void SetWindowProc();
++
++public:
++  bool Create(PCWSTR text, HINSTANCE hInstance, CPanel *panel, HWND hwndParent, UINT id);
++  virtual LRESULT OnMessage(UINT message, WPARAM wParam, LPARAM lParam) Z7_override;
++  CPanel *_panel;
++};
++
++#endif
+diff --git a/CPP/Common/Common.h b/CPP/Common/Common.h
+index e23c6f3..a8edeea 100644
+--- a/CPP/Common/Common.h
++++ b/CPP/Common/Common.h
+@@ -313,6 +313,7 @@ _Pragma("GCC diagnostic pop")
+ #include "MyWindows.h"
+ 
+ void __cdecl Z7DbgPrintA(const char *format, ...);
++void __cdecl Z7DbgPrintW(const wchar_t *format, ...);
+ VOID
+ DbgDumpHex(PBYTE pbData, SIZE_T cbData);
+ void DbgDumpRange(PVOID begin, PVOID end, PCSTR format, ...);
+\ No newline at end of file
+diff --git a/CPP/Common/Debug.cpp b/CPP/Common/Debug.cpp
+index 3fd314d..b31a348 100644
+--- a/CPP/Common/Debug.cpp
++++ b/CPP/Common/Debug.cpp
+@@ -25,6 +25,30 @@ void __cdecl Z7DbgPrintA(const char *format, ...)
+   OutputDebugStringA(buf);
+ }
+ 
++void __cdecl Z7DbgPrintW(const wchar_t *format, ...)
++{
++  wchar_t    buf[4096], *p = buf;
++  va_list args;
++  int     n;
++
++  va_start(args, format);
++  n = _vsnwprintf_s(p, ARRAYSIZE(buf), sizeof buf, format, args);
++  // n = _vsnprintf_s(p, ARRAYSIZE(buf), sizeof buf - 3, format, args); // buf-3 is room for CR/LF/NUL
++  va_end(args);
++
++  // p += (n < 0) ? sizeof buf - 3 : n;
++
++  // while ( p > buf  &&  isspace(p[-1]) )
++  //         *--p = '\0';
++
++  // *p++ = '\r';
++  // *p++ = '\n';
++  // *p   = '\0';
++
++  OutputDebugStringW(buf);
++}
++
++
+ VOID
+ DbgDumpHex(PBYTE pbData, SIZE_T cbData)
+ {
+diff --git a/CPP/Common/MyString.h b/CPP/Common/MyString.h
+index e2be300..bc51a07 100644
+--- a/CPP/Common/MyString.h
++++ b/CPP/Common/MyString.h
+@@ -627,6 +627,7 @@ class UString
+   void ReplaceOneCharAtPos(unsigned pos, wchar_t c) { _chars[pos] = c; }
+ 
+   wchar_t *GetBuf() { return _chars; }
++  const wchar_t *GetBuf() const { return _chars; }
+ 
+   /*
+   wchar_t *GetBuf_GetMaxAvail(unsigned &availBufLen)

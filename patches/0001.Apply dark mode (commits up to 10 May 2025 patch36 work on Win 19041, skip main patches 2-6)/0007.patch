@@ -1,0 +1,51 @@
+From b386ed2172eed2954c087e6936c193f4af3b3e55 Mon Sep 17 00:00:00 2001
+From: ozone10 <positronix10@gmail.com>
+Date: Wed, 12 Feb 2025 19:01:05 +0100
+Subject: [PATCH] Add dark mode version to About dialog
+
+---
+ CPP/7zip/UI/FileManager/AboutDialog.rc | 3 +++
+ DarkMode/DarkModeSubclass.cpp          | 2 +-
+ DarkMode/Version.h                     | 2 ++
+ 3 files changed, 6 insertions(+), 1 deletion(-)
+ create mode 100644 DarkMode/Version.h
+
+diff --git a/CPP/7zip/UI/FileManager/AboutDialog.rc b/CPP/7zip/UI/FileManager/AboutDialog.rc
+index b235df0b0..ca2ccd904 100644
+--- a/CPP/7zip/UI/FileManager/AboutDialog.rc
++++ b/CPP/7zip/UI/FileManager/AboutDialog.rc
+@@ -1,6 +1,7 @@
+ #include "AboutDialogRes.h"
+ #include "../../GuiCommon.rc"
+ #include "../../MyVersion.h"
++#include "../../../../DarkMode/Version.h"
+ 
+ #define xc 316
+ #define yc 144
+@@ -23,3 +24,5 @@ CAPTION "About 7-Zip"
+   LTEXT  MY_COPYRIGHT_CR, -1, m, 80, xc, 8
+   LTEXT  "7-Zip is free software", IDT_ABOUT_INFO, m, y, xc, (by - y - 1)
++  LTEXT  DM_VERSION, -1, m, 106, xc, 8
++  LTEXT  DM_COPYRIGHT, -1, m, 119, xc, 8
+ }
+diff --git a/DarkMode/DarkModeSubclass.cpp b/DarkMode/DarkModeSubclass.cpp
+index 98593e3c5..9e96d068f 100644
+--- a/DarkMode/DarkModeSubclass.cpp
++++ b/DarkMode/DarkModeSubclass.cpp
+@@ -2451,7 +2451,7 @@ namespace DarkMode
+ 			else if ((hdi.fmt & HDF_CENTER) == HDF_CENTER)
+ 				dtFlags |= DT_CENTER;
+ 
+-			rcItem.left += 4;
++			rcItem.left += 6;
+ 			rcItem.right -= 8;
+ 
+ 			if (hasTheme)
+diff --git a/DarkMode/Version.h b/DarkMode/Version.h
+new file mode 100644
+index 000000000..4ad037237
+--- /dev/null
++++ b/DarkMode/Version.h
+@@ -0,0 +1,2 @@
++#define DM_VERSION "Dark mode v0.4.4.0"
++#define DM_COPYRIGHT "Copyright (c) 2024-2025 ozone10"

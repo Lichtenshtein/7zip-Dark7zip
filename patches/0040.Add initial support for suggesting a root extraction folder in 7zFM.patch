@@ -1,0 +1,64 @@
+From 48e0f50dc49a42b4e8e07cbb680b10262e3e1674 Mon Sep 17 00:00:00 2001
+From: Mike Seese <seesemichaelj@gmail.com>
+Date: Thu, 14 Jul 2022 18:29:57 -0700
+Subject: [PATCH] add initial support for suggesting a root extraction folder
+ in 7zFM
+
+this makes it so that when you press Extract (or Copy To since it's the same thing)
+in the FileManager, it will now determine if a `NameOfArchive.ext` should be
+extracted in `.` or `./NameOfArchive`. without this, archives without a root/
+encompassing folder will extract all the contents in the containing dir by default.
+Regardless of OS and use case, this is usually the desired case. There are rare
+instances where you want the extracted files to essentially emplace a folder
+structure (i.e. installing things to /usr/local/lib, etc)
+
+In addition, this implementation will not suggest `./NameOfArchive` if the user
+is extracting a folder called `NameOfArchive` (preventing
+`./NameOfArchive/NameOfArchive/...ArchiveContents`). This scenario happens
+when a user archives a single folder, which is usually the case to prevent
+the former issue from happening in certain archive extractors.
+---
+ CPP/7zip/UI/FileManager/App.cpp | 31 +++++++++++++++++++++++++++++++
+ 1 file changed, 31 insertions(+)
+
+diff --git a/CPP/7zip/UI/FileManager/App.cpp b/CPP/7zip/UI/FileManager/App.cpp
+index e68096d..1c025ff 100644
+--- a/CPP/7zip/UI/FileManager/App.cpp
++++ b/CPP/7zip/UI/FileManager/App.cpp
+@@ -607,5 +607,36 @@ void CApp::OnCopy(bool move, bool copyToSame, int srcPanelIndex)
+   UStringVector copyFolders;
+   ReadCopyHistory(copyFolders);
+   
++  UString ArchiveName;
++  for (unsigned int i = 0; i < srcPanel._parentFolders.Size(); i++) {
++    CFolderLink folder = srcPanel._parentFolders[i];
++    if (
++      folder.FileInfo.IsArchived() &&
++      (
++        i + 1 >= srcPanel._parentFolders.Size() ||
++        !srcPanel._parentFolders[i+1].FileInfo.IsArchived()
++      )
++    ) {
++      ArchiveName = folder.FileInfo.Name;
++      int dotIndex = ArchiveName.ReverseFind_Dot();
++      ArchiveName.DeleteFrom(dotIndex);
++      break;
++    }
++  }
++
++  bool addArchiveName = true;
++  if (indices.Size() == 1 && srcPanel.IsItem_Folder(indices[0])) {
++    UString relativePath = srcPanel.GetItemRelPath(indices[0]);
++
++    if (ArchiveName.IsPrefixedBy(relativePath)) {
++      addArchiveName = false;
++    }
++  }
++
++  if (addArchiveName) {
++    destPath += ArchiveName;
++    destPath.Add_PathSepar();
++  }
++
+   const bool useFullItemPaths = srcPanel.Is_IO_FS_Folder(); // maybe we need flat also here ??
+ 

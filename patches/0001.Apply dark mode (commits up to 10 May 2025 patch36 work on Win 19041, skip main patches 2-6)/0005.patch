@@ -1,0 +1,120 @@
+From 26f4a76c10c4b050cab335e82eae80534c488adf Mon Sep 17 00:00:00 2001
+From: ozone10 <positronix10@gmail.com>
+Date: Fri, 31 Jan 2025 17:29:35 +0100
+Subject: [PATCH] Add Mica feature
+
+---
+ DarkMode/7zDark.ini           |  4 +++
+ DarkMode/DarkModeSubclass.cpp | 51 +++++++++++++++++++++++++++++++++++
+ README.md                     | 29 ++++++++++++++++++--
+ 3 files changed, 82 insertions(+), 2 deletions(-)
+
+diff --git a/DarkMode/7zDark.ini b/DarkMode/7zDark.ini
+index 476c46e83..ccf252cb0 100644
+--- a/DarkMode/7zDark.ini
++++ b/DarkMode/7zDark.ini
+@@ -3,6 +3,7 @@ mode = 1
+ 
+ [dark]
+ tone = 0
++mica = 0
+ 
+ [dark.colors]
+ background =            "202020"
+@@ -21,6 +22,9 @@ backgroundView =        "112435"
+ textView =              "C3BE98"
+ gridlines =             "646464"
+ 
++[light]
++mica = 0
++
+ [light.colors]
+ background =            "F0F0F0"
+ backgroundInteractive = "FFFFFF"
+diff --git a/DarkMode/DarkModeSubclass.cpp b/DarkMode/DarkModeSubclass.cpp
+index 57bc03652..46c3a0fea 100644
+--- a/DarkMode/DarkModeSubclass.cpp
++++ b/DarkMode/DarkModeSubclass.cpp
+@@ -533,6 +533,9 @@ namespace DarkMode
+ 	static bool g_useDarkMode = true;
+ 	static bool g_enableWindowsMode = false;
+ 
++	static auto g_mica = DWMSBT_AUTO;
++	static bool g_micaExtend = false;
++
+ 	void initOptions()
+ 	{
+ 		std::wstring iniPath = getIniPath(L"7zDark");
+@@ -567,6 +570,39 @@ namespace DarkMode
+ 			std::wstring sectionColorsView = sectionBase + L".colors.view";
+ 			std::wstring sectionColors = sectionBase + L".colors";
+ 
++			switch (::GetPrivateProfileInt(sectionBase.c_str(), L"mica", 0, iniPath.c_str()))
++			{
++				case 1:
++				{
++					g_mica = DWMSBT_NONE;
++					break;
++				}
++
++				case 2:
++				{
++					g_mica = DWMSBT_MAINWINDOW;
++					break;
++				}
++
++				case 3:
++				{
++					g_mica = DWMSBT_TRANSIENTWINDOW;
++					break;
++				}
++
++				case 4:
++				{
++					g_mica = DWMSBT_TABBEDWINDOW;
++					break;
++				}
++
++				default:
++				{
++					g_mica = DWMSBT_AUTO;
++					break;
++				}
++			}
++
+ 			if (g_useDarkMode)
+ 			{
+ 				int tone = ::GetPrivateProfileInt(sectionBase.c_str(), L"tone", 0, iniPath.c_str());
+@@ -576,6 +612,9 @@ namespace DarkMode
+ 				DarkMode::setDarkCustomColors(static_cast<DarkMode::ColorTone>(tone));
+ 				DarkMode::getTheme()._colors = DarkMode::darkCustomizedColors;
+ 				DarkMode::getThemeView()._clrView = DarkMode::darkColorsView;
++
++				if (!g_enableWindowsMode)
++					g_micaExtend = (::GetPrivateProfileInt(sectionBase.c_str(), L"micaExtend", 0, iniPath.c_str()) == 1);
+ 			}
+ 			else
+ 			{
+@@ -3731,10 +3770,22 @@ namespace DarkMode
+ 	void setDarkTitleBar(HWND hWnd)
+ 	{
+ 		constexpr DWORD win10Build2004 = 19041;
++		constexpr DWORD win11Mica = 22621;
+ 		if (DarkMode::getWindowsBuildNumber() >= win10Build2004)
+ 		{
+ 			BOOL value = DarkMode::isExperimentalActive() ? TRUE : FALSE;
+ 			::DwmSetWindowAttribute(hWnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &value, sizeof(value));
++
++			if (DarkMode::getWindowsBuildNumber() >= win11Mica)
++			{
++				if (g_micaExtend && g_mica != DWMSBT_AUTO && !g_enableWindowsMode && g_useDarkMode)
++				{
++					constexpr MARGINS margins = { -1 };
++					::DwmExtendFrameIntoClientArea(hWnd, &margins);
++				}
++
++				::DwmSetWindowAttribute(hWnd, DWMWA_SYSTEMBACKDROP_TYPE, &g_mica, sizeof(g_mica));
++			}
+ 		}
+ 		else
+ 		{

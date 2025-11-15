@@ -1,0 +1,37 @@
+From 2cd2e3d005a50cbb55270fec560b8f41136a7644 Mon Sep 17 00:00:00 2001
+From: ironyman <ironyman13@gmail.com>
+Date: Sat, 27 Apr 2024 02:49:03 -0700
+Subject: [PATCH] Tab to autocomplete in navigation combobox
+
+---
+ CPP/7zip/UI/FileManager/Panel.cpp | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/CPP/7zip/UI/FileManager/Panel.cpp b/CPP/7zip/UI/FileManager/Panel.cpp
+index c23ae58..781d8ec 100644
+--- a/CPP/7zip/UI/FileManager/Panel.cpp
++++ b/CPP/7zip/UI/FileManager/Panel.cpp
+@@ -348,10 +348,10 @@ LRESULT CMyComboBoxEdit::OnMessage(UINT message, WPARAM wParam, LPARAM lParam)
+     case WM_KEYDOWN:
+       switch (wParam)
+       {
+-        case VK_TAB:
+-          // SendMessage(hwndMain, WM_ENTER, 0, 0);
+-          _panel->SetFocusToList();
+-          return 0;
++        // case VK_TAB:
++        //   // SendMessage(hwndMain, WM_ENTER, 0, 0);
++        //   _panel->SetFocusToList();
++        //   return 0;
+         case VK_F9:
+         {
+           bool alt = IsKeyDown(VK_MENU);
+@@ -595,7 +595,7 @@ bool CPanel::OnCreate(CREATESTRUCT * /* createStruct */)
+   _comboBoxEdit.Attach(_headerComboBox.GetEditControl());
+ 
+   // Turn file path auto completion.
+-  SHAutoComplete(_headerComboBox.GetEditControl(), SHACF_FILESYSTEM | SHACF_AUTOSUGGEST_FORCE_ON);
++  SHAutoComplete(_headerComboBox.GetEditControl(), SHACF_FILESYSTEM | SHACF_AUTOSUGGEST_FORCE_ON | SHACF_USETAB);
+ 
+   // _comboBoxEdit.SendMessage(CCM_SETUNICODEFORMAT, (WPARAM)(BOOL)TRUE, 0);
+ 

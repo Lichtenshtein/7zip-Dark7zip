@@ -1,0 +1,48 @@
+From: YOKOTA Hiroshi <yokota.hgml@gmail.com>
+Date: Thu, 16 Jun 2022 22:22:33 +0900
+Subject: ftbfs fix with GCC-12
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+x86_64-linux-gnu-gcc -g -O2 -ffile-prefix-map=/<<PKGBUILDDIR>>=. -fstack-protector-strong -Wformat -Werror=format-security -pipe -Wdate-time -D_FORTIFY_SOURCE=2      -O2 -c -Wall -Werror -Wextra -Waddress -Waddress-of-packed-member -Waggressive-loop-optimizations -Wattributes -Wbool-compare -Wbool-operation -Wcast-align -Wcast-align=strict -Wcomment -Wdangling-else -Wdiv-by-zero -Wduplicated-branches -Wduplicated-cond -Wformat-contains-nul -Wimplicit-fallthrough=5 -Winit-self -Wint-in-bool-context -Wint-to-pointer-cast -Wunused -Wunused-macros -Wconversion  -Wmaybe-uninitialized -Wmisleading-indentation   -DNDEBUG -D_REENTRANT -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -fPIC  -o b/g/LzmaEnc.o ../../../../C/LzmaEnc.c
+../../../../C/LzmaEnc.c: In function ‘LzmaEnc_CodeOneMemBlock’:
+../../../../C/LzmaEnc.c:2996:19: error: storing the address of local variable ‘outStream’ in ‘*p.rc.outStream’ [-Werror=dangling-pointer=]
+ 2996 |   p->rc.outStream = &outStream.vt;
+      |   ~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~
+../../../../C/LzmaEnc.c:2979:28: note: ‘outStream’ declared here
+ 2979 |   CLzmaEnc_SeqOutStreamBuf outStream;
+      |                            ^~~~~~~~~
+../../../../C/LzmaEnc.c:2979:28: note: ‘pp’ declared here
+---
+ C/LzmaEnc.c | 9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/C/LzmaEnc.c b/C/LzmaEnc.c
+index 5705506..f62552b 100755
+--- a/C/LzmaEnc.c
++++ b/C/LzmaEnc.c
+@@ -2995,16 +2995,21 @@ SRes LzmaEnc_CodeOneMemBlock(CLzmaEncHandle pp, BoolInt reInit,
+   RangeEnc_Init(&p->rc);
+   p->rc.outStream = &outStream.vt;
+ 
+-  if (desiredPackSize == 0)
++  if (desiredPackSize == 0) {
++    p->rc.outStream = NULL;
+     return SZ_ERROR_OUTPUT_EOF;
++  }
+ 
+   res = LzmaEnc_CodeOneBlock(p, desiredPackSize, *unpackSize);
+   
+   *unpackSize = (UInt32)(p->nowPos64 - nowPos64);
+   *destLen -= outStream.rem;
+-  if (outStream.overflow)
++  if (outStream.overflow) {
++    p->rc.outStream = NULL;
+     return SZ_ERROR_OUTPUT_EOF;
++  }
+ 
++  p->rc.outStream = NULL;
+   return res;
+ }
+ 

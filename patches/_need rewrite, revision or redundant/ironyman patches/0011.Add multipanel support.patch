@@ -1,0 +1,1568 @@
+From 9a3d3da8be61aaed4b699fef815cedd2502f48a7 Mon Sep 17 00:00:00 2001
+From: ironyman <ironyman13@gmail.com>
+Date: Wed, 3 Jan 2024 01:40:24 -0800
+Subject: [PATCH] Add multipanel support
+
+---
+ CPP/7zip/UI/Common/ExtractingFilePath.cpp     |  10 +-
+ CPP/7zip/UI/FileManager/App.cpp               |  20 +-
+ CPP/7zip/UI/FileManager/App.h                 |  20 +-
+ CPP/7zip/UI/FileManager/FM.cpp                |  74 ++++--
+ CPP/7zip/UI/FileManager/FM.mak                |   1 +
+ CPP/7zip/UI/FileManager/MultiPanel.cpp        | 249 ++++++++++++++++++
+ CPP/7zip/UI/FileManager/MultiPanel.h          |   5 +
+ CPP/7zip/UI/FileManager/Panel.cpp             |   2 +-
+ CPP/7zip/UI/FileManager/Panel.h               |  13 +-
+ CPP/7zip/UI/FileManager/PanelFolderChange.cpp |  37 ++-
+ CPP/7zip/UI/FileManager/PanelItems.cpp        | 102 +++----
+ CPP/7zip/UI/FileManager/PanelKey.cpp          |   4 +
+ CPP/7zip/UI/FileManager/PanelListNotify.cpp   |  39 +--
+ CPP/7zip/UI/FileManager/RegistryUtils.cpp     |  27 ++
+ CPP/7zip/UI/FileManager/RegistryUtils.h       |   2 +
+ CPP/Common/MyVector.h                         |  20 ++
+ 16 files changed, 518 insertions(+), 107 deletions(-)
+ create mode 100644 CPP/7zip/UI/FileManager/MultiPanel.cpp
+ create mode 100644 CPP/7zip/UI/FileManager/MultiPanel.h
+
+diff --git a/CPP/7zip/UI/Common/ExtractingFilePath.cpp b/CPP/7zip/UI/Common/ExtractingFilePath.cpp
+index 57dd9c0..a3ed227 100644
+--- a/CPP/7zip/UI/Common/ExtractingFilePath.cpp
++++ b/CPP/7zip/UI/Common/ExtractingFilePath.cpp
+@@ -49,7 +49,7 @@ static void ReplaceIncorrectChars(UString &s)
+       }
+     }
+   }
+-  
++
+   if (g_PathTrailReplaceMode)
+   {
+     /*
+@@ -180,11 +180,11 @@ UString Get_Correct_FsFile_Name(const UString &name)
+ {
+   UString res = name;
+   Correct_PathPart(res);
+-  
++
+   #ifdef _WIN32
+   CorrectUnsupportedName(res);
+   #endif
+-  
++
+   if (res.IsEmpty())
+     res = k_EmptyReplaceName;
+   return res;
+@@ -200,7 +200,7 @@ void Correct_FsPath(bool absIsAllowed, bool keepAndReplaceEmptyPrefixes, UString
+     #if defined(_WIN32) && !defined(UNDER_CE)
+     bool isDrive = false;
+     #endif
+-    
++
+     if (parts[0].IsEmpty())
+     {
+       i = 1;
+@@ -266,7 +266,7 @@ void Correct_FsPath(bool absIsAllowed, bool keepAndReplaceEmptyPrefixes, UString
+       CorrectUnsupportedName(s);
+       #endif
+     }
+-    
++
+     i++;
+   }
+ 
+diff --git a/CPP/7zip/UI/FileManager/App.cpp b/CPP/7zip/UI/FileManager/App.cpp
+index 7139eeb..c53154c 100644
+--- a/CPP/7zip/UI/FileManager/App.cpp
++++ b/CPP/7zip/UI/FileManager/App.cpp
+@@ -43,7 +43,7 @@ extern HINSTANCE g_hInstance;
+ void CPanelCallbackImp::OnTab()
+ {
+   if (g_App.NumPanels != 1)
+-    _app->Panels[1 - _index].SetFocusToList();
++    _app->Panels[(_index + 1) % kNumPanelsMax].SetFocusToList();
+   _app->RefreshTitle();
+ }
+ 
+@@ -365,6 +365,11 @@ HRESULT CApp::Create(HWND hwnd, const UString &mainPath, const UString &arcForma
+ 
+ HRESULT CApp::SwitchOnOffOnePanel()
+ {
++  if (MultiPanelMode != 0)
++  {
++    UninitializeMultiPanel();
++  }
++
+   if (NumPanels == 1)
+   {
+     NumPanels++;
+@@ -385,6 +390,18 @@ HRESULT CApp::SwitchOnOffOnePanel()
+   return S_OK;
+ }
+ 
++HRESULT CApp::SwitchOnOffMultiPanel()
++{
++  if (MultiPanelMode == 0)
++  {
++    return InitializeMultiPanel();
++  }
++  else
++  {
++    return UninitializeMultiPanel();
++  }
++}
++
+ void CApp::Save()
+ {
+   AppState.Save();
+@@ -405,6 +422,7 @@ void CApp::Save()
+   }
+ 
+   listMode.Save();
++  SavePanelMode(MultiPanelMode);
+   // Save_ShowDeleted(ShowDeletedFiles);
+ }
+ 
+diff --git a/CPP/7zip/UI/FileManager/App.h b/CPP/7zip/UI/FileManager/App.h
+index 6fd3107..054b709 100644
+--- a/CPP/7zip/UI/FileManager/App.h
++++ b/CPP/7zip/UI/FileManager/App.h
+@@ -14,7 +14,7 @@ class CApp;
+ extern CApp g_App;
+ extern HWND g_HWND;
+ 
+-const unsigned kNumPanelsMax = 2;
++const unsigned kNumPanelsMax = 3;
+ 
+ extern bool g_IsSmallScreen;
+ 
+@@ -34,11 +34,13 @@ class CPanelCallbackImp Z7_final: public CPanelCallback
+ {
+   CApp *_app;
+   unsigned _index;
++  Int32 multiPanelReentrancyCount;
+ public:
+   void Init(CApp *app, unsigned index)
+   {
+     _app = app;
+     _index = index;
++    multiPanelReentrancyCount = 0;
+   }
+   virtual void OnTab() Z7_override;
+   virtual void SetFocusToPath(unsigned index) Z7_override;
+@@ -51,6 +53,12 @@ class CPanelCallbackImp Z7_final: public CPanelCallback
+   virtual void DragBegin() Z7_override;
+   virtual void DragEnd() Z7_override;
+   virtual void RefreshTitle(bool always) Z7_override;
++  virtual HRESULT OnRefreshList(bool& shouldReturn) Z7_override;
++  virtual HRESULT OnBind(bool& shouldReturn) Z7_override;
++  virtual HRESULT OnSelectedItemChanged() Z7_override;
++  virtual HRESULT OnOpenFolder() Z7_override;
++  virtual HRESULT OnOpenParentFolder() Z7_override;
++  virtual UString OnSetComboText(UString const& text) Z7_override;
+ };
+ 
+ 
+@@ -65,6 +73,7 @@ class CApp
+   // bool ShowDeletedFiles;
+   unsigned NumPanels;
+   unsigned LastFocusedPanel;
++  unsigned MultiPanelMode;
+ 
+   bool ShowStandardToolbar;
+   bool ShowArchiveToolbar;
+@@ -93,7 +102,8 @@ class CApp
+     _window(NULL),
+     AutoRefresh_Mode(true),
+     NumPanels(2),
+-    LastFocusedPanel(0)
++    LastFocusedPanel(0),
++    MultiPanelMode(0)
+   {
+     SetPanels_AutoRefresh_Mode();
+   }
+@@ -197,6 +207,7 @@ class CApp
+ 
+   void SetListSettings();
+   HRESULT SwitchOnOffOnePanel();
++  HRESULT SwitchOnOffMultiPanel();
+ 
+   CIntVector _timestampLevels;
+ 
+@@ -303,6 +314,11 @@ class CApp
+   void RefreshTitlePanel(unsigned panelIndex, bool always = false);
+ 
+   void MoveSubWindows();
++
++  void MoveSubWindowsMultiPanel();
++  HRESULT InitializeMultiPanel();
++  HRESULT UninitializeMultiPanel();
++  HRESULT SyncMultiPanel();
+ };
+ 
+ #endif
+diff --git a/CPP/7zip/UI/FileManager/FM.cpp b/CPP/7zip/UI/FileManager/FM.cpp
+index 7c79533..6ab6219 100644
+--- a/CPP/7zip/UI/FileManager/FM.cpp
++++ b/CPP/7zip/UI/FileManager/FM.cpp
+@@ -41,6 +41,8 @@
+ #include "StringUtils.h"
+ #include "ViewSettings.h"
+ 
++#include <vector>
++
+ using namespace NWindows;
+ using namespace NFile;
+ using namespace NFind;
+@@ -126,6 +128,7 @@ static const int kPanelSizeMin = 120;
+ 
+ class CSplitterPos
+ {
++protected:
+   int _ratio; // 10000 is max
+   int _pos;
+   int _fullWidth;
+@@ -141,6 +144,10 @@ class CSplitterPos
+     ::GetClientRect(hWnd, &rect);
+     return rect.right;
+   }
++  // This is the initialization procedure if there's no position saved in registry.
++  // Called from WM_CREATE handler for main window. This sets pos which WM_CREATE handler
++  // assigns to g_SplitterPos, which will be saved in registry so next time, on start up,
++  // in WM_CREATE handler, SetPos is used to initialize with the saved g_SplitterPos value.
+   void SetRatio(HWND hWnd, int aRatio)
+   {
+     _ratio = aRatio;
+@@ -254,7 +261,7 @@ static BOOL InitInstance(int nCmdShow)
+ 
+   DWORD style = WS_OVERLAPPEDWINDOW;
+   // DWORD style = 0;
+-  
++
+   CWindowInfo info;
+   info.maximized = false;
+   int x, y, xSize, ySize;
+@@ -266,7 +273,7 @@ static BOOL InitInstance(int nCmdShow)
+   {
+     x = info.rect.left;
+     y = info.rect.top;
+-    
++
+     xSize = RECT_SIZE_X(info.rect);
+     ySize = RECT_SIZE_Y(info.rect);
+   }
+@@ -288,6 +295,7 @@ static BOOL InitInstance(int nCmdShow)
+ 
+   g_App.NumPanels = info.numPanels;
+   g_App.LastFocusedPanel = info.currentPanel;
++  g_App.MultiPanelMode = ReadPanelMode();
+ 
+   if (!wnd.Create(kWindowClass, title, style,
+     x, y, xSize, ySize, NULL, NULL, g_hInstance, NULL))
+@@ -753,22 +761,22 @@ static void SaveWindowInfo(HWND aWnd)
+   CWindowInfo info;
+ 
+   #ifdef UNDER_CE
+-  
++
+   if (!::GetWindowRect(aWnd, &info.rect))
+     return;
+   info.maximized = g_Maximized;
+-  
++
+   #else
+-  
++
+   WINDOWPLACEMENT placement;
+   placement.length = sizeof(placement);
+   if (!::GetWindowPlacement(aWnd, &placement))
+     return;
+   info.rect = placement.rcNormalPosition;
+   info.maximized = BOOLToBool(::IsZoomed(aWnd));
+-  
++
+   #endif
+-  
++
+   info.numPanels = g_App.NumPanels;
+   info.currentPanel = g_App.LastFocusedPanel;
+   info.splitterPos = (unsigned)g_Splitter.GetPos();
+@@ -832,7 +840,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+       icex.dwSize = sizeof(INITCOMMONCONTROLSEX);
+       icex.dwICC  = ICC_BAR_CLASSES;
+       InitCommonControlsEx(&icex);
+-      
++
+       // Toolbar buttons used to create the first 4 buttons.
+       TBBUTTON tbb [ ] =
+       {
+@@ -841,7 +849,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+           // {0, 0, TBSTATE_ENABLED, BTNS_SEP, 0L, 0},
+         {VIEW_NEWFOLDER, ID_FILE_CREATEFOLDER, TBSTATE_ENABLED, BTNS_BUTTON, 0L, 0},
+       };
+-      
++
+       int baseID = 100;
+       NWindows::NControl::CToolBar aToolBar;
+       aToolBar.Attach(::CreateToolbarEx (hWnd,
+@@ -872,7 +880,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+         xSizes[1] = 0;
+ 
+       g_App.CreateDragTarget();
+-      
++
+       COpenResult openRes;
+       bool needOpenArc = false;
+ 
+@@ -888,14 +896,19 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+         if (NFile::NFind::DoesFileExist_FollowLink(us2fs(fullPath)))
+           needOpenArc = true;
+       }
+-      
++
+       HRESULT res = g_App.Create(hWnd, fullPath, g_ArcFormat, xSizes,
+           needOpenArc,
+           openRes);
+ 
+       if (res == E_ABORT)
+         return -1;
+-      
++
++      if (g_App.MultiPanelMode != 0)
++      {
++        g_App.InitializeMultiPanel();
++      }
++
+       if ((needOpenArc && !openRes.ArchiveIsOpened) || res != S_OK)
+       {
+         UString m ("Error");
+@@ -918,7 +931,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+       }
+ 
+       g_WindowWasCreated = true;
+-      
++
+       // g_SplitterPos = 0;
+ 
+       // ::DragAcceptFiles(hWnd, TRUE);
+@@ -935,9 +948,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+ 
+       if (g_WindowWasCreated)
+         g_App.Save();
+-    
++
+       g_App.Release();
+-      
++
+       if (g_WindowWasCreated)
+         SaveWindowInfo(hWnd);
+ 
+@@ -945,21 +958,21 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+       PostQuitMessage(0);
+       break;
+     }
+-    
++
+     // case WM_MOVE: break;
+-    
++
+     case WM_LBUTTONDOWN:
+       g_StartCaptureMousePos = LOWORD(lParam);
+       g_StartCaptureSplitterPos = g_Splitter.GetPos();
+       ::SetCapture(hWnd);
+       break;
+-    
++
+     case WM_LBUTTONUP:
+     {
+       ::ReleaseCapture();
+       break;
+     }
+-    
++
+     case WM_MOUSEMOVE:
+     {
+       if ((wParam & MK_LBUTTON) != 0 && ::GetCapture() == hWnd)
+@@ -980,7 +993,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+         g_Splitter.SetPos(hWnd, (int)g_SplitterPos );
+         g_CanChangeSplitter = true;
+       }
+-      
++
+       g_Maximized = (wParam == SIZE_MAXIMIZED) || (wParam == SIZE_MAXSHOW);
+ 
+       g_App.MoveSubWindows();
+@@ -996,12 +1009,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+       return 0;
+       // break;
+     }
+-    
++
+     case WM_SETFOCUS:
+       // g_App.SetFocus(g_App.LastFocusedPanel);
+       g_App.SetFocusToLastItem();
+       break;
+-    
++
+     /*
+     case WM_ACTIVATE:
+     {
+@@ -1018,24 +1031,24 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+       break;
+     }
+     */
+-    
++
+     /*
+     case kLangWasChangedMessage:
+       MyLoadMenu();
+       return 0;
+     */
+-      
++
+     /*
+     case WM_SETTINGCHANGE:
+       break;
+     */
+-    
++
+     case WM_NOTIFY:
+     {
+       g_App.OnNotify((int)wParam, (LPNMHDR)lParam);
+       break;
+     }
+-    
++
+     /*
+     case WM_DROPFILES:
+     {
+@@ -1068,6 +1081,11 @@ static int Window_GetRealHeight(NWindows::CWindow &w)
+ 
+ void CApp::MoveSubWindows()
+ {
++  if (MultiPanelMode != 0)
++  {
++    return MoveSubWindowsMultiPanel();
++  }
++
+   HWND hWnd = _window;
+   RECT rect;
+   if (!hWnd)
+@@ -1095,9 +1113,9 @@ void CApp::MoveSubWindows()
+     #endif
+     headerSize += Window_GetRealHeight(_toolBar);
+   }
+-  
++
+   int ySize = MyMax((int)(rect.bottom - headerSize), 0);
+-  
++
+   if (NumPanels > 1)
+   {
+     Panels[0].Move(0, headerSize, g_Splitter.GetPos(), ySize);
+diff --git a/CPP/7zip/UI/FileManager/FM.mak b/CPP/7zip/UI/FileManager/FM.mak
+index a709e70..5e8675a 100644
+--- a/CPP/7zip/UI/FileManager/FM.mak
++++ b/CPP/7zip/UI/FileManager/FM.mak
+@@ -70,6 +70,7 @@ FM_OBJS = \
+   $O\SystemPage.obj \
+   $O\VerCtrl.obj \
+   $O\Path.obj \
++  $O\MultiPanel.obj \
+ 
+ !IFNDEF UNDER_CE
+ 
+diff --git a/CPP/7zip/UI/FileManager/MultiPanel.cpp b/CPP/7zip/UI/FileManager/MultiPanel.cpp
+new file mode 100644
+index 0000000..5e182b7
+--- /dev/null
++++ b/CPP/7zip/UI/FileManager/MultiPanel.cpp
+@@ -0,0 +1,249 @@
++#include "StdAfx.h"
++#include "App.h"
++#include <shlwapi.h>
++
++void CApp::MoveSubWindowsMultiPanel()
++{
++  HWND hWnd = _window;
++  RECT rect;
++  if (!hWnd)
++    return;
++  ::GetClientRect(hWnd, &rect);
++  int xSize = rect.right;
++  if (xSize == 0)
++    return;
++  int headerSize = 0;
++
++  if (_toolBar)
++  {
++    _toolBar.AutoSize();
++    RECT toolbarRect{};
++    _toolBar.GetWindowRect(&toolbarRect);
++    // headerSize += Window_GetRealHeight(_toolBar);
++    // Effectively the same.
++    headerSize += RECT_SIZE_Y(toolbarRect);
++  }
++
++  int ySize = MyMax((int)(rect.bottom - headerSize), 0);
++  static const int kSplitterWidth = 4;
++
++  int xWidth0 = xSize / 3 - kSplitterWidth / 2;
++  int panel1StartX = xSize / 3 + kSplitterWidth / 2;
++  int panel2StartX = xSize / 3 * 2 + kSplitterWidth / 2;
++  Panels[2].Move(panel2StartX, headerSize, xWidth0, ySize);
++  Panels[1].Move(panel1StartX, headerSize, xWidth0, ySize);
++  Panels[0].Move(0,            headerSize, xWidth0, ySize);
++
++  // Remove left over artifacts from resizing smaller.
++  InvalidateRect(Panels[1]._mainWindow, NULL, TRUE);
++}
++
++HRESULT CApp::InitializeMultiPanel()
++{
++  NumPanels = 3;
++  // There's a weird case in CApp::Create where it doesn't initialize the first panel
++  // so just initialize all of them here.
++  for (int i = 0; i < kNumPanelsMax; ++i)
++  {
++    COpenResult openRes;
++    RINOK(CreateOnePanel(i, UString(), UString(),
++                         false, // needOpenArc
++                         openRes));
++    // List mode
++    Panels[i].SetListViewMode(3);
++    Panels[i].Show(SW_SHOWNORMAL);
++    Panels[i].Enable(true);
++
++    // Initialize columns to only the name column
++    bool foundName = false;
++    for (int j = Panels[i]._visibleColumns.Size() - 1; j >= 0; --j)
++    {
++      if (Panels[i]._visibleColumns[j].Name.Compare(L"Name") != 0)
++      {
++        Panels[i].DeleteColumn(j);
++      }
++      else
++      {
++        foundName = true;
++      }
++    }
++
++    if (!foundName)
++    {
++      for (auto const& column : Panels[i]._columns)
++      {
++        Panels[i].AddColumn(column);
++      }
++    }
++  }
++
++  Panels[1].SetFocusToList();
++  Panels[1]._listView.SetItemState_Selected(0, true);
++  MultiPanelMode = 1;
++
++  SyncMultiPanel();
++  MoveSubWindowsMultiPanel();
++
++  return S_OK;
++}
++
++HRESULT CApp::UninitializeMultiPanel()
++{
++  while (NumPanels > 1)
++  {
++    Panels[NumPanels - 1].Enable(false);
++    Panels[NumPanels - 1].Show(SW_HIDE);
++    --NumPanels;
++  }
++  LastFocusedPanel = 0;
++  MultiPanelMode = 0;
++
++  MoveSubWindows();
++  return S_OK;
++}
++
++HRESULT CApp::SyncMultiPanel()
++{
++  auto cwd = Panels[1].GetFsPath();
++  auto parent = Panels[1].GetParentDirPrefix(); // could use std::filesystem::parent_path:
++  UString preview;
++
++  if (parent.Len() > 0 && parent[parent.Len()-1] == L':')
++  {
++    parent.Add_PathSepar();
++  }
++  CRecordVector<UInt32> selected;
++  Panels[1].Get_ItemIndices_Selected(selected);
++
++  if (selected.Size() > 0)
++  {
++    preview = Panels[1].GetItemFullPath(selected[0]).Ptr();
++  }
++
++  // Update parent panel
++  if (Panels[0].PanelCreated)
++  {
++    if (parent.Compare(cwd) != 0 && parent.Compare(L"Computer") != 0)
++    {
++      if (Panels[0].GetFsPath() != parent)
++      {
++        Panels[0].BindToPathAndRefresh(parent);
++      }
++    }
++    else
++    {
++      Panels[0].BindToPathAndRefresh(L"");
++      Panels[0].DeleteListItems();
++    }
++  }
++
++  // Update preview panel
++  if (Panels[2].PanelCreated)
++  {
++    if (preview.Len() > 0 && PathIsDirectory(preview) && Panels[2].PanelCreated && preview != Panels[2].GetFsPath())
++    {
++      Panels[2].BindToPathAndRefresh(preview);
++    }
++    else
++    {
++      Panels[2].BindToPathAndRefresh(L"");
++      Panels[2].DeleteListItems();
++    }
++  }
++  return S_OK;
++}
++
++HRESULT CPanelCallbackImp::OnRefreshList(bool& shouldReturn)
++{
++  (void)shouldReturn;
++  return S_OK;
++}
++
++HRESULT CPanelCallbackImp::OnBind(bool& shouldReturn)
++{
++  (void)shouldReturn;
++  return S_OK;
++}
++
++HRESULT CPanelCallbackImp::OnSelectedItemChanged()
++{
++
++  if (_app->MultiPanelMode == 0)
++  {
++    return S_OK;
++  }
++
++  if (_index != 1)
++  {
++    return S_OK;
++  }
++
++  if (multiPanelReentrancyCount++ == 0)
++  {
++    _app->SyncMultiPanel();
++    --multiPanelReentrancyCount;
++  }
++  return S_OK;
++}
++
++HRESULT CPanelCallbackImp::OnOpenFolder()
++{
++  if (_app->MultiPanelMode == 0)
++  {
++    return S_OK;
++  }
++
++  if (_index != 1)
++  {
++    auto cwd = _app->Panels[_index].GetFsPath();
++    _app->Panels[1].BindToPathAndRefresh(cwd);
++  }
++
++  _app->SyncMultiPanel();
++
++  _app->Panels[1]._listView.SetItemState_Selected(0, true);
++  _app->Panels[1].SetFocusToList();
++
++  return S_OK;
++}
++
++HRESULT CPanelCallbackImp::OnOpenParentFolder()
++{
++  if (_app->MultiPanelMode == 0)
++  {
++    return S_OK;
++  }
++
++  _app->SyncMultiPanel();
++
++  return S_OK;
++}
++
++UString CPanelCallbackImp::OnSetComboText(UString const& text)
++{
++  if (_app->MultiPanelMode == 0 || _index == 0)
++  {
++    return UString();
++  }
++
++  // The second and third panel should only display the file name.
++  int slashPos = text.ReverseFind_PathSepar();
++  if (slashPos >= 0 && slashPos == text.Len() - 1)
++  {
++    slashPos = text.Left(slashPos).ReverseFind_PathSepar();
++  }
++
++  if (slashPos >= 0)
++  {
++    UString filename = UString(text);
++    filename.DeleteFrontal((unsigned)(slashPos + 1));
++    if (filename[filename.Len() - 1] == WCHAR_PATH_SEPARATOR)
++    {
++      filename.DeleteBack();
++    }
++
++    return filename;
++  }
++
++  return UString();
++}
+diff --git a/CPP/7zip/UI/FileManager/MultiPanel.h b/CPP/7zip/UI/FileManager/MultiPanel.h
+new file mode 100644
+index 0000000..6748ff4
+--- /dev/null
++++ b/CPP/7zip/UI/FileManager/MultiPanel.h
+@@ -0,0 +1,5 @@
++
++#ifndef ZIP7_INC_MULTIPANEL_H
++#define ZIP7_INC_MULTIPANEL_H
++
++#endif
+\ No newline at end of file
+diff --git a/CPP/7zip/UI/FileManager/Panel.cpp b/CPP/7zip/UI/FileManager/Panel.cpp
+index cf341f5..d077de3 100644
+--- a/CPP/7zip/UI/FileManager/Panel.cpp
++++ b/CPP/7zip/UI/FileManager/Panel.cpp
+@@ -838,7 +838,7 @@ UString CPanel::GetFolderTypeID() const
+ {
+   {
+     NCOM::CPropVariant prop;
+-    if (_folder->GetFolderProperty(kpidType, &prop) == S_OK)
++    if (_folder && _folder->GetFolderProperty(kpidType, &prop) == S_OK)
+       if (prop.vt == VT_BSTR)
+         return (const wchar_t *)prop.bstrVal;
+   }
+diff --git a/CPP/7zip/UI/FileManager/Panel.h b/CPP/7zip/UI/FileManager/Panel.h
+index e8d5f4e..3953f75 100644
+--- a/CPP/7zip/UI/FileManager/Panel.h
++++ b/CPP/7zip/UI/FileManager/Panel.h
+@@ -74,6 +74,13 @@ DECLARE_INTERFACE(CPanelCallback)
+   virtual void DragBegin() = 0;
+   virtual void DragEnd() = 0;
+   virtual void RefreshTitle(bool always) = 0;
++  virtual HRESULT OnRefreshList(bool& shouldReturn) = 0;
++  virtual HRESULT OnBind(bool& shouldReturn) = 0;
++  virtual HRESULT OnSelectedItemChanged() = 0;
++  virtual HRESULT OnOpenFolder() = 0;
++  virtual HRESULT OnOpenParentFolder() = 0;
++  virtual UString OnSetComboText(UString const& text) = 0;
++
+ };
+ Z7_PURE_INTERFACES_END
+ 
+@@ -302,7 +309,7 @@ struct COpenResult
+ };
+ 
+ 
+-
++class CApp;
+ 
+ class CPanel Z7_final: public NWindows::NControl::CWindow2
+ {
+@@ -976,6 +983,10 @@ class CPanel Z7_final: public NWindows::NControl::CWindow2
+   void RefreshTitleAlways() { RefreshTitle(true);  }
+ 
+   UString GetItemsInfoString(const CRecordVector<UInt32> &indices);
++  void SetComboText(UString const& text);
++
++  // friend HRESULT CApp::InitializeMultiPanel();
++  friend class CApp;
+ };
+ 
+ class CMyBuffer
+diff --git a/CPP/7zip/UI/FileManager/PanelFolderChange.cpp b/CPP/7zip/UI/FileManager/PanelFolderChange.cpp
+index 0e62a44..a870860 100644
+--- a/CPP/7zip/UI/FileManager/PanelFolderChange.cpp
++++ b/CPP/7zip/UI/FileManager/PanelFolderChange.cpp
+@@ -84,6 +84,16 @@ HRESULT CPanel::BindToPath(const UString &fullPath, const UString &arcFormat, CO
+   openRes.ArchiveIsOpened = false;
+   openRes.Encrypted = false;
+ 
++  if (_panelCallback != nullptr)
++  {
++    bool shouldReturn{};
++    _panelCallback->OnBind(shouldReturn);
++    if (shouldReturn)
++    {
++      return S_OK;
++    }
++  }
++
+   CDisableTimerProcessing disableTimerProcessing(*this);
+   CDisableNotify disableNotify(*this);
+ 
+@@ -341,6 +351,7 @@ void CPanel::SetBookmark(unsigned index)
+ void CPanel::OpenBookmark(unsigned index)
+ {
+   BindToPathAndRefresh(_appState->FastFolders.GetString(index));
++  _panelCallback->OnOpenFolder();
+ }
+ 
+ UString GetFolderPath(IFolderFolder *folder)
+@@ -382,7 +393,7 @@ void CPanel::LoadFullPathAndShow()
+   LoadFullPath();
+   _appState->FolderHistory.AddString(_currentFolderPrefix);
+ 
+-  _headerComboBox.SetText(_currentFolderPrefix);
++  SetComboText(_currentFolderPrefix);
+ 
+   #ifndef UNDER_CE
+ 
+@@ -432,6 +443,7 @@ LRESULT CPanel::OnNotifyComboBoxEnter(const UString &s)
+   if (path && BindToPathAndRefresh(GetUnicodeString(UString((*path).data()))) == S_OK)
+   {
+     PostMsg(kSetFocusToListView);
++    _panelCallback->OnOpenFolder();
+     return TRUE;
+   }
+   return FALSE;
+@@ -441,7 +453,7 @@ bool CPanel::OnNotifyComboBoxEndEdit(PNMCBEENDEDITW info, LRESULT &result)
+ {
+   if (info->iWhy == CBENF_ESCAPE)
+   {
+-    _headerComboBox.SetText(_currentFolderPrefix);
++    SetComboText(_currentFolderPrefix);
+     PostMsg(kSetFocusToListView);
+     result = FALSE;
+     return true;
+@@ -472,7 +484,7 @@ bool CPanel::OnNotifyComboBoxEndEdit(PNMCBEENDEDIT info, LRESULT &result)
+ {
+   if (info->iWhy == CBENF_ESCAPE)
+   {
+-    _headerComboBox.SetText(_currentFolderPrefix);
++    SetComboText(_currentFolderPrefix);
+     PostMsg(kSetFocusToListView);
+     result = FALSE;
+     return true;
+@@ -600,7 +612,7 @@ bool CPanel::OnComboBoxCommand(UINT code, LPARAM /* param */, LRESULT &result)
+       {
+         UString pass = ComboBoxPaths[index];
+         _headerComboBox.SetCurSel(-1);
+-        // _headerComboBox.SetText(pass); // it's fix for seclecting by mouse.
++        // SetComboText(pass); // it's fix for seclecting by mouse.
+         if (BindToPathAndRefresh(pass) == S_OK)
+         {
+           PostMsg(kSetFocusToListView);
+@@ -786,6 +798,8 @@ void CPanel::OpenParentFolder()
+   // ::SetCurrentDirectory(::_currentFolderPrefix);
+   RefreshListCtrl(state);
+   // _listView.EnsureVisible(_listView.GetFocusedItem(), false);
++
++  _panelCallback->OnOpenParentFolder();
+ }
+ 
+ 
+@@ -870,6 +884,8 @@ void CPanel::OpenFolder(unsigned index)
+   // 17.02: fixed : now we don't select first item
+   // _listView.SetItemState_Selected(_listView.GetFocusedItem());
+   _listView.EnsureVisible(_listView.GetFocusedItem(), false);
++
++  _panelCallback->OnOpenFolder();
+ }
+ 
+ void CPanel::OpenAltStreams()
+@@ -913,3 +929,16 @@ void CPanel::OpenAltStreams()
+   BindToPathAndRefresh(path);
+   #endif
+ }
++
++void CPanel::SetComboText(UString const& text)
++{
++  auto newText = _panelCallback->OnSetComboText(text);
++  if (newText.Len() > 0)
++  {
++    _headerComboBox.SetText(newText);
++  }
++  else
++  {
++    _headerComboBox.SetText(text);
++  }
++}
+\ No newline at end of file
+diff --git a/CPP/7zip/UI/FileManager/PanelItems.cpp b/CPP/7zip/UI/FileManager/PanelItems.cpp
+index 59740c4..987e463 100644
+--- a/CPP/7zip/UI/FileManager/PanelItems.cpp
++++ b/CPP/7zip/UI/FileManager/PanelItems.cpp
+@@ -60,7 +60,7 @@ static int GetColumnAlign(PROPID propID, VARTYPE varType)
+     case kpidChangeTime:
+       return LVCFMT_LEFT;
+   }
+-  
++
+   switch (varType)
+   {
+     case VT_UI1:
+@@ -74,13 +74,13 @@ static int GetColumnAlign(PROPID propID, VARTYPE varType)
+     case VT_UI8:
+     case VT_BOOL:
+       return LVCFMT_RIGHT;
+-    
++
+     case VT_EMPTY:
+     case VT_I1:
+     case VT_FILETIME:
+     case VT_BSTR:
+       return LVCFMT_LEFT;
+-    
++
+     default:
+       return LVCFMT_CENTER;
+   }
+@@ -104,11 +104,11 @@ HRESULT CPanel::InitColumns()
+     const UString oldType = _typeIDString;
+     _typeIDString = GetFolderTypeID();
+     // an empty _typeIDString is allowed.
+-    
++
+     // we read registry only for new FolderTypeID
+     if (!_needSaveInfo || _typeIDString != oldType)
+       _listViewInfo.Read(_typeIDString);
+-    
++
+     // folders with same FolderTypeID can have different columns
+     // so we still read columns for that case.
+     // if (_needSaveInfo && _typeIDString == oldType) return S_OK;
+@@ -130,14 +130,14 @@ HRESULT CPanel::InitColumns()
+   {
+     UInt32 numProps;
+     _folder->GetNumberOfProperties(&numProps);
+-    
++
+     for (UInt32 i = 0; i < numProps; i++)
+     {
+       CMyComBSTR name;
+       PROPID propID;
+       VARTYPE varType;
+       HRESULT res = _folder->GetPropertyInfo(i, &name, &propID, &varType);
+-      
++
+       if (res != S_OK)
+       {
+         /* We can return ERROR, but in that case, other code will not be called,
+@@ -177,7 +177,7 @@ HRESULT CPanel::InitColumns()
+   {
+     UInt32 numProps;
+     _folderRawProps->GetNumRawProps(&numProps);
+-    
++
+     for (UInt32 i = 0; i < numProps; i++)
+     {
+       CMyComBSTR name;
+@@ -199,7 +199,7 @@ HRESULT CPanel::InitColumns()
+ 
+   unsigned order = 0;
+   unsigned i;
+-  
++
+   for (i = 0; i < _listViewInfo.Columns.Size(); i++)
+   {
+     const CColumnInfo &columnInfo = _listViewInfo.Columns[i];
+@@ -227,7 +227,7 @@ HRESULT CPanel::InitColumns()
+     if (item.IsVisible && item.Order < 0)
+       item.Order = (int)(order++);
+   }
+-  
++
+   for (i = 0; i < _columns.Size(); i++)
+   {
+     CPropColumn &item = _columns[i];
+@@ -236,7 +236,7 @@ HRESULT CPanel::InitColumns()
+   }
+ 
+   CPropColumns newColumns;
+-  
++
+   for (i = 0; i < _columns.Size(); i++)
+   {
+     const CPropColumn &prop = _columns[i];
+@@ -271,16 +271,16 @@ HRESULT CPanel::InitColumns()
+         So we set column order after all columns are added.
+   */
+   newColumns.Sort(ItemProperty_Compare_NameFirst, NULL);
+-  
++
+   if (newColumns.IsEqualTo(_visibleColumns))
+     return S_OK;
+ 
+   CIntArr columns(newColumns.Size());
+   for (i = 0; i < newColumns.Size(); i++)
+     columns[i] = -1;
+-  
++
+   bool orderError = false;
+-  
++
+   for (i = 0; i < newColumns.Size(); i++)
+   {
+     const CPropColumn &prop = newColumns[i];
+@@ -320,7 +320,7 @@ void CPanel::DeleteColumn(unsigned index)
+ void CPanel::AddColumn(const CPropColumn &prop)
+ {
+   const unsigned index = _visibleColumns.Size();
+-  
++
+   LV_COLUMNW column;
+   column.mask = LVCF_FMT | LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM | LVCF_ORDER;
+   column.cx = (int)prop.Width;
+@@ -453,7 +453,7 @@ void CPanel::SetFocusedSelectedItem(int index, bool select)
+ #endif
+ 
+ 
+-  
++
+ /*
+ 
+ extern UInt32 g_NumGroups;
+@@ -465,6 +465,16 @@ extern UInt32 g_NumMessages;
+ 
+ HRESULT CPanel::RefreshListCtrl(const CSelectedState &state)
+ {
++  if (_panelCallback != nullptr)
++  {
++    bool shouldReturn = false;
++    _panelCallback->OnRefreshList(shouldReturn);
++    if (shouldReturn)
++    {
++      return S_OK;
++    }
++  }
++
+   m_DropHighlighted_SelectionIndex = -1;
+   m_DropHighlighted_SubFolderName.Empty();
+ 
+@@ -494,9 +504,9 @@ HRESULT CPanel::RefreshListCtrl(const CSelectedState &state)
+ 
+   LVITEMW item;
+   ZeroMemory(&item, sizeof(item));
+-  
++
+   // DWORD tickCount0 = GetTickCount();
+-  
++
+   // _enableItemChangeNotify = false;
+   DeleteListItems();
+   _enableItemChangeNotify = true;
+@@ -508,7 +518,7 @@ HRESULT CPanel::RefreshListCtrl(const CSelectedState &state)
+   _startGroupSelect = 0;
+ 
+   _selectionIsDefined = false;
+-  
++
+   // m_Files.Clear();
+ 
+   /*
+@@ -518,7 +528,7 @@ HRESULT CPanel::RefreshListCtrl(const CSelectedState &state)
+     SetToRootFolder();
+   }
+   */
+-  
++
+   _headerToolBar.EnableButton(kParentFolderID, !IsRootFolder());
+ 
+   {
+@@ -638,18 +648,18 @@ HRESULT CPanel::RefreshListCtrl(const CSelectedState &state)
+       return E_FAIL;
+     listViewItemCount++;
+   }
+-  
++
+   // OutputDebugStringA("S1\n");
+ 
+   UString correctedName;
+   UString itemName;
+   UString relPath;
+-  
++
+   for (UInt32 i = 0; i < numItems; i++)
+   {
+     const wchar_t *name = NULL;
+     unsigned nameLen = 0;
+-    
++
+     if (_folderGetItemName)
+       _folderGetItemName->GetItemName(i, &name, &nameLen);
+     if (!name)
+@@ -658,9 +668,9 @@ HRESULT CPanel::RefreshListCtrl(const CSelectedState &state)
+       name = itemName;
+       nameLen = itemName.Len();
+     }
+-  
++
+     bool selected = false;
+-    
++
+     if (state.FocusedName_Defined || !state.SelectedNames.IsEmpty())
+     {
+       relPath.Empty();
+@@ -690,7 +700,7 @@ HRESULT CPanel::RefreshListCtrl(const CSelectedState &state)
+       if (state.SelectedNames.FindInSorted(relPath) != -1)
+         selected = true;
+     }
+-    
++
+     _selectedStatusVector.AddInReserved(selected);
+ 
+     item.mask = LVIF_TEXT | LVIF_PARAM | LVIF_IMAGE;
+@@ -701,13 +711,13 @@ HRESULT CPanel::RefreshListCtrl(const CSelectedState &state)
+         item.mask |= LVIF_STATE;
+         item.state = LVIS_SELECTED;
+       }
+-  
++
+     int subItem = 0;
+     item.iItem = listViewItemCount;
+-    
++
+     item.iSubItem = subItem++;
+     item.lParam = (LPARAM)i;
+-    
++
+     /*
+     int finish = nameLen - 4;
+     int j;
+@@ -754,7 +764,7 @@ HRESULT CPanel::RefreshListCtrl(const CSelectedState &state)
+     }
+ 
+     bool defined = false;
+-  
++
+     if (folderGetSystemIconIndex)
+     {
+       folderGetSystemIconIndex->GetSystemIconIndex(i, &item.iImage);
+@@ -784,7 +794,7 @@ HRESULT CPanel::RefreshListCtrl(const CSelectedState &state)
+         item.iImage = _extToIconMap.GetIconIndex(attrib, name);
+       }
+     }
+-    
++
+     if (item.iImage < 0)
+       item.iImage = 0;
+ 
+@@ -792,7 +802,7 @@ HRESULT CPanel::RefreshListCtrl(const CSelectedState &state)
+       return E_FAIL;
+     listViewItemCount++;
+   }
+-  
++
+   /*
+     xp-64: there is different order when Windows calls CPanel::OnNotify for _listView modes:
+     Details      : after whole code
+@@ -816,10 +826,10 @@ HRESULT CPanel::RefreshListCtrl(const CSelectedState &state)
+     SetFocusedSelectedItem(cursorIndex, state.SelectFocused);
+ 
+   Print_OnNotify("after SetFocusedSelectedItem");
+-  
++
+   SetSortRawStatus();
+   _listView.SortItems(CompareItems, (LPARAM)this);
+-  
++
+   Print_OnNotify("after  Sort");
+ 
+   if (cursorIndex < 0 && _listView.GetItemCount() > 0)
+@@ -831,7 +841,7 @@ HRESULT CPanel::RefreshListCtrl(const CSelectedState &state)
+   }
+ 
+   // m_RedrawEnabled = true;
+-  
++
+   Print_OnNotify("after  SetFocusedSelectedItem2");
+ 
+   _listView.EnsureVisible(_listView.GetFocusedItem(), false);
+@@ -846,7 +856,7 @@ HRESULT CPanel::RefreshListCtrl(const CSelectedState &state)
+   Print_OnNotify("after  SetRedraw");
+ 
+   _listView.InvalidateRect(NULL, true);
+-  
++
+   Print_OnNotify("after InvalidateRect");
+   /*
+   _listView.UpdateWindow();
+@@ -1021,7 +1031,7 @@ void CPanel::OpenSelectedItems(bool tryInternal)
+     MessageBox_Error_LangID(IDS_TOO_MANY_ITEMS);
+     return;
+   }
+-  
++
+   const int focusedItem = _listView.GetFocusedItem();
+   if (focusedItem >= 0)
+   {
+@@ -1150,7 +1160,7 @@ void CPanel::Add_ItemRelPath2_To_String(unsigned itemIndex, UString &s) const
+ 
+   const wchar_t *name = NULL;
+   unsigned nameLen = 0;
+-    
++
+   if (_folderGetItemName)
+     _folderGetItemName->GetItemName(itemIndex, &name, &nameLen);
+   if (name)
+@@ -1243,7 +1253,7 @@ void CPanel::SaveListViewInfo()
+     return;
+ 
+   unsigned i;
+-  
++
+   for (i = 0; i < _visibleColumns.Size(); i++)
+   {
+     CPropColumn &prop = _visibleColumns[i];
+@@ -1256,16 +1266,16 @@ void CPanel::SaveListViewInfo()
+   }
+ 
+   CListViewInfo viewInfo;
+-  
++
+   // PROPID sortPropID = _columns[_sortIndex].ID;
+   PROPID sortPropID = _sortID;
+-  
++
+   // we save columns as "sorted by order" to registry
+ 
+   CPropColumns sortedProperties = _visibleColumns;
+ 
+   sortedProperties.Sort();
+-  
++
+   for (i = 0; i < sortedProperties.Size(); i++)
+   {
+     const CPropColumn &prop = sortedProperties[i];
+@@ -1275,7 +1285,7 @@ void CPanel::SaveListViewInfo()
+     columnInfo.Width = prop.Width;
+     viewInfo.Columns.Add(columnInfo);
+   }
+-  
++
+   for (i = 0; i < _columns.Size(); i++)
+   {
+     const CPropColumn &prop = _columns[i];
+@@ -1288,7 +1298,7 @@ void CPanel::SaveListViewInfo()
+       viewInfo.Columns.Add(columnInfo);
+     }
+   }
+-  
++
+   viewInfo.SortID = sortPropID;
+   viewInfo.Ascending = _ascending;
+   viewInfo.IsLoaded = true;
+@@ -1329,9 +1339,9 @@ void CPanel::ShowColumnsContextMenu(int x, int y)
+       flags |= MF_GRAYED;
+     menu.AppendItem(flags, kCommandStart + i, prop.Name);
+   }
+-  
++
+   const int menuResult = menu.Track(TPM_LEFTALIGN | TPM_RETURNCMD | TPM_NONOTIFY, x, y, _listView);
+-  
++
+   if (menuResult >= kCommandStart && menuResult <= kCommandStart + (int)_columns.Size())
+   {
+     const unsigned index = (unsigned)(menuResult - kCommandStart);
+diff --git a/CPP/7zip/UI/FileManager/PanelKey.cpp b/CPP/7zip/UI/FileManager/PanelKey.cpp
+index ee7c891..7f28d96 100644
+--- a/CPP/7zip/UI/FileManager/PanelKey.cpp
++++ b/CPP/7zip/UI/FileManager/PanelKey.cpp
+@@ -79,6 +79,10 @@ bool CPanel::OnKeyDown(LPNMLVKEYDOWN keyDownInfo, LRESULT &result)
+   {
+     g_App.SwitchOnOffOnePanel();
+   }
++  else if ((keyDownInfo->wVKey == VK_F9) && !alt && ctrl && !shift)
++  {
++    g_App.SwitchOnOffMultiPanel();
++  }
+ 
+   if (keyDownInfo->wVKey >= VK_F3 && keyDownInfo->wVKey <= VK_F12 && ctrl)
+   {
+diff --git a/CPP/7zip/UI/FileManager/PanelListNotify.cpp b/CPP/7zip/UI/FileManager/PanelListNotify.cpp
+index f945776..11ab653 100644
+--- a/CPP/7zip/UI/FileManager/PanelListNotify.cpp
++++ b/CPP/7zip/UI/FileManager/PanelListNotify.cpp
+@@ -39,7 +39,7 @@ static void ConvertSizeToString(UInt64 val, wchar_t *s) throw()
+ {
+   unsigned char temp[32];
+   unsigned i = 0;
+-  
++
+   if (val <= (UInt32)0xFFFFFFFF)
+   {
+     UInt32 val32 = (UInt32)val;
+@@ -80,7 +80,7 @@ static void ConvertSizeToString(UInt64 val, wchar_t *s) throw()
+     s += 4;
+   }
+   while (i -= 3);
+-  
++
+   *s = 0;
+ }
+ 
+@@ -220,7 +220,7 @@ LRESULT CPanel::SetItemText(LVITEMW &item)
+ 
+   if (item.cchTextMax <= 1)
+     return 0;
+-  
++
+   const CPropColumn &property = _visibleColumns[item.iSubItem];
+   PROPID propID = property.ID;
+ 
+@@ -296,7 +296,7 @@ LRESULT CPanel::SetItemText(LVITEMW &item)
+       text[0] = 0;
+       return 0;
+     }
+-    
++
+     if (propID == kpidNtReparse)
+     {
+       UString s;
+@@ -421,19 +421,19 @@ LRESULT CPanel::SetItemText(LVITEMW &item)
+       const wchar_t *name = NULL;
+       unsigned nameLen = 0;
+       _folderGetItemName->GetItemName(realIndex, &name, &nameLen);
+-      
++
+       if (name)
+       {
+         unsigned dest = 0;
+         const unsigned limit = (unsigned)item.cchTextMax - 1;
+-        
++
+         for (unsigned i = 0; dest < limit;)
+         {
+           const wchar_t c = name[i++];
+           if (c == 0)
+             break;
+           text[dest++] = c;
+-          
++
+           if (c != ' ')
+           {
+             if (c != 0x202E) // RLO
+@@ -441,10 +441,10 @@ LRESULT CPanel::SetItemText(LVITEMW &item)
+             text[(size_t)dest - 1] = '_';
+             continue;
+           }
+-          
++
+           if (name[i] != ' ')
+             continue;
+-          
++
+           unsigned t = 1;
+           for (; name[i + t] == ' '; t++);
+ 
+@@ -477,7 +477,7 @@ LRESULT CPanel::SetItemText(LVITEMW &item)
+       }
+     }
+   }
+-  
++
+   if (propID == kpidPrefix)
+   {
+     if (_folderGetItemName)
+@@ -501,9 +501,9 @@ LRESULT CPanel::SetItemText(LVITEMW &item)
+       }
+     }
+   }
+-  
++
+   const HRESULT res = _folder->GetProperty(realIndex, propID, &prop);
+-  
++
+   if (res != S_OK)
+   {
+     MyStringCopy(text, L"Error: ");
+@@ -545,7 +545,7 @@ LRESULT CPanel::SetItemText(LVITEMW &item)
+     }
+     text[i] = 0;
+   }
+-  
++
+   return 0;
+ }
+ 
+@@ -563,6 +563,7 @@ void CPanel::OnItemChanged(NMLISTVIEW *item)
+   // Don't change this code. It works only with such check
+   if (oldSelected != newSelected)
+     _selectedStatusVector[index] = newSelected;
++  _panelCallback->OnSelectedItemChanged();
+ }
+ 
+ extern bool g_LVN_ITEMACTIVATE_Support;
+@@ -588,7 +589,7 @@ bool CPanel::OnNotifyList(LPNMHDR header, LRESULT &result)
+       {
+         if (!_mySelectMode)
+           OnItemChanged((LPNMLISTVIEW)header);
+-        
++
+         // Post_Refresh_StatusBar();
+         /* 9.26: we don't call Post_Refresh_StatusBar.
+            it was very slow if we select big number of files
+@@ -671,7 +672,7 @@ bool CPanel::OnNotifyList(LPNMHDR header, LRESULT &result)
+       case NM_CLICK:
+       SendRefreshStatusBarMessage();
+       return 0;
+-      
++
+         // TODO : Handler default action...
+         return 0;
+         case LVN_ITEMCHANGED:
+@@ -734,7 +735,7 @@ bool CPanel::OnCustomDraw(LPNMLVCUSTOMDRAW lplvcd, LRESULT &result)
+   case CDDS_PREPAINT :
+     result = CDRF_NOTIFYITEMDRAW;
+     return true;
+-    
++
+   case CDDS_ITEMPREPAINT:
+     /*
+     SelectObject(lplvcd->nmcd.hdc,
+@@ -762,7 +763,7 @@ bool CPanel::OnCustomDraw(LPNMLVCUSTOMDRAW lplvcd, LRESULT &result)
+     // result = CDRF_NEWFONT;
+     result = CDRF_NOTIFYITEMDRAW;
+     return true;
+-    
++
+     // return false;
+     // return true;
+     /*
+@@ -816,7 +817,7 @@ void CPanel::Refresh_StatusBar()
+   {
+     wchar_t selectSizeString[32];
+     selectSizeString[0] = 0;
+-    
++
+     if (indices.Size() > 0)
+     {
+       // for (unsigned ttt = 0; ttt < 1000; ttt++) {
+@@ -858,7 +859,7 @@ void CPanel::Refresh_StatusBar()
+   }
+   _statusBar.SetText(2, sizeString);
+   _statusBar.SetText(3, dateString);
+-  
++
+   // _statusBar.SetText(4, nameString);
+   // _statusBar2.SetText(1, MyFormatNew(L"{0} bytes", NumberToStringW(totalSize)));
+   // }
+diff --git a/CPP/7zip/UI/FileManager/RegistryUtils.cpp b/CPP/7zip/UI/FileManager/RegistryUtils.cpp
+index d9db5d0..4bc697b 100644
+--- a/CPP/7zip/UI/FileManager/RegistryUtils.cpp
++++ b/CPP/7zip/UI/FileManager/RegistryUtils.cpp
+@@ -40,6 +40,8 @@ static LPCTSTR const kLargePages = TEXT("LargePages");
+ static LPCTSTR const kFlatViewName = TEXT("FlatViewArc");
+ // static LPCTSTR const kShowDeletedFiles = TEXT("ShowDeleted");
+ 
++static LPCTSTR const kPanelMode = TEXT("PanelMode");
++
+ static void SaveCuString(LPCTSTR keyPath, LPCWSTR valuePath, LPCWSTR value)
+ {
+   CKey key;
+@@ -80,6 +82,13 @@ static void SaveOption(LPCTSTR value, bool enabled)
+   key.SetValue(value, enabled);
+ }
+ 
++static void SaveOption(LPCTSTR value, UInt32 data)
++{
++  CKey key;
++  key.Create(HKEY_CURRENT_USER, kCU_FMPath);
++  key.SetValue(value, data);
++}
++
+ static bool Read7ZipOption(LPCTSTR value, bool defaultValue)
+ {
+   CKey key;
+@@ -99,6 +108,14 @@ static void ReadOption(CKey &key, LPCTSTR value, bool &dest)
+     dest = enabled;
+ }
+ 
++static void ReadOption(CKey &key, LPCTSTR value, UInt32 &dest)
++{
++  UInt32 data = false;
++  if (key.QueryValue(value, data) == ERROR_SUCCESS)
++    dest = data;
++}
++
++
+ /*
+ static void SaveLmOption(LPCTSTR value, bool enabled)
+ {
+@@ -190,6 +207,16 @@ bool ReadFlatView(UInt32 panelIndex)
+   return enabled;
+ }
+ 
++void SavePanelMode(UInt32 mode) { SaveOption(kPanelMode, mode); }
++UInt32 ReadPanelMode()
++{
++  bool data = false;
++  CKey key;
++  if (key.Open(HKEY_CURRENT_USER, kCU_FMPath, KEY_READ) == ERROR_SUCCESS)
++    ReadOption(key, kPanelMode, data);
++  return data;
++}
++
+ /*
+ void Save_ShowDeleted(bool enable) { SaveOption(kShowDeletedFiles, enable); }
+ bool Read_ShowDeleted() { return ReadOption(kShowDeletedFiles, false); }
+diff --git a/CPP/7zip/UI/FileManager/RegistryUtils.h b/CPP/7zip/UI/FileManager/RegistryUtils.h
+index 01b2592..a7b7855 100644
+--- a/CPP/7zip/UI/FileManager/RegistryUtils.h
++++ b/CPP/7zip/UI/FileManager/RegistryUtils.h
+@@ -41,6 +41,8 @@ void SaveLockMemoryEnable(bool enable);
+ 
+ void SaveFlatView(UInt32 panelIndex, bool enable);
+ bool ReadFlatView(UInt32 panelIndex);
++void SavePanelMode(UInt32 mode);
++UInt32 ReadPanelMode();
+ 
+ /*
+ void Save_ShowDeleted(bool enable);
+diff --git a/CPP/Common/MyVector.h b/CPP/Common/MyVector.h
+index 16eb7d9..d631ceb 100644
+--- a/CPP/Common/MyVector.h
++++ b/CPP/Common/MyVector.h
+@@ -447,6 +447,16 @@ class CRecordVector
+     }
+     while (size > 1);
+   }
++
++  T* begin() const
++  {
++    return _items;
++  }
++
++  T* end() const
++  {
++    return _items + _size;
++  }
+ };
+ 
+ typedef CRecordVector<int> CIntVector;
+@@ -715,6 +725,16 @@ class CObjectVector
+     { return (*(*((const T *const *)a1))).Compare(*(*((const T *const *)a2))); }
+ 
+   void Sort() { _v.Sort(CompareObjectItems, NULL); }
++
++  T* begin() const
++  {
++    return (T *)_v.begin();
++  }
++
++  T* end() const
++  {
++    return (T *)_v.end();
++  }
+ };
+ 
+ #define FOR_VECTOR(_i_, _v_) for (unsigned _i_ = 0; _i_ < (_v_).Size(); _i_++)

@@ -1,0 +1,74 @@
+From 5c23b4dd6782a6668451e51620d3d06821ab2913 Mon Sep 17 00:00:00 2001
+From: ozone10 <positronix10@gmail.com>
+Date: Thu, 3 Apr 2025 08:16:55 +0200
+Subject: [PATCH] Optimize struct
+
+---
+ DarkMode/DarkModeSubclass.cpp | 8 ++++----
+ DarkMode/DarkModeSubclass.h   | 5 -----
+ 2 files changed, 4 insertions(+), 9 deletions(-)
+
+diff --git a/DarkMode/DarkModeSubclass.cpp b/DarkMode/DarkModeSubclass.cpp
+index 50d1b1719..2417ca5f3 100644
+--- a/DarkMode/DarkModeSubclass.cpp
++++ b/DarkMode/DarkModeSubclass.cpp
+@@ -1032,10 +1032,10 @@ namespace DarkMode
+ 	struct ButtonData
+ 	{
+ 		ThemeData _themeData{};
++		SIZE _szBtn{};
+ 
+ 		int _iStateID = 0;
+ 		bool _isSizeSet = false;
+-		SIZE _szBtn{};
+ 
+ 		ButtonData()
+ 			: _themeData(VSCLASS_BUTTON)
+@@ -2319,9 +2319,9 @@ namespace DarkMode
+ 		BufferData _bufferData{};
+ 		FontData _fontData{};
+ 
++		POINT _pt{ LONG_MIN, LONG_MIN };
+ 		bool _isHot = false;
+ 		bool _hasBtnStyle = true;
+-		POINT _pt{ LONG_MIN, LONG_MIN };
+ 		bool _isPressed = false;
+ 
+ 		HeaderData()
+@@ -2634,10 +2634,10 @@ namespace DarkMode
+ 		ThemeData _themeData{};
+ 		BufferData _bufferData{};
+ 
+-		bool _isHorizontal = false;
+ 		RECT _rcClient{};
+ 		RECT _rcPrev{};
+ 		RECT _rcNext{};
++		bool _isHorizontal = false;
+ 		bool _wasHotNext = false;
+ 
+ 		UpDownData()
+@@ -4322,7 +4322,7 @@ namespace DarkMode
+ 		}
+ 	}
+ 
+-	void drawUAHMenuNCBottomLine(HWND hWnd)
++	static void drawUAHMenuNCBottomLine(HWND hWnd)
+ 	{
+ 		MENUBARINFO mbi{};
+ 		mbi.cbSize = sizeof(MENUBARINFO);
+diff --git a/DarkMode/DarkModeSubclass.h b/DarkMode/DarkModeSubclass.h
+index 6b0ca640d..f56c8c23e 100644
+--- a/DarkMode/DarkModeSubclass.h
++++ b/DarkMode/DarkModeSubclass.h
+@@ -143,11 +143,6 @@ namespace DarkMode
+ 	bool handleSettingChange(LPARAM lParam);
+ 	bool isDarkModeReg();
+ 
+-	// processes messages related to UAH / custom menubar drawing.
+-	// return true if handled, false to continue with normal processing in your wndproc
+-	bool runUAHWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, LRESULT* lr);
+-	void drawUAHMenuNCBottomLine(HWND hWnd);
+-
+ 	// from DarkMode.h
+ 	void initExperimentalDarkMode();
+ 	void setDarkMode(bool useDark, bool fixDarkScrollbar);

@@ -1,0 +1,274 @@
+From 286d176209cd3fa9a9eabd9885dc8f91fcb797cd Mon Sep 17 00:00:00 2001
+From: Himmelt <master@void-3.cn>
+Date: Thu, 5 Jun 2025 18:52:20 +0800
+Subject: [PATCH] Add context menu with datetime
+
+---
+ CPP/7zip.vcxproj                        | 14 +++++++++
+ CPP/7zip.vcxproj.filters                | 42 +++++++++++++++++++++++++
+ CPP/7zip/UI/Explorer/ContextMenu.cpp    | 33 ++++++++++++++++++-
+ CPP/7zip/UI/Explorer/ContextMenu.h      |  1 +
+ CPP/7zip/UI/Explorer/ContextMenuFlags.h |  1 +
+ 5 files changed, 90 insertions(+), 1 deletion(-)
+
+diff --git a/CPP/7zip.vcxproj b/CPP/7zip.vcxproj
+index 0a0bbcf90..271e85108 100644
+--- a/CPP/7zip.vcxproj
++++ b/CPP/7zip.vcxproj
+@@ -148,6 +148,11 @@
+     <Image Include="7zip\UI\FileManager\Test2.bmp" />
+   </ItemGroup>
+   <ItemGroup>
++    <ClCompile Include="7zip\UI\Explorer\ContextMenu.cpp" />
++    <ClCompile Include="7zip\UI\Explorer\DllExportsExplorer.cpp" />
++    <ClCompile Include="7zip\UI\Explorer\MyMessages.cpp" />
++    <ClCompile Include="7zip\UI\Explorer\RegistryContextMenu.cpp" />
++    <ClCompile Include="7zip\UI\Explorer\StdAfx.cpp" />
+     <ClCompile Include="7zip\UI\FileManager\AboutDialog.cpp" />
+     <ClCompile Include="7zip\UI\FileManager\AltStreamsFolder.cpp" />
+     <ClCompile Include="7zip\UI\FileManager\App.cpp" />
+@@ -217,6 +222,13 @@
+     <ClCompile Include="7zip\UI\FileManager\ViewSettings.cpp" />
+   </ItemGroup>
+   <ItemGroup>
++    <ClInclude Include="7zip\UI\Explorer\ContextMenu.h" />
++    <ClInclude Include="7zip\UI\Explorer\ContextMenuFlags.h" />
++    <ClInclude Include="7zip\UI\Explorer\MyExplorerCommand.h" />
++    <ClInclude Include="7zip\UI\Explorer\MyMessages.h" />
++    <ClInclude Include="7zip\UI\Explorer\RegistryContextMenu.h" />
++    <ClInclude Include="7zip\UI\Explorer\resource.h" />
++    <ClInclude Include="7zip\UI\Explorer\StdAfx.h" />
+     <ClInclude Include="7zip\UI\FileManager\AboutDialog.h" />
+     <ClInclude Include="7zip\UI\FileManager\AboutDialogRes.h" />
+     <ClInclude Include="7zip\UI\FileManager\AltStreamsFolder.h" />
+@@ -299,6 +311,8 @@
+     <ClInclude Include="7zip\UI\FileManager\ViewSettings.h" />
+   </ItemGroup>
+   <ItemGroup>
++    <ResourceCompile Include="7zip\UI\Explorer\resource.rc" />
++    <ResourceCompile Include="7zip\UI\Explorer\resource2.rc" />
+     <ResourceCompile Include="7zip\UI\FileManager\AboutDialog.rc" />
+     <ResourceCompile Include="7zip\UI\FileManager\BrowseDialog.rc" />
+     <ResourceCompile Include="7zip\UI\FileManager\BrowseDialog2.rc" />
+diff --git a/CPP/7zip.vcxproj.filters b/CPP/7zip.vcxproj.filters
+index c8a6e7d62..929b64a10 100644
+--- a/CPP/7zip.vcxproj.filters
++++ b/CPP/7zip.vcxproj.filters
+@@ -269,6 +269,21 @@
+     <ClCompile Include="7zip\UI\FileManager\ViewSettings.cpp">
+       <Filter>源文件</Filter>
+     </ClCompile>
++    <ClCompile Include="7zip\UI\Explorer\ContextMenu.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\Explorer\DllExportsExplorer.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\Explorer\MyMessages.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\Explorer\RegistryContextMenu.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
++    <ClCompile Include="7zip\UI\Explorer\StdAfx.cpp">
++      <Filter>源文件</Filter>
++    </ClCompile>
+   </ItemGroup>
+   <ItemGroup>
+     <ClInclude Include="7zip\UI\FileManager\AboutDialog.h">
+@@ -511,6 +526,27 @@
+     <ClInclude Include="7zip\UI\FileManager\ViewSettings.h">
+       <Filter>头文件</Filter>
+     </ClInclude>
++    <ClInclude Include="7zip\UI\Explorer\ContextMenu.h">
++      <Filter>源文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\Explorer\ContextMenuFlags.h">
++      <Filter>源文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\Explorer\MyExplorerCommand.h">
++      <Filter>源文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\Explorer\MyMessages.h">
++      <Filter>源文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\Explorer\RegistryContextMenu.h">
++      <Filter>源文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\Explorer\resource.h">
++      <Filter>源文件</Filter>
++    </ClInclude>
++    <ClInclude Include="7zip\UI\Explorer\StdAfx.h">
++      <Filter>源文件</Filter>
++    </ClInclude>
+   </ItemGroup>
+   <ItemGroup>
+     <ResourceCompile Include="7zip\UI\FileManager\AboutDialog.rc">
+@@ -600,6 +636,12 @@
+     <ResourceCompile Include="7zip\UI\FileManager\SystemPage.rc">
+       <Filter>资源文件</Filter>
+     </ResourceCompile>
++    <ResourceCompile Include="7zip\UI\Explorer\resource.rc">
++      <Filter>源文件</Filter>
++    </ResourceCompile>
++    <ResourceCompile Include="7zip\UI\Explorer\resource2.rc">
++      <Filter>源文件</Filter>
++    </ResourceCompile>
+   </ItemGroup>
+   <ItemGroup>
+     <None Include="7zip\UI\FileManager\FM.dsp" />
+diff --git a/CPP/7zip/UI/Explorer/ContextMenu.cpp b/CPP/7zip/UI/Explorer/ContextMenu.cpp
+index 0630d78e5..13eb07d66 100644
+--- a/CPP/7zip/UI/Explorer/ContextMenu.cpp
++++ b/CPP/7zip/UI/Explorer/ContextMenu.cpp
+@@ -32,7 +32,7 @@
+ #include "MyMessages.h"
+ 
+ #include "resource.h"
+-
++#include <ctime>
+ 
+ // #define SHOW_DEBUG_CTX_MENU
+ 
+@@ -280,6 +280,8 @@ static const CContextMenuCommand g_Commands[] =
+   CMD_REC( kCompressTo7z,       "CompressTo7z",       IDS_CONTEXT_COMPRESS_TO),
++  CMD_REC( kCompressTo7zWithDate,      "CompressTo7z",      IDS_CONTEXT_COMPRESS_TO),
+   CMD_REC( kCompressTo7zEmail,  "CompressTo7zEmail",  IDS_CONTEXT_COMPRESS_TO_EMAIL),
+   CMD_REC( kCompressToZip,      "CompressToZip",      IDS_CONTEXT_COMPRESS_TO),
++  CMD_REC( kCompressToZipWithDate,      "CompressToZip",      IDS_CONTEXT_COMPRESS_TO),
+   CMD_REC( kCompressToZipEmail, "CompressToZipEmail", IDS_CONTEXT_COMPRESS_TO_EMAIL)
+ };
+ 
+@@ -912,6 +913,20 @@ Z7_COMWF_B CZipContextMenu::QueryContextMenu(HMENU hMenu, UINT indexMenu,
+     UString arcName_zip_Show = arcName_Show;
+     arcName_zip_Show += ".zip";
+ 
++    std::time_t t = std::time(nullptr);
++    std::tm lt;
++    localtime_s(&lt, &t);
++    char buffer[16] = { 0 };
++    std::strftime(buffer, sizeof(buffer), "_%Y%m%d%H%M%S", &lt);
++    UString dt(buffer);
++    UString arcName_dt_zip = arcName + dt;
++    arcName_dt_zip += ".zip";
++    UString arcName_dt_zip_Show = arcName_Show + dt;
++    arcName_dt_zip_Show += ".zip";
++    UString arcName_dt_7z = arcName + dt;
++    arcName_dt_7z += ".7z";
++    UString arcName_dt_7z_Show = arcName_Show + dt;
++    arcName_dt_7z_Show += ".7z";
+ 
+     // Compress
+     if ((contextMenuFlags & NContextMenuFlags::kCompress) != 0)
+@@ -976,6 +976,20 @@ Z7_COMWF_B CZipContextMenu::QueryContextMenu(HMENU hMenu, UINT indexMenu,
+       MyFormatNew_ReducedName(s, arcName_7z_Show);
+       Set_UserString_in_LastCommand(s);
+       MyInsertMenu(popupMenu, subIndex++, currentCommandID++, s, bitmap);
++
++      // CompressTo7z With Datetime
++      CCommandMapItem cmi2;
++      UString s2;
++      if (_dropMode)
++        cmi2.Folder = _dropPath;
++      else
++        cmi2.Folder = fs2us(folderPrefix);
++      cmi2.ArcName = arcName_dt_7z;
++      cmi2.ArcType = "7z";
++      AddCommand(kCompressTo7zWithDate, s2, cmi2);
++      MyFormatNew_ReducedName(s2, arcName_dt_7z_Show);
++      Set_UserString_in_LastCommand(s2);
++      MyInsertMenu(popupMenu, subIndex++, currentCommandID++, s2, bitmap);
+     }
+ 
+     #ifdef EMAIL_SUPPORT
+@@ -986,6 +997,20 @@ Z7_COMWF_B CZipContextMenu::QueryContextMenu(HMENU hMenu, UINT indexMenu,
+       MyFormatNew_ReducedName(s, arcName_zip_Show);
+       Set_UserString_in_LastCommand(s);
+       MyInsertMenu(popupMenu, subIndex++, currentCommandID++, s, bitmap);
++
++      // CompressToZip With Datetime
++      CCommandMapItem cmi2;
++      UString s2;
++      if (_dropMode)
++        cmi2.Folder = _dropPath;
++      else
++        cmi2.Folder = fs2us(folderPrefix);
++      cmi2.ArcName = arcName_dt_zip;
++      cmi2.ArcType = "zip";
++      AddCommand(kCompressToZipWithDate, s2, cmi2);
++      MyFormatNew_ReducedName(s2, arcName_dt_zip_Show);
++      Set_UserString_in_LastCommand(s2);
++      MyInsertMenu(popupMenu, subIndex++, currentCommandID++, s2, bitmap);
+     }
+ 
+     #ifdef EMAIL_SUPPORT
+@@ -1294,6 +1319,18 @@ HRESULT CZipContextMenu::InvokeCommandCommon(const CCommandMapItem &cmi)
+         TestArchives(_fileNames);
+         break;
+       }
++      case kCompressToZipWithDate:
++      {
++        UString arcName = cmi.ArcName;
++        CompressFiles(cmi.Folder, arcName, cmi.ArcType, false, _fileNames, false, false, false);
++        break;
++      }
++      case kCompressTo7zWithDate:
++      {
++        UString arcName = cmi.ArcName;
++        CompressFiles(cmi.Folder, arcName, cmi.ArcType, false, _fileNames, false, false, false);
++        break;
++      }
+       case kCompress:
+       case kCompressEmail:
+       case kCompressTo7z:
+diff --git a/CPP/7zip/UI/Explorer/ContextMenu.h b/CPP/7zip/UI/Explorer/ContextMenu.h
+index 2759967dd..b55cfbe5d 100644
+--- a/CPP/7zip/UI/Explorer/ContextMenu.h
++++ b/CPP/7zip/UI/Explorer/ContextMenu.h
+@@ -84,6 +84,8 @@ class CZipContextMenu Z7_final:
+     kCompressTo7z,
++    kCompressTo7zWithDate,
+     kCompressTo7zEmail,
+     kCompressToZip,
++    kCompressToZipWithDate,
+     kCompressToZipEmail,
+     kHash_CRC32,
+     kHash_CRC64,
+diff --git a/CPP/7zip/UI/Explorer/ContextMenuFlags.h b/CPP/7zip/UI/Explorer/ContextMenuFlags.h
+index 50c177e9b..a9f6572c0 100644
+--- a/CPP/7zip/UI/Explorer/ContextMenuFlags.h
++++ b/CPP/7zip/UI/Explorer/ContextMenuFlags.h
+@@ -18,12 +18,14 @@ namespace NContextMenuFlags
+   const UInt32 kTest = 1 << 4;
+   const UInt32 kOpen = 1 << 5;
+   const UInt32 kOpenAs = 1 << 6;
+ 
+-  const UInt32 kCompress = 1 << 8;
+-  const UInt32 kCompressTo7z = 1 << 9;
+-  const UInt32 kCompressEmail = 1 << 10;
+-  const UInt32 kCompressTo7zEmail = 1 << 11;
+-  const UInt32 kCompressToZip = 1 << 12;
+-  const UInt32 kCompressToZipEmail = 1 << 13;
++  const UInt32 kCompress = 1 << 8;
++  const UInt32 kCompressTo7z = 1 << 9;
++  const UInt32 kCompressTo7zWithDate = 1 << 10;
++  const UInt32 kCompressEmail = 1 << 11;
++  const UInt32 kCompressTo7zEmail = 1 << 12;
++  const UInt32 kCompressToZip = 1 << 13;
++  const UInt32 kCompressToZipWithDate = 1 << 14;
++  const UInt32 kCompressToZipEmail = 1 << 15;
+ 
+   const UInt32 kCRC_Cascaded = (UInt32)1 << 30;
+diff --git a/CPP/7zip/UI/FileManager/MenuPage.cpp b/CPP/7zip/UI/FileManager/MenuPage.cpp
+index af8a4c48..09e18d2f 100644
+--- a/CPP/7zip/UI/FileManager/MenuPage.cpp
++++ b/CPP/7zip/UI/FileManager/MenuPage.cpp
+@@ -61,6 +61,8 @@ static const CContextMenuItem kMenuItems[] =
+   { IDS_CONTEXT_COMPRESS, kCompress },
+   { IDS_CONTEXT_COMPRESS_TO, kCompressTo7z },
++  { IDS_CONTEXT_COMPRESS_TO, kCompressTo7zWithDate },
+   { IDS_CONTEXT_COMPRESS_TO, kCompressToZip },
++  { IDS_CONTEXT_COMPRESS_TO, kCompressToZipWithDate },
+ 
+   #ifndef UNDER_CE
+   { IDS_CONTEXT_COMPRESS_EMAIL, kCompressEmail },

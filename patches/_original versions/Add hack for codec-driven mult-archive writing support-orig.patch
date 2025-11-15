@@ -1,0 +1,233 @@
+From 773fca1626ed1468bb6c08baf7c186c97dc44284 Mon Sep 17 00:00:00 2001
+From: SCell555 <kubci.rusnk645@gmail.com>
+Date: Mon, 8 Feb 2021 23:45:46 +0100
+Subject: [PATCH] Add hack for codec-driven mult-archive writing support
+
+---
+ CPP/7zip/Archive/IArchive.h           |  5 ++++
+ CPP/7zip/UI/Common/LoadCodecs.cpp     |  4 +++
+ CPP/7zip/UI/Common/LoadCodecs.h       |  2 ++
+ CPP/7zip/UI/Common/Update.cpp         | 38 ++++++++++++++++++++++-----
+ CPP/7zip/UI/Common/UpdateCallback.cpp | 33 ++++++++++++++++++-----
+ CPP/7zip/UI/Common/UpdateCallback.h   |  4 +++
+ CPP/7zip/UI/GUI/CompressDialog.cpp    |  3 +++
+ 7 files changed, 76 insertions(+), 13 deletions(-)
+
+diff --git a/CPP/7zip/Archive/IArchive.h b/CPP/7zip/Archive/IArchive.h
+index ac0f58076..a9578746c 100644
+--- a/CPP/7zip/Archive/IArchive.h
++++ b/CPP/7zip/Archive/IArchive.h
+@@ -565,6 +565,10 @@ ARCHIVE_INTERFACE(IOutArchive, 0xA0)
+   INTERFACE_IOutArchive(PURE)
+ };
+ 
++ARCHIVE_INTERFACE(IMultiVolumeOutArchive, 0xFF)
++{
++  STDMETHOD(GetMultiArchiveNameFmt)(PROPVARIANT* nameMod, PROPVARIANT* prefix, PROPVARIANT* postfix, BOOL* numberAfterExt, UInt32* digitCount) PURE;
++};
+ 
+ /*
+ ISetProperties::SetProperties()
+@@ -671,6 +675,7 @@ extern "C"
+ 
+   typedef UInt32 (WINAPI *Func_IsArc)(const Byte *p, size_t size);
+   typedef HRESULT (WINAPI *Func_GetIsArc)(UInt32 formatIndex, Func_IsArc *isArc);
++  typedef HRESULT (WINAPI *Func_GetFormatLevelMask)(UInt32 formatIndex, UInt32 *mask);
+ 
+   typedef HRESULT (WINAPI *Func_GetNumberOfFormats)(UInt32 *numFormats);
+   typedef HRESULT (WINAPI *Func_GetHandlerProperty)(PROPID propID, PROPVARIANT *value);
+diff --git a/CPP/7zip/UI/Common/LoadCodecs.cpp b/CPP/7zip/UI/Common/LoadCodecs.cpp
+index ad64e548b..39562d2a5 100644
+--- a/CPP/7zip/UI/Common/LoadCodecs.cpp
++++ b/CPP/7zip/UI/Common/LoadCodecs.cpp
+@@ -415,6 +415,7 @@ HRESULT CCodecs::LoadFormats()
+   Func_GetHandlerProperty getProp = NULL;
+   MY_GET_FUNC_LOC (getProp2, Func_GetHandlerProperty2, lib.GetProc("GetHandlerProperty2"));
+   MY_GET_FUNC_LOC (getIsArc, Func_GetIsArc, lib.GetProc("GetIsArc"));
++  MY_GET_FUNC_LOC (getFormatLevelMask, Func_GetFormatLevelMask, lib.GetProc("GetFormatLevelMask"));
+   
+   UInt32 numFormats = 1;
+ 
+@@ -498,6 +499,9 @@ HRESULT CCodecs::LoadFormats()
+     if (getIsArc)
+       getIsArc(i, &item.IsArcFunc);
+ 
++    if (getFormatLevelMask)
++      getFormatLevelMask(i, &item.LevelsMask);
++
+     Formats.Add(item);
+   }
+   return S_OK;
+diff --git a/CPP/7zip/UI/Common/LoadCodecs.h b/CPP/7zip/UI/Common/LoadCodecs.h
+index 50fb9f8f5..8d838394a 100644
+--- a/CPP/7zip/UI/Common/LoadCodecs.h
++++ b/CPP/7zip/UI/Common/LoadCodecs.h
+@@ -120,6 +120,7 @@ struct CArcInfoEx
+     int LibIndex;
+     UInt32 FormatIndex;
+     CLSID ClassID;
++    UInt32 LevelsMask;
+   #endif
+ 
+   int Compare(const CArcInfoEx &a) const
+@@ -224,6 +225,7 @@ struct CArcInfoEx
+       #endif
+       #ifdef EXTERNAL_CODECS
+       , LibIndex(-1)
++      , LevelsMask(0xFFFFFFFF)
+       #endif
+   {}
+ };
+diff --git a/CPP/7zip/UI/Common/Update.cpp b/CPP/7zip/UI/Common/Update.cpp
+index 4c94109d5..03042a1b3 100644
+--- a/CPP/7zip/UI/Common/Update.cpp
++++ b/CPP/7zip/UI/Common/Update.cpp
+@@ -839,6 +839,7 @@ static HRESULT Compress(
+     }
+     else
+     {
++    single:
+       outStreamSpec = new COutFileStream;
+       outSeekStream = outStreamSpec;
+       outStream = outSeekStream;
+@@ -881,6 +882,36 @@ static HRESULT Compress(
+     if (arc && arc->GetGlobalOffset() > 0)
+       return E_NOTIMPL;
+       
++    CMyComPtr<IMultiVolumeOutArchive> multiVolArch;
++    outArchive->QueryInterface(IID_IMultiVolumeOutArchive, (void**)&multiVolArch);
++    if (multiVolArch)
++    {
++      CPropVariant prefix, postfix, name;
++      name = archivePath.Name;
++      BOOL numberAfterExt = FALSE;
++      UInt32 numberCount = 2;
++      RINOK(multiVolArch->GetMultiArchiveNameFmt(&name, &prefix, &postfix, &numberAfterExt, &numberCount));
++      if (prefix.vt != VT_EMPTY && prefix.vt != VT_BSTR)
++        return E_FAIL;
++      if (postfix.vt != VT_EMPTY && postfix.vt != VT_BSTR)
++        return E_FAIL;
++      updateCallbackSpec->VolumesSizes = options.VolumesSizes;
++      if (name.vt == VT_BSTR)
++        updateCallbackSpec->VolName = archivePath.Prefix + name.bstrVal;
++      else
++        updateCallbackSpec->VolName = archivePath.Prefix + archivePath.Name;
++      updateCallbackSpec->VolNumberAfterExt = numberAfterExt != FALSE;
++      if (prefix.vt == VT_BSTR)
++        updateCallbackSpec->VolPrefix.SetFromBstr(prefix.bstrVal);
++      if (postfix.vt == VT_BSTR)
++        updateCallbackSpec->VolPostfix.SetFromBstr(postfix.bstrVal);
++      if (!archivePath.VolExtension.IsEmpty())
++        updateCallbackSpec->VolExt = UString('.') + archivePath.VolExtension;
++      updateCallbackSpec->DigitCount = numberCount;
++      const_cast<CRecordVector<UInt64>&>(options.VolumesSizes).Clear();
++      goto single;
++    }
++
+     volStreamSpec = new COutMultiVolStream;
+     outSeekStream = volStreamSpec;
+     outStream = outSeekStream;
+@@ -889,13 +920,6 @@ static HRESULT Compress(
+     volStreamSpec->Prefix += '.';
+     volStreamSpec->TempFiles = &tempFiles;
+     volStreamSpec->Init();
+-
+-    /*
+-    updateCallbackSpec->VolumesSizes = volumesSizes;
+-    updateCallbackSpec->VolName = archivePath.Prefix + archivePath.Name;
+-    if (!archivePath.VolExtension.IsEmpty())
+-      updateCallbackSpec->VolExt = UString('.') + archivePath.VolExtension;
+-    */
+   }
+ 
+   if (options.SfxMode)
+diff --git a/CPP/7zip/UI/Common/UpdateCallback.cpp b/CPP/7zip/UI/Common/UpdateCallback.cpp
+index 3a5873b38..9d2ada263 100644
+--- a/CPP/7zip/UI/Common/UpdateCallback.cpp
++++ b/CPP/7zip/UI/Common/UpdateCallback.cpp
+@@ -92,7 +92,9 @@ CArchiveUpdateCallback::CArchiveUpdateCallback():
+     Need_LatestMTime(false),
+     LatestMTime_Defined(false),
+     
+-    ProcessedItemsStatuses(NULL)
++    ProcessedItemsStatuses(NULL),
++    VolNumberAfterExt(false),
++    DigitCount(2)
+ {
+   #ifdef _USE_SECURITY_CODE
+   _saclEnabled = InitLocalPrivileges();
+@@ -511,8 +513,8 @@ STDMETHODIMP CArchiveUpdateCallback::GetProperty(UInt32 index, PROPID propID, PR
+           prop = DirItems->OwnerGroupMap.Strings[(unsigned)di.OwnerGroupIndex];
+         break;
+         #endif
++      }
+     }
+-  }
+   prop.Detach(value);
+   return S_OK;
+   COM_TRY_END
+@@ -906,12 +908,31 @@ STDMETHODIMP CArchiveUpdateCallback::GetVolumeStream(UInt32 index, ISequentialOu
+   char temp[16];
+   ConvertUInt32ToString(index + 1, temp);
+   FString res (temp);
+-  while (res.Len() < 2)
++  while (res.Len() < DigitCount)
+     res.InsertAtFront(FTEXT('0'));
+   FString fileName = VolName;
+-  fileName += '.';
+-  fileName += res;
+-  fileName += VolExt;
++  if (VolNumberAfterExt)
++  {
++    if (!VolPrefix.IsEmpty())
++      fileName += VolPrefix;
++    fileName += VolExt;
++    if (!VolPostfix.IsEmpty())
++      fileName += VolPostfix;
++    else
++      fileName += '.';
++    fileName += res;
++  }
++  else
++  {
++    if (!VolPrefix.IsEmpty())
++      fileName += VolPrefix;
++    else
++      fileName += '.';
++    fileName += res;
++    if (!VolPostfix.IsEmpty())
++      fileName += VolPostfix;
++    fileName += VolExt;
++  }
+   COutFileStream *streamSpec = new COutFileStream;
+   CMyComPtr<ISequentialOutStream> streamLoc(streamSpec);
+   if (!streamSpec->Create(fileName, false))
+diff --git a/CPP/7zip/UI/Common/UpdateCallback.h b/CPP/7zip/UI/Common/UpdateCallback.h
+index 3719c1ea6..a78a99551 100644
+--- a/CPP/7zip/UI/Common/UpdateCallback.h
++++ b/CPP/7zip/UI/Common/UpdateCallback.h
+@@ -135,6 +135,10 @@ class CArchiveUpdateCallback:
+   FString VolName;
+   FString VolExt;
+   UString ArcFileName; // without path prefix
++  FString VolPrefix;
++  FString VolPostfix;
++  bool VolNumberAfterExt;
++  UInt32 DigitCount;
+ 
+   IUpdateCallbackUI *Callback;
+ 
+diff --git a/CPP/7zip/UI/GUI/CompressDialog.cpp b/CPP/7zip/UI/GUI/CompressDialog.cpp
+index b821aa309..eeeb57522 100644
+--- a/CPP/7zip/UI/GUI/CompressDialog.cpp
++++ b/CPP/7zip/UI/GUI/CompressDialog.cpp
+@@ -1444,6 +1444,9 @@ void CCompressDialog::SetLevel2()
+   UInt32 LevelsMask = fi.LevelsMask;
+   UInt32 LevelsStart = 1;
+   UInt32 LevelsEnd = 9;
++  if (ai.LevelsMask != 0xFFFFFFFF)
++    LevelsMask = ai.LevelsMask;
++  else
+   {
+     int id = GetMethodID();
+     if (id == kCopy) {

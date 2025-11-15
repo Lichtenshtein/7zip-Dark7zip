@@ -1,0 +1,74 @@
+From 5ab4a96eb3c960f21a59eabedf0f66a511039a81 Mon Sep 17 00:00:00 2001
+From: ozone10 <positronix10@gmail.com>
+Date: Thu, 30 Jan 2025 08:29:09 +0100
+Subject: [PATCH] Build tweaks
+
+---
+ .github/workflows/build_win.yml |  8 ++++++--
+ DarkMode/DarkMode.cpp           |  4 ++--
+ build.cmd                       | 23 ++++++++++++++---------
+ 3 files changed, 22 insertions(+), 13 deletions(-)
+
+diff --git a/DarkMode/DarkMode.cpp b/DarkMode/DarkMode.cpp
+index 895ffcf63..c4779dba0 100644
+--- a/DarkMode/DarkMode.cpp
++++ b/DarkMode/DarkMode.cpp
+@@ -94,7 +94,7 @@ bool ptrFn(HMODULE handle, P& pointer, const char* name)
+ template <typename P>
+ bool ptrFn(HMODULE handle, P& pointer, WORD index)
+ {
+-    return ptrFn(handle, pointer, MAKEINTRESOURCEA(index));
++	return ptrFn(handle, pointer, MAKEINTRESOURCEA(index));
+ }
+ 
+ using fnRtlGetNtVersionNumbers = void (WINAPI *)(LPDWORD major, LPDWORD minor, LPDWORD build);
+@@ -416,7 +416,7 @@ void SetMySysColor(int nIndex, COLORREF clr)
+ 	}
+ }
+ 
+-DWORD MyGetSysColor(int nIndex)
++DWORD WINAPI MyGetSysColor(int nIndex)
+ {
+ 	if( !(g_darkModeEnabled))
+ 			return GetSysColor(nIndex);
+diff --git a/build.cmd b/build.cmd
+index c22cabc31..0e8caa635 100644
+--- a/build.cmd
++++ b/build.cmd
+@@ -8,10 +8,15 @@ for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio
+ 
+ setlocal
+ 
+-if "%1" == "" set ARCH=x64
+-if "%1" == "x64" set ARCH=x64
+-if "%1" == "x86" set ARCH=x64_x86
+-if "%1" == "arm64" set ARCH=x64_arm64
++set PLATFORM=%1
++
++if "%PLATFORM%" == "" (
++  set ARCH=x64
++  set PLATFORM=x64
++)
++if "%PLATFORM%" == "x64" set ARCH=x64
++if "%PLATFORM%" == "x86" set ARCH=x64_x86
++if "%PLATFORM%" == "arm64" set ARCH=x64_arm64
+ 
+ if exist "%InstallDir%\VC\Auxiliary\Build\vcvarsall.bat" (
+   call "%InstallDir%\VC\Auxiliary\Build\vcvarsall.bat" %ARCH%
+@@ -32,11 +37,11 @@ if exist "%InstallDir%\VC\Auxiliary\Build\vcvarsall.bat" (
+   nmake
+   popd
+ 
+-  if not exist "%ARCH%-bin\" mkdir "%ARCH%-bin"
+-  copy "CPP\7zip\Bundles\SFXWin\%ARCH%\7z.sfx" "%ARCH%-bin"
+-  copy "CPP\7zip\UI\FileManager\%ARCH%\7zFM.exe" "%ARCH%-bin"
+-  copy "CPP\7zip\UI\GUI\%ARCH%\7zG.exe" "%ARCH%-bin"
+-  copy "DarkMode\7zDark.ini" "%ARCH%-bin"
++  if not exist "%PLATFORM%-bin\" mkdir "%PLATFORM%-bin"
++  copy "CPP\7zip\Bundles\SFXWin\%PLATFORM%\7z.sfx" "%PLATFORM%-bin"
++  copy "CPP\7zip\UI\FileManager\%PLATFORM%\7zFM.exe" "%PLATFORM%-bin"
++  copy "CPP\7zip\UI\GUI\%PLATFORM%\7zG.exe" "%PLATFORM%-bin"
++  copy "DarkMode\7zDark.ini" "%PLATFORM%-bin"
+ )
+ 
+ endlocal

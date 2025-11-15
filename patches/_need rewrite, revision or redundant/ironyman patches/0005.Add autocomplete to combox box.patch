@@ -1,0 +1,32 @@
+From c62e888bd93cc56e5a06c1c309314c9f8216abe8 Mon Sep 17 00:00:00 2001
+From: ironyman <ironyman13@gmail.com>
+Date: Wed, 20 Dec 2023 03:05:19 -0800
+Subject: [PATCH] Add autocomplete to combox box
+
+---
+ CPP/7zip/UI/FileManager/Panel.cpp | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/CPP/7zip/UI/FileManager/Panel.cpp b/CPP/7zip/UI/FileManager/Panel.cpp
+index cd4f413..cf341f5 100644
+--- a/CPP/7zip/UI/FileManager/Panel.cpp
++++ b/CPP/7zip/UI/FileManager/Panel.cpp
+@@ -33,6 +33,8 @@
+ 
+ #include "PropertyNameRes.h"
+ 
++#include <Shlwapi.h>
++
+ using namespace NWindows;
+ using namespace NControl;
+ 
+@@ -536,6 +538,9 @@ bool CPanel::OnCreate(CREATESTRUCT * /* createStruct */)
+   */
+   _comboBoxEdit.Attach(_headerComboBox.GetEditControl());
+ 
++  // Turn file path auto completion.
++  SHAutoComplete(_headerComboBox.GetEditControl(), SHACF_FILESYSTEM | SHACF_AUTOSUGGEST_FORCE_ON);
++
+   // _comboBoxEdit.SendMessage(CCM_SETUNICODEFORMAT, (WPARAM)(BOOL)TRUE, 0);
+ 
+   _comboBoxEdit.SetUserDataLongPtr(LONG_PTR(&_comboBoxEdit));

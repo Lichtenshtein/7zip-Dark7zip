@@ -1,0 +1,10 @@
+0001-Accept-Debian-build-flags.patch
+0002-Use-GCC-10-warning-options.patch
+0003-Disable-hardware-acceleration-support-on-armel.patch
+0004-Guard-ARM-v8-feature-from-old-architecture.patch
+0005-Use-getcwd-3-POSIX-extension-to-avoid-PATH_MAX-macro.patch
+0006-Disable-local-echo-display-when-in-input-passwords-C.patch
+0007-ftbfs-fix-with-GCC-12.patch
+0008-Initialize-uninitialized-value.patch
+0009-Support-UDF-2.00.patch
+0010-Support-UDF-2.50-metadata-partitions.patch

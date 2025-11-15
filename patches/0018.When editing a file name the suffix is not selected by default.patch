@@ -1,0 +1,43 @@
+From ea6457b4ba78a863837cd8afe63f091d55f5abfc Mon Sep 17 00:00:00 2001
+From: mofazhe https://github.com/mofazhe/7zip-Dark-Mod
+Date: Sun, 14 Jan 2024 03:40:09 +0000
+Subject: [PATCH]: When editing a file name the suffix is not selected by default
+---
+diff --git a/CPP/7zip/UI/FileManager/PanelOperations.cpp b/CPP/7zip/UI/FileManager/PanelOperations.cpp
+index 427464b1..25066952 100644
+--- a/CPP/7zip/UI/FileManager/PanelOperations.cpp
++++ b/CPP/7zip/UI/FileManager/PanelOperations.cpp
+@@ -268,6 +268,33 @@ BOOL CPanel::OnBeginLabelEdit(LV_DISPINFOW * lpnmh)
+     return TRUE;
+   if (IsThereReadOnlyFolder())
+     return TRUE;
++  if (IsItem_Folder(realIndex))
++    return FALSE;
++  // if (!lpnmh || !lpnmh->item.pszText)
++  if (!lpnmh)
++    return FALSE;
++
++  // get id of the list view
++  HWND hwndListView = lpnmh->hdr.hwndFrom;
++  // index of the edit item
++  // int nItem = lpnmh->item.iItem;
++  // only select filename without suffix
++  UString fileName = GetItemName(realIndex);
++  const int dotPos = fileName.ReverseFind_Dot();
++  int nStartChar = 0;
++  int nEndChar;
++  if (dotPos > 0) {
++    nEndChar = dotPos;
++  } else {
++    nEndChar = fileName.Len();
++  }
++  // get id of edit view
++  HWND hwndEdit = ListView_GetEditControl(hwndListView);
++  if (hwndEdit)
++    SendMessage(hwndEdit, EM_SETSEL, (WPARAM)nStartChar, (LPARAM)nEndChar);
++  // UString name = GetItemName(realIndex);
++  // MessageBoxW(_window, name, L"7-Zip", MB_ICONERROR);
++
+   return FALSE;
+ }
+ 

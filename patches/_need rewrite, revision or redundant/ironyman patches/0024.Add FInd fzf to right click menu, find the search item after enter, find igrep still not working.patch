@@ -1,0 +1,586 @@
+From 131086050b4c8260af7a148ed7ce2ece01eac5ad Mon Sep 17 00:00:00 2001
+From: ironyman <ironyman13@gmail.com>
+Date: Thu, 2 May 2024 00:15:12 -0700
+Subject: [PATCH] Add FInd fzf to right click menu, find the search item after
+ enter, find igrep still not working
+
+---
+ CPP/7zip/UI/FileManager/App.h             |   2 +
+ CPP/7zip/UI/FileManager/ExternalTools.cpp | 141 ++++++++++++++++++++++
+ CPP/7zip/UI/FileManager/ExternalTools.h   |  11 ++
+ CPP/7zip/UI/FileManager/FM.mak            |   1 +
+ CPP/7zip/UI/FileManager/MyLoadMenu.cpp    |   2 +
+ CPP/7zip/UI/FileManager/Panel.h           |   2 +
+ CPP/7zip/UI/FileManager/PanelItems.cpp    |  43 +++++++
+ CPP/7zip/UI/FileManager/PanelKey.cpp      |  96 ++-------------
+ CPP/7zip/UI/FileManager/resource.h        |   2 +
+ CPP/7zip/UI/FileManager/resource.rc       |   2 +
+ CPP/Common/MyString.cpp                   |  26 ++--
+ CPP/Windows/ProcessUtils.cpp              |   2 -
+ CPP/Windows/ProcessUtils.h                |   1 -
+ 13 files changed, 226 insertions(+), 105 deletions(-)
+ create mode 100644 CPP/7zip/UI/FileManager/ExternalTools.cpp
+ create mode 100644 CPP/7zip/UI/FileManager/ExternalTools.h
+
+diff --git a/CPP/7zip/UI/FileManager/App.h b/CPP/7zip/UI/FileManager/App.h
+index c67d120..0645a00 100644
+--- a/CPP/7zip/UI/FileManager/App.h
++++ b/CPP/7zip/UI/FileManager/App.h
+@@ -139,6 +139,8 @@ class CApp
+   void OpenItemVscode() { GetFocusedPanel().OpenSelectedItem(L"code.cmd", L"", SW_HIDE); }
+   void OpenItemTerminal() { GetFocusedPanel().OpenInSelectedItem(L"powershell.exe"); }
+   void OpenItemExplorer() { GetFocusedPanel().OpenInSelectedItem(L"", L"explore"); }
++  void FindFzf() { GetFocusedPanel().FindFzf(); }
++  void FindIgrep() { GetFocusedPanel().FindIgrep(); }
+   void CopyItemPath() { GetFocusedPanel().CopyItemPath(); }
+   void EditItem(bool useEditor) { GetFocusedPanel().EditItem(useEditor); }
+   void Rename() { GetFocusedPanel().RenameFile(); }
+diff --git a/CPP/7zip/UI/FileManager/ExternalTools.cpp b/CPP/7zip/UI/FileManager/ExternalTools.cpp
+new file mode 100644
+index 0000000..2e62fb4
+--- /dev/null
++++ b/CPP/7zip/UI/FileManager/ExternalTools.cpp
+@@ -0,0 +1,141 @@
++#include "StdAfx.h"
++#include "../../../Windows/ProcessUtils.h"
++#include <functional>
++#include <cstdio>
++
++void StartFzf(UString searchPath, std::function<void(UString)> callback)
++{
++  auto findProc = new NWindows::CProcess();
++  findProc->_overlapWindow = TRUE;
++  findProc->_readOutput = TRUE;
++
++  // Doubly null terminated string, last null is for list of null terminated strings.
++  // If you're setting this in shell it would be
++  // $env:FZF_DEFAULT_COMMAND = 'rg --hidden --no-ignore -l --max-depth 5 ""'
++  UString envStr = L"FZF_DEFAULT_COMMAND=rg --hidden --no-ignore -l --max-depth 5 \"\"";
++  auto env = CRecordVector<WCHAR>(envStr.Ptr(), envStr.Ptr() + envStr.Len() + 1); // Include null terminator
++  env.Add(0);
++
++  UString pipeName = NWindows::MyGetNextPipeName();
++  int backSlash = pipeName.ReverseFind_PathSepar();
++  constexpr WCHAR cmdTemplate[] = LR"(
++powershell -command " & { $output = fzf;
++$pipeName    = '%s';
++$npipeClient = new-object System.IO.Pipes.NamedPipeClientStream('.', $pipeName, [System.IO.Pipes.PipeDirection]::Out,
++[System.IO.Pipes.PipeOptions]::None,
++[System.Security.Principal.TokenImpersonationLevel]::Impersonation);
++$npipeClient.Connect();
++$script:pipeWriter = new-object System.IO.StreamWriter($npipeClient);
++$pipeWriter.AutoFlush = $true;
++$pipeWriter.WriteLine($output);
++$pipeWriter.Close(); }"
++  )";
++  WCHAR cmd[4096]{};
++
++#pragma warning(disable : 4774)
++
++  _snwprintf_s(cmd, ARRAYSIZE(cmd), ARRAYSIZE(cmd), cmdTemplate, pipeName.Ptr() + backSlash + 1);
++
++  // No newlines allowed.
++  for (auto &ch : cmd)
++  {
++    if (ch == '\n')
++    {
++      ch = ' ';
++    }
++  }
++
++  // Use conhost, it's faster.
++  findProc->_createPipeOnly = TRUE;
++  findProc->Create(L"conhost", cmd, searchPath, (LPVOID)env.begin());
++
++  // Use default terminal, need to set
++  // findProc->_createPipeOnly = FALSE
++  // findProc->Create(L"fzf.exe", L"", searchPath, (LPVOID)env.begin());
++
++  // to test
++  // findProc->Create(L"cmd.exe", L"", searchPath, (LPVOID)env.Ptr());
++  // findProc->Create(L"conhost", L"fzf.exe", searchPath);
++  // findProc->Create(L"conhost", L"powershell -noexit -command fzf.exe", searchPath);
++  // findProc->Create(L"conhost", L"powershell -command \" & { $output = fzf; [Console]::Error.WriteLine($output) }\"", searchPath, (LPVOID)env.begin());
++
++  if (findProc->WaitAndRun(callback) != 0)
++  {
++    delete findProc;
++  }
++  // On success, findProc is freed after callback is called.
++
++  // auto path = findProc.WaitRead();
++
++  // if (!PathIsDirectory(path))
++  // {
++  //   path = path.GetDirectory();
++  // }
++  // OnNotifyComboBoxEnter(path);
++}
++
++void StartExternalConsoleCommandToReadOutput(UString searchPath, UString envStr, UString consoleCommand, std::function<void(UString)> callback)
++{
++  auto findProc = new NWindows::CProcess();
++  findProc->_overlapWindow = TRUE;
++  findProc->_readOutput = TRUE;
++
++  auto env = CRecordVector<WCHAR>(envStr.Ptr(), envStr.Ptr() + envStr.Len() + 1); // Include null terminator
++  env.Add(0);
++
++  UString pipeName = NWindows::MyGetNextPipeName();
++  int backSlash = pipeName.ReverseFind_PathSepar();
++  constexpr WCHAR cmdTemplate[] = LR"(
++powershell -command " & { $output = %s;
++$pipeName    = '%s';
++$npipeClient = new-object System.IO.Pipes.NamedPipeClientStream('.', $pipeName, [System.IO.Pipes.PipeDirection]::Out,
++[System.IO.Pipes.PipeOptions]::None,
++[System.Security.Principal.TokenImpersonationLevel]::Impersonation);
++$npipeClient.Connect();
++$script:pipeWriter = new-object System.IO.StreamWriter($npipeClient);
++$pipeWriter.AutoFlush = $true;
++$pipeWriter.WriteLine($output);
++$pipeWriter.Close(); }"
++  )";
++  WCHAR cmd[4096]{};
++
++#pragma warning(disable : 4774)
++
++  _snwprintf_s(cmd, ARRAYSIZE(cmd), ARRAYSIZE(cmd), cmdTemplate, consoleCommand.Ptr_non_const(), pipeName.Ptr() + backSlash + 1);
++
++  for (auto &ch : cmd)
++  {
++    if (ch == '\n')
++    {
++      ch = ' ';
++    }
++  }
++
++  findProc->_createPipeOnly = TRUE;
++  findProc->Create(L"conhost", cmd, searchPath, (LPVOID)env.begin());
++
++
++  if (findProc->WaitAndRun(callback) != 0)
++  {
++    delete findProc;
++  }
++}
++
++// This doesn't work because WaitAndRun expect a read pipe to be setup.
++void StartExternalConsoleCommand(UString searchPath, UString envStr, UString consoleCommand, std::function<void(UString)> callback)
++{
++  auto findProc = new NWindows::CProcess();
++  findProc->_overlapWindow = TRUE;
++
++  auto env = CRecordVector<WCHAR>(envStr.Ptr(), envStr.Ptr() + envStr.Len() + 1); // Include null terminator
++  env.Add(0);
++
++  findProc->Create(L"conhost", consoleCommand.Ptr_non_const(), searchPath, (LPVOID)env.begin());
++
++
++  if (findProc->WaitAndRun(callback) != 0)
++  {
++    delete findProc;
++  }
++}
++
+diff --git a/CPP/7zip/UI/FileManager/ExternalTools.h b/CPP/7zip/UI/FileManager/ExternalTools.h
+new file mode 100644
+index 0000000..bcecff8
+--- /dev/null
++++ b/CPP/7zip/UI/FileManager/ExternalTools.h
+@@ -0,0 +1,11 @@
++#ifndef ZIP7_INC_EXTERNALTOOLS_H
++#define ZIP7_INC_EXTERNALTOOLS_H
++
++#include "../../../Common/MyString.h"
++#include <functional>
++
++void StartFzf(UString searchPath, std::function<void(UString)> callback);
++void StartExternalConsoleCommand(UString searchPath, UString envStr, UString consoleCommand, std::function<void(UString)> callback);
++void StartExternalConsoleCommandToReadOutput(UString searchPath, UString envStr, UString consoleCommand, std::function<void(UString)> callback);
++
++#endif
+diff --git a/CPP/7zip/UI/FileManager/FM.mak b/CPP/7zip/UI/FileManager/FM.mak
+index 389956d..16fbaa0 100644
+--- a/CPP/7zip/UI/FileManager/FM.mak
++++ b/CPP/7zip/UI/FileManager/FM.mak
+@@ -38,6 +38,7 @@ FM_OBJS = \
+   $O\PanelItemOpen.obj \
+   $O\PanelItems.obj \
+   $O\PanelKey.obj \
++  $O\ExternalTools.obj \
+   $O\PanelListNotify.obj \
+   $O\PanelMenu.obj \
+   $O\PanelOperations.obj \
+diff --git a/CPP/7zip/UI/FileManager/MyLoadMenu.cpp b/CPP/7zip/UI/FileManager/MyLoadMenu.cpp
+index 1f80bc8..621cba1 100644
+--- a/CPP/7zip/UI/FileManager/MyLoadMenu.cpp
++++ b/CPP/7zip/UI/FileManager/MyLoadMenu.cpp
+@@ -733,6 +733,8 @@ bool ExecuteFileCommand(unsigned id)
+     case IDM_OPEN_TERMINAL: g_App.OpenItemTerminal(); break;
+     case IDM_OPEN_EXPLORER: g_App.OpenItemExplorer(); break;
+     case IDM_COPY_PATH: g_App.CopyItemPath(); break;
++    case IDM_FIND_FZF: g_App.FindFzf(); break;
++    case IDM_FIND_IGREP: g_App.FindIgrep(); break;
+ 
+     case IDM_OPEN_OUTSIDE: g_App.OpenItemOutside(); break;
+     case IDM_FILE_VIEW: g_App.EditItem(false); break;
+diff --git a/CPP/7zip/UI/FileManager/Panel.h b/CPP/7zip/UI/FileManager/Panel.h
+index 9e5da4d..bcfdb9a 100644
+--- a/CPP/7zip/UI/FileManager/Panel.h
++++ b/CPP/7zip/UI/FileManager/Panel.h
+@@ -880,6 +880,8 @@ class CPanel Z7_final: public NWindows::NControl::CWindow2
+   void OpenSelectedItem(UString const& command, UString const& operation = L"", int nShow = SW_SHOWNORMAL);
+   void OpenInSelectedItem(UString const& command, UString const& operation = L"");
+   void CopyItemPath();
++  void FindFzf();
++  void FindIgrep();
+ 
+   void OpenFolderExternal(unsigned index);
+ 
+diff --git a/CPP/7zip/UI/FileManager/PanelItems.cpp b/CPP/7zip/UI/FileManager/PanelItems.cpp
+index ff1c1fc..df96cde 100644
+--- a/CPP/7zip/UI/FileManager/PanelItems.cpp
++++ b/CPP/7zip/UI/FileManager/PanelItems.cpp
+@@ -21,6 +21,10 @@
+ #include "Panel.h"
+ #include "PropertyName.h"
+ #include "RootFolder.h"
++#include "ExternalTools.h"
++#include "App.h"
++
++#include <shlwapi.h>
+ 
+ using namespace NWindows;
+ 
+@@ -1450,3 +1454,42 @@ void CPanel::OnTimer()
+     return;
+   OnReload(true); // onTimer
+ }
++
++void CPanel::FindFzf()
++{
++  auto cwd = GetFsPath();
++  auto that = this;
++  StartFzf(cwd, [that, cwd](UString path)
++    {
++      SetForegroundWindow(g_HWND);
++      path.Insert(0, cwd.Ptr());
++      auto dir = path;
++      if (!PathIsDirectory(dir))
++      {
++        dir = dir.GetDirectory();
++      }
++      auto name = path.GetFileName();
++      name.TrimRight();
++      // Actually don't even need the SendMessage(..., kOpenPath, ...)
++      if (IsGUIThread(TRUE))
++      {
++        that->OnNotifyComboBoxEnter(path);
++        that->FindNextItem(name, 0);
++      }
++      else
++      {
++        // SendMessage(g_HWND, kOpenPath, (WPARAM)&path, NULL);
++      }
++    }
++  );
++}
++
++void CPanel::FindIgrep()
++{
++  auto cwd = GetFsPath();
++  auto that = this;
++  auto findProc = NWindows::CProcess();
++
++  findProc.Create(L"conhost", L"ig", cwd, NULL);
++  findProc.Wait();
++}
+\ No newline at end of file
+diff --git a/CPP/7zip/UI/FileManager/PanelKey.cpp b/CPP/7zip/UI/FileManager/PanelKey.cpp
+index a9791f7..a570a48 100644
+--- a/CPP/7zip/UI/FileManager/PanelKey.cpp
++++ b/CPP/7zip/UI/FileManager/PanelKey.cpp
+@@ -9,8 +9,6 @@
+ #include "App.h"
+ #include "../../../Windows/ProcessUtils.h"
+ 
+-#include <shlwapi.h>
+-
+ using namespace NWindows;
+ 
+ // #define kHelpTopic "FM/index.htm"
+@@ -370,94 +368,14 @@ bool CPanel::OnKeyDown(LPNMLVKEYDOWN keyDownInfo, LRESULT &result)
+         return true;
+       }
+     case 'F':
+-      if (ctrl)
++      if (ctrl && shift)
+       {
+-        auto cwd = GetFsPath();
+-        auto findProc = new CProcess();
+-        findProc->_overlapWindow = TRUE;
+-        findProc->_readOutput = TRUE;
+-
+-        // Doubly null terminated string, last null is for list of null terminated strings.
+-        // If you're setting this in shell it would be
+-        // $env:FZF_DEFAULT_COMMAND = 'rg --hidden --no-ignore -l --max-depth 5 ""'
+-        UString envStr = L"FZF_DEFAULT_COMMAND=rg --hidden --no-ignore -l --max-depth 5 \"\"";
+-        auto env = CRecordVector<WCHAR>(envStr.Ptr(), envStr.Ptr() + envStr.Len() + 1); // Include null terminator
+-        env.Add(0);
+-
+-        UString pipeName = MyGetNextPipeName();
+-        int backSlash = pipeName.ReverseFind_PathSepar();
+-        constexpr WCHAR cmdTemplate[] = LR"(
+-powershell -command " & { $output = fzf;
+-$pipeName = '%s';
+-$npipeClient = new-object System.IO.Pipes.NamedPipeClientStream('.', $pipeName, [System.IO.Pipes.PipeDirection]::Out,
+-  [System.IO.Pipes.PipeOptions]::None,
+-	[System.Security.Principal.TokenImpersonationLevel]::Impersonation);
+-$npipeClient.Connect();
+-$script:pipeWriter = new-object System.IO.StreamWriter($npipeClient);
+-$pipeWriter.AutoFlush = $true;
+-$pipeWriter.WriteLine($output);
+-$pipeWriter.Close(); }"
+-        )";
+-        WCHAR cmd[4096]{};
+-        #pragma warning (disable : 4774 )
+-        _snwprintf_s(cmd, ARRAYSIZE(cmd), ARRAYSIZE(cmd), cmdTemplate, pipeName.Ptr() + backSlash + 1);
+-
+-        // No newlines allowed.
+-        for (auto & ch : cmd)
+-        {
+-          if (ch == '\n')
+-          {
+-            ch = ' ';
+-          }
+-        }
+-
+-
+-        // Use conhost, it's faster.
+-        findProc->_createPipeOnly = TRUE;
+-        findProc->Create(L"conhost", cmd, cwd, (LPVOID)env.begin());
+-
+-        // Use default terminal, need to set
+-        // findProc->_createPipeOnly = FALSE
+-        // findProc->Create(L"fzf.exe", L"", cwd, (LPVOID)env.begin());
+-
+-        // to test
+-        // findProc->Create(L"cmd.exe", L"", cwd, (LPVOID)env.Ptr());
+-        // findProc->Create(L"conhost", L"fzf.exe", cwd);
+-        // findProc->Create(L"conhost", L"powershell -noexit -command fzf.exe", cwd);
+-        // findProc->Create(L"conhost", L"powershell -command \" & { $output = fzf; [Console]::Error.WriteLine($output) }\"", cwd, (LPVOID)env.begin());
+-
+-        auto that = this;
+-        if (findProc->WaitAndRun([that, cwd](UString path)
+-          {
+-            SetForegroundWindow(g_HWND);
+-            path.Insert(0, cwd.Ptr());
+-            if (!PathIsDirectory(path))
+-            {
+-              path = path.GetDirectory();
+-            }
+-
+-            // Actually don't even need the SendMessage(..., kOpenPath, ...)
+-            if (IsGUIThread(TRUE))
+-            {
+-              that->OnNotifyComboBoxEnter(path);
+-            }
+-            else
+-            {
+-              // SendMessage(g_HWND, kOpenPath, (WPARAM)&path, NULL);
+-            }
+-          }) != 0
+-        )
+-        {
+-          delete findProc;
+-        }
+-
+-        // auto path = findProc.WaitRead();
+-
+-        // if (!PathIsDirectory(path))
+-        // {
+-        //   path = path.GetDirectory();
+-        // }
+-        // OnNotifyComboBoxEnter(path);
++        FindIgrep();
++        return true;
++      }
++      else if (ctrl)
++      {
++        FindFzf();
+         return true;
+       }
+   }
+diff --git a/CPP/7zip/UI/FileManager/resource.h b/CPP/7zip/UI/FileManager/resource.h
+index 5b1f6f7..e1ba9da 100644
+--- a/CPP/7zip/UI/FileManager/resource.h
++++ b/CPP/7zip/UI/FileManager/resource.h
+@@ -54,6 +54,8 @@
+ // #define IDM_EXIT                 557
+ #define IDM_LINK                 558
+ #define IDM_ALT_STREAMS          559
++#define IDM_FIND_FZF            560
++#define IDM_FIND_IGREP          561
+ 
+ #define IDM_VER_EDIT             580
+ #define IDM_VER_COMMIT           581
+diff --git a/CPP/7zip/UI/FileManager/resource.rc b/CPP/7zip/UI/FileManager/resource.rc
+index a744fd5..2c5abcc 100644
+--- a/CPP/7zip/UI/FileManager/resource.rc
++++ b/CPP/7zip/UI/FileManager/resource.rc
+@@ -43,6 +43,8 @@ BEGIN
+     MENUITEM "Open Inside *",               IDM_OPEN_INSIDE_ONE
+     MENUITEM "Open Inside #",               IDM_OPEN_INSIDE_PARSER
+     MENUITEM "Open O&utside\tShift+Enter",  IDM_OPEN_OUTSIDE
++    MENUITEM "Find (fzf)\tCtrl+F",          IDM_FIND_FZF
++    MENUITEM "Find (igrep)\tCtrl+Shift+F",  IDM_FIND_IGREP
+     MENUITEM "&View\tF3",                   IDM_FILE_VIEW
+     MENUITEM "&Edit\tF4",                   IDM_FILE_EDIT
+     MY_MENUITEM_SEPARATOR
+diff --git a/CPP/Common/MyString.cpp b/CPP/Common/MyString.cpp
+index 3cf348d..e12269d 100644
+--- a/CPP/Common/MyString.cpp
++++ b/CPP/Common/MyString.cpp
+@@ -507,7 +507,7 @@ AString operator+(const AString &s1, const char    *s2) { return AString(s1, s1.
+ AString operator+(const char    *s1, const AString &s2) { return AString(s1, MyStringLen(s1), s2, s2.Len()); }
+ 
+ static const unsigned kStartStringCapacity = 4;
+- 
++
+ AString::AString()
+ {
+   _chars = NULL;
+@@ -855,7 +855,7 @@ void AString::Insert(unsigned index, const AString &s)
+ void AString::RemoveChar(char ch) throw()
+ {
+   char *src = _chars;
+-  
++
+   for (;;)
+   {
+     char c = *src++;
+@@ -866,7 +866,7 @@ void AString::RemoveChar(char ch) throw()
+   }
+ 
+   char *dest = src - 1;
+-  
++
+   for (;;)
+   {
+     char c = *src++;
+@@ -875,7 +875,7 @@ void AString::RemoveChar(char ch) throw()
+     if (c != ch)
+       *dest++ = c;
+   }
+-  
++
+   *dest = 0;
+   _len = (unsigned)(dest - _chars);
+ }
+@@ -1283,7 +1283,7 @@ void UString::SetFromBstr(LPCOLESTR s)
+ 
+   // if (s)
+     wmemcpy(_chars, s, len + 1);
+-  
++
+   // #endif
+ }
+ 
+@@ -1426,7 +1426,7 @@ void UString::TrimLeft() throw()
+   for (;; p++)
+   {
+     wchar_t c = *p;
+-    if (c != ' ' && c != '\n' && c != '\t')
++    if (c != ' ' && c != '\n' && c != '\t' && c != '\r')
+       break;
+   }
+   unsigned pos = (unsigned)(p - _chars);
+@@ -1444,7 +1444,7 @@ void UString::TrimRight() throw()
+   for (i = _len; i != 0; i--)
+   {
+     wchar_t c = p[(size_t)i - 1];
+-    if (c != ' ' && c != '\n' && c != '\t')
++    if (c != ' ' && c != '\n' && c != '\t' && c != '\r')
+       break;
+   }
+   if (i != _len)
+@@ -1497,7 +1497,7 @@ void UString::Insert(unsigned index, const UString &s)
+ void UString::RemoveChar(wchar_t ch) throw()
+ {
+   wchar_t *src = _chars;
+-  
++
+   for (;;)
+   {
+     wchar_t c = *src++;
+@@ -1508,7 +1508,7 @@ void UString::RemoveChar(wchar_t ch) throw()
+   }
+ 
+   wchar_t *dest = src - 1;
+-  
++
+   for (;;)
+   {
+     wchar_t c = *src++;
+@@ -1517,7 +1517,7 @@ void UString::RemoveChar(wchar_t ch) throw()
+     if (c != ch)
+       *dest++ = c;
+   }
+-  
++
+   *dest = 0;
+   _len = (unsigned)(dest - _chars);
+ }
+@@ -1818,17 +1818,17 @@ bool CStringFinder::FindWord_In_LowCaseAsciiList_NoCase(const char *p, const wch
+       c2 = *s2++;
+     }
+     while (c == c2);
+-    
++
+     if (c == ' ')
+     {
+       if (c2 == 0)
+         return true;
+       continue;
+     }
+-    
++
+     while (*p++ != ' ');
+   }
+-  
++
+   return false;
+ }
+ 
+diff --git a/CPP/Windows/ProcessUtils.cpp b/CPP/Windows/ProcessUtils.cpp
+index 6c68297..4b4e3d8 100644
+--- a/CPP/Windows/ProcessUtils.cpp
++++ b/CPP/Windows/ProcessUtils.cpp
+@@ -442,7 +442,6 @@ WRes CProcess::WaitAndRun(std::function<void(UString)> const& fn)
+   NWindows::CThread thread;
+   waiter->owner = this;
+   const WRes wres = thread.Create(CThreadProcessWaitSync::MyThreadFunction, waiter);
+-  _deleteSelf = TRUE;
+   return wres;
+ }
+ 
+@@ -542,7 +541,6 @@ WRes CProcess::WaitAndRunOverlapped(std::function<void(UString)> const& fn)
+     NWindows::CThread thread;
+     waiter->owner = this;
+     const WRes wres = thread.Create(CThreadProcessWaitOverlapped::MyThreadFunction, waiter);
+-    _deleteSelf = TRUE;
+     return wres;
+   }
+   else
+diff --git a/CPP/Windows/ProcessUtils.h b/CPP/Windows/ProcessUtils.h
+index 683c8a1..b7108ce 100644
+--- a/CPP/Windows/ProcessUtils.h
++++ b/CPP/Windows/ProcessUtils.h
+@@ -66,7 +66,6 @@ class CProcess: public CHandle
+ public:
+   HANDLE _hStdoutRead, _hStdoutWrite;
+   CByteVector _readBuffer;
+-  BOOL _deleteSelf{};
+   BOOL _overlapWindow{};
+   BOOL _readOutput{};
+   BOOL _createPipeOnly{};

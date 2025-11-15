@@ -1,0 +1,36 @@
+From: YOKOTA Hiroshi <yokota.hgml@gmail.com>
+Date: Tue, 21 Jun 2022 14:41:13 +0900
+Subject: Initialize uninitialized value
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+In file included from ../../Archive/Chm/ChmIn.cpp:14:
+In copy constructor ‘NArchive::NChm::CLzxInfo::CLzxInfo(const NArchive::NChm::CLzxInfo&)’,
+    inlined from ‘NArchive::NChm::CMethodInfo::CMethodInfo(const NArchive::NChm::CMethodInfo&)’ at ../../Archive/Chm/ChmIn.h:161:8,
+    inlined from ‘unsigned int CObjectVector<T>::AddInReserved(const T&) [with T = NArchive::NChm::CMethodInfo]’ at ../../Archive/Chm/../../../Common/MyVector.h:515:29,
+    inlined from ‘unsigned int CObjectVector<T>::Add(const T&) [with T = NArchive::NChm::CMethodInfo]’ at ../../Archive/Chm/../../../Common/MyVector.h:510:25,
+    inlined from ‘LONG NArchive::NChm::CInArchive::OpenHighLevel(IInStream*, NArchive::NChm::CFilesDatabase&)’ at ../../Archive/Chm/ChmIn.cpp:760:26:
+../../Archive/Chm/ChmIn.h:116:8: error: ‘method.NArchive::NChm::CMethodInfo::LzxInfo.NArchive::NChm::CLzxInfo::WindowSizeBits’ may be used uninitialized [-Werror=maybe-uninitialized]
+  116 | struct CLzxInfo
+      |        ^~~~~~~~
+../../Archive/Chm/ChmIn.cpp: In member function ‘LONG NArchive::NChm::CInArchive::OpenHighLevel(IInStream*, NArchive::NChm::CFilesDatabase&)’:
+../../Archive/Chm/ChmIn.cpp:758:19: note: ‘method’ declared here
+  758 |       CMethodInfo method;
+      |                   ^~~~~~
+---
+ CPP/7zip/Archive/Chm/ChmIn.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/CPP/7zip/Archive/Chm/ChmIn.h b/CPP/7zip/Archive/Chm/ChmIn.h
+index 38272d7..5445d20 100755
+--- a/CPP/7zip/Archive/Chm/ChmIn.h
++++ b/CPP/7zip/Archive/Chm/ChmIn.h
+@@ -126,6 +126,7 @@ struct CLzxInfo
+   CLzxInfo():
+       Version(0),
+       ResetIntervalBits(0),
++      WindowSizeBits(0),
+       CacheSize(0)
+       {}
+ 

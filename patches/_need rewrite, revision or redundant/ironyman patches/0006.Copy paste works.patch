@@ -1,0 +1,1987 @@
+From eacf728ddf47074f6a3a546a8c33656a38f2383e Mon Sep 17 00:00:00 2001
+From: ironyman <ironyman13@gmail.com>
+Date: Tue, 26 Dec 2023 01:04:13 -0800
+Subject: [PATCH] Copy paste works
+
+---
+ .vscode/launch.json                      |  12 +
+ .vscode/settings.json                    |   3 +-
+ CPP/7zip/UI/FileManager/App.cpp          |   1 -
+ CPP/7zip/UI/FileManager/FSFolderCopy.cpp |  46 ++-
+ CPP/7zip/UI/FileManager/Panel.h          |   4 +
+ CPP/7zip/UI/FileManager/PanelCopy.cpp    | 140 ++++++-
+ CPP/7zip/UI/FileManager/PanelDrag.cpp    | 113 +++---
+ CPP/7zip/UI/FileManager/PanelKey.cpp     |   3 +-
+ CPP/7zip/UI/FileManager/PanelMenu.cpp    |  44 +-
+ CPP/Common/MyCom.h                       |  11 +-
+ CPP/Common/MyString.h                    |  32 +-
+ CPP/Common/MyVector.h                    |  56 ++-
+ CPP/Windows/Clipboard.cpp                | 486 ++++++++++++++++++++++-
+ CPP/Windows/Clipboard.h                  |   4 +-
+ CPP/Windows/Shell.cpp                    |  21 +-
+ CPP/Windows/Shell.h                      |   6 +-
+ 16 files changed, 834 insertions(+), 148 deletions(-)
+
+diff --git a/.vscode/launch.json b/.vscode/launch.json
+index b55182e..955e766 100644
+--- a/.vscode/launch.json
++++ b/.vscode/launch.json
+@@ -13,6 +13,18 @@
+             "cwd": "${workspaceFolder}",
+             "preLaunchTask": "build 7zfm"
+         },
++        {
++            "name": "(Windows) Launch",
++            "type": "cppvsdbg",
++            "request": "launch",
++            "program": "${workspaceFolder}/CPP/7zip/UI/FileManager/x64/7zfm.exe",
++            "args": [],
++            "stopAtEntry": false,
++            "cwd": "${fileDirname}",
++            "environment": [],
++            "console": "externalTerminal",
++            "preLaunchTask": "build 7zfm"
++        },
+         {
+             "type": "lldb",
+             "request": "launch",
+diff --git a/.vscode/settings.json b/.vscode/settings.json
+index 4cbc0fc..b20858e 100644
+--- a/.vscode/settings.json
++++ b/.vscode/settings.json
+@@ -37,6 +37,7 @@
+         "icon": "terminal-cmd"
+     },
+     "files.associations": {
+-        "xstring": "cpp"
++        "xstring": "cpp",
++        "xtr1common": "cpp"
+     }
+ }
+\ No newline at end of file
+diff --git a/CPP/7zip/UI/FileManager/App.cpp b/CPP/7zip/UI/FileManager/App.cpp
+index 584758f..7139eeb 100644
+--- a/CPP/7zip/UI/FileManager/App.cpp
++++ b/CPP/7zip/UI/FileManager/App.cpp
+@@ -60,7 +60,6 @@ void CPanelCallbackImp::SetFocusToPath(unsigned index)
+ void CPanelCallbackImp::SetFocusToPathNoDropDown()
+ {
+   _app->RefreshTitle();
+-  __debugbreak();
+   _app->Panels[g_App.LastFocusedPanel]._headerComboBox.SetFocus();
+ }
+ 
+diff --git a/CPP/7zip/UI/FileManager/FSFolderCopy.cpp b/CPP/7zip/UI/FileManager/FSFolderCopy.cpp
+index 73c2e96..0911a28 100644
+--- a/CPP/7zip/UI/FileManager/FSFolderCopy.cpp
++++ b/CPP/7zip/UI/FileManager/FSFolderCopy.cpp
+@@ -41,22 +41,22 @@ HRESULT CCopyStateIO::MyCopyFile(CFSTR inPath, CFSTR outPath, DWORD attrib)
+   {
+     const size_t kBufSize = 1 << 16;
+     CByteArr buf(kBufSize);
+-    
++
+     NIO::CInFile inFile;
+     NIO::COutFile outFile;
+-    
++
+     if (!inFile.Open(inPath))
+     {
+       ErrorFileIndex = 0;
+       return S_OK;
+     }
+-    
++
+     if (!outFile.Create(outPath, true))
+     {
+       ErrorFileIndex = 1;
+       return S_OK;
+     }
+-    
++
+     for (;;)
+     {
+       UInt32 num;
+@@ -67,7 +67,7 @@ HRESULT CCopyStateIO::MyCopyFile(CFSTR inPath, CFSTR outPath, DWORD attrib)
+       }
+       if (num == 0)
+         break;
+-      
++
+       UInt32 written = 0;
+       if (!outFile.Write(buf, num, written))
+       {
+@@ -91,7 +91,7 @@ HRESULT CCopyStateIO::MyCopyFile(CFSTR inPath, CFSTR outPath, DWORD attrib)
+   /* SetFileAttrib("path:alt_stream_name") sets attributes for main file "path".
+      But we don't want to change attributes of main file, when we write alt stream.
+      So we need INVALID_FILE_ATTRIBUTES for alt stream here */
+-  
++
+   if (attrib != INVALID_FILE_ATTRIBUTES)
+     SetFileAttrib(outPath, attrib);
+ 
+@@ -103,7 +103,7 @@ HRESULT CCopyStateIO::MyCopyFile(CFSTR inPath, CFSTR outPath, DWORD attrib)
+       return S_OK;
+     }
+   }
+-  
++
+   return S_OK;
+ }
+ 
+@@ -424,7 +424,7 @@ static HRESULT CopyFile_Ask(
+       fs2us(destPath),
+       &destPathResult,
+       &writeAskResult))
+-  
++
+   if (IntToBool(writeAskResult))
+   {
+     FString destPathNew = us2fs((LPCOLESTR)destPathResult);
+@@ -440,7 +440,7 @@ static HRESULT CopyFile_Ask(
+ 
+       RINOK(state2.MyCopyFile(srcPath, destPathNew,
+           state.IsAltStreamsDest ? INVALID_FILE_ATTRIBUTES: srcFileInfo.Attrib))
+-      
++
+       if (state2.ErrorFileIndex >= 0)
+       {
+         if (state2.ErrorMessage.IsEmpty())
+@@ -535,7 +535,7 @@ static HRESULT CopyFolder(
+ 
+   CEnumerator enumerator;
+   enumerator.SetDirPrefix(CombinePath(srcPath, FString()));
+-  
++
+   for (;;)
+   {
+     NFind::CFileInfo fi;
+@@ -567,7 +567,7 @@ static HRESULT CopyFolder(
+       return E_ABORT;
+     }
+   }
+-  
++
+   return S_OK;
+ }
+ 
+@@ -658,7 +658,7 @@ Z7_COM7F_IMF(CFSFolder::CopyTo(Int32 moveMode, const UInt32 *indices, UInt32 num
+       destPath2 += fi.Name;
+     FString srcPath;
+     GetFullPath(fi, srcPath);
+-  
++
+     if (fi.IsDir())
+     {
+       if (isAltDest)
+@@ -752,7 +752,7 @@ HRESULT CopyFileSystemItems(
+   {
+     const UString path = itemsPaths[i];
+     CFileInfo fi;
+-  
++
+     if (!fi.Find(us2fs(path)))
+     {
+       RINOK(SendMessageError(callback, "Cannot find the file", us2fs(path)))
+@@ -761,7 +761,7 @@ HRESULT CopyFileSystemItems(
+ 
+     FString destPath = destDirPrefix;
+     destPath += fi.Name;
+-  
++
+     if (fi.IsDir())
+     {
+       if (isAltDest)
+@@ -786,20 +786,22 @@ HRESULT CopyFileSystemItems(
+    is optimized for IFolderArchiveUpdateCallback interface,
+    but we want to use IFolderOperationsExtractCallback interface instead */
+ 
+-Z7_COM7F_IMF(CFSFolder::CopyFrom(Int32 /* moveMode */, const wchar_t * /* fromFolderPath */,
+-    const wchar_t * const * /* itemsPaths */, UInt32 /* numItems */, IProgress * /* progress */))
++Z7_COM7F_IMF(CFSFolder::CopyFrom(Int32 moveMode, const wchar_t * folderPrefix,
++    const wchar_t * const *itemsPaths, UInt32 numItems, IProgress *progress))
+ {
+-  /*
+   Z7_DECL_CMyComPtr_QI_FROM(
+       IFolderOperationsExtractCallback,
+       callback, progress)
+   if (!callback)
+     return E_NOTIMPL;
+-  return CopyFileSystemItems(_path,
+-      moveMode, fromDirPrefix,
+-      itemsPaths, numItems, callback);
+-  */
+-  return E_NOTIMPL;
++  // return CopyFileSystemItems(_path,
++  //     moveMode, fromDirPrefix,
++  //     itemsPaths, numItems, callback);
++
++  // UStringVector itemPathsVector(itemsPaths, itemsPaths + numItems);
++  CObjectVector<UString> itemPathsVector(itemsPaths, itemsPaths + numItems);
++  return CopyFileSystemItems(itemPathsVector, _path,
++      (bool)moveMode, callback);
+ }
+ 
+ Z7_COM7F_IMF(CFSFolder::CopyFromFile(UInt32 /* index */, const wchar_t * /* fullFilePath */, IProgress * /* progress */))
+diff --git a/CPP/7zip/UI/FileManager/Panel.h b/CPP/7zip/UI/FileManager/Panel.h
+index 982a37b..e8d5f4e 100644
+--- a/CPP/7zip/UI/FileManager/Panel.h
++++ b/CPP/7zip/UI/FileManager/Panel.h
+@@ -667,6 +667,7 @@ class CPanel Z7_final: public NWindows::NControl::CWindow2
+   void EditCut();
+   void EditCopy();
+   void EditPaste();
++  void EditPasteClipboard();
+ 
+   int _startGroupSelect;
+ 
+@@ -957,8 +958,11 @@ class CPanel Z7_final: public NWindows::NControl::CWindow2
+ 
+   HRESULT CopyFrom(bool moveMode, const UString &folderPrefix, const UStringVector &filePaths,
+       bool showErrorMessages, UStringVector *messages);
++  HRESULT CopyFromFolder(bool moveMode, const UString &folderPrefix, const UStringVector &filePaths,
++    bool showErrorMessages, UStringVector *messages);
+ 
+   void CopyFromNoAsk(bool moveMode, const UStringVector &filePaths);
++  void CopyFromFolderNoAsk(bool moveMode, const UStringVector &filePaths);
+ 
+   void CompressDropFiles(
+       const UStringVector &filePaths,
+diff --git a/CPP/7zip/UI/FileManager/PanelCopy.cpp b/CPP/7zip/UI/FileManager/PanelCopy.cpp
+index 26e73ba..e887b55 100644
+--- a/CPP/7zip/UI/FileManager/PanelCopy.cpp
++++ b/CPP/7zip/UI/FileManager/PanelCopy.cpp
+@@ -29,14 +29,14 @@ class CPanelCopyThread: public CProgressThreadVirt
+   CRecordVector<UInt32> Indices;
+   CExtractCallbackImp *ExtractCallbackSpec;
+   CMyComPtr<IFolderOperationsExtractCallback> ExtractCallback;
+-  
++
+   CHashBundle Hash;
+   // UString FirstFilePath;
+ 
+   // HRESULT Result2;
+ 
+   void ShowFinalResults(HWND hwnd);
+-  
++
+   CPanelCopyThread():
+     ResultsWereShown(false),
+     NeedShowRes(false),
+@@ -54,7 +54,7 @@ void CPanelCopyThread::ShowFinalResults(HWND hwnd)
+     ShowHashResults(Hash, hwnd);
+   }
+ }
+-  
++
+ void CPanelCopyThread::ProcessWasFinished_GuiVirt()
+ {
+   ShowFinalResults(*this);
+@@ -162,7 +162,7 @@ HRESULT CPanel::CopyTo(CCopyToOptions &options,
+     if (!options.testMode)
+       return E_NOTIMPL;
+   }
+-  
++
+   if (!filePaths)
+   if (!_folderOperations)
+   {
+@@ -254,14 +254,14 @@ HRESULT CPanel::CopyTo(CCopyToOptions &options,
+   }
+ 
+   const UString progressWindowTitle ("7-Zip"); // LangString(IDS_APP_TITLE);
+-  
++
+   extracter.MainWindow = GetParent();
+   extracter.MainTitle = progressWindowTitle;
+   extracter.MainAddTitle = title + L' ';
+-    
++
+   extracter.ExtractCallbackSpec->OverwriteMode = NExtract::NOverwriteMode::kAsk;
+   extracter.ExtractCallbackSpec->Init();
+-  
++
+   extracter.CopyFrom_Paths = filePaths;
+   if (!filePaths)
+   {
+@@ -271,9 +271,9 @@ HRESULT CPanel::CopyTo(CCopyToOptions &options,
+ 
+   extracter.ExtractCallbackSpec->PasswordIsDefined = usePassword;
+   extracter.ExtractCallbackSpec->Password = password;
+-  
++
+   RINOK(extracter.Create(title, GetParent()))
+-  
++
+ 
+   if (messages)
+     *messages = extracter.Sync.Messages;
+@@ -290,7 +290,7 @@ HRESULT CPanel::CopyTo(CCopyToOptions &options,
+   extracter.ShowFinalResults(_window);
+ 
+   }
+-  
++
+   RefreshTitleAlways();
+   return res;
+ }
+@@ -307,7 +307,7 @@ struct CThreadUpdate
+   CUpdateCallback100Imp *UpdateCallbackSpec;
+   HRESULT Result;
+   bool MoveMode;
+-  
++
+   void Process()
+   {
+     try
+@@ -359,7 +359,7 @@ HRESULT CPanel::CopyFrom(bool moveMode, const UString &folderPrefix, const UStri
+   updater.ProgressDialog.MainWindow = GetParent();
+   updater.ProgressDialog.MainTitle = progressWindowTitle;
+   updater.ProgressDialog.MainAddTitle = title + L' ';
+-  
++
+   {
+     if (!_parentFolders.IsEmpty())
+     {
+@@ -433,3 +433,119 @@ void CPanel::CopyFromNoAsk(bool moveMode, const UStringVector &filePaths)
+   disableNotify.Restore();
+   SetFocusToList();
+ }
++
++struct CPanelCopyFromThread : public CPanelCopyThread
++{
++  UString FolderPrefix;
++  UStringVector FileNames;
++  CRecordVector<const wchar_t *> FileNamePointers;
++  CProgressDialog ProgressDialog;
++  HRESULT Result;
++  bool MoveMode;
++
++};
++
++HRESULT CPanel::CopyFromFolder(bool moveMode, const UString &folderPrefix, const UStringVector &filePaths,
++    bool showErrorMessages, UStringVector *messages)
++{
++  if (IsHashFolder())
++  {
++    if (moveMode)
++      return E_NOTIMPL;
++  }
++  // CDisableNotify disableNotify(*this);
++
++  HRESULT res;
++  if (!_folderOperations)
++    res = E_NOINTERFACE;
++  else
++  {
++  CPanelCopyFromThread updater;
++
++  updater.MoveMode = moveMode;
++
++  updater.ExtractCallbackSpec = new CExtractCallbackImp;
++  updater.ExtractCallback = updater.ExtractCallbackSpec;
++  updater.ExtractCallbackSpec->ProgressDialog = &updater;
++
++
++  const UString title = LangString(IDS_COPYING);
++  const UString progressWindowTitle ("7-Zip"); // LangString(IDS_APP_TITLE);
++
++  updater.ProgressDialog.MainWindow = GetParent();
++  updater.ProgressDialog.MainTitle = progressWindowTitle;
++  updater.ProgressDialog.MainAddTitle = title + L' ';
++
++  {
++    if (!_parentFolders.IsEmpty())
++    {
++      const CFolderLink &fl = _parentFolders.Back();
++//      updater.UpdateCallbackSpec->PasswordIsDefined = fl.UsePassword;
++//      updater.UpdateCallbackSpec->Password = fl.Password;
++    }
++  }
++
++  updater.FolderOperations = _folderOperations;
++  updater.FolderPrefix = folderPrefix;
++  updater.FileNames.ClearAndReserve(filePaths.Size());
++  unsigned i;
++  for (i = 0; i < filePaths.Size(); i++)
++    updater.FileNames.AddInReserved(filePaths[i]);
++  updater.FileNamePointers.ClearAndReserve(updater.FileNames.Size());
++  for (i = 0; i < updater.FileNames.Size(); i++)
++    updater.FileNamePointers.AddInReserved(updater.FileNames[i]);
++
++  {
++    NWindows::CThread thread;
++    const WRes wres = thread.Create(CThreadUpdate::MyThreadFunction, &updater);
++    if (wres != 0)
++      return HRESULT_FROM_WIN32(wres);
++    updater.ProgressDialog.Create(title, thread, GetParent());
++  }
++
++  if (messages)
++    *messages = updater.ProgressDialog.Sync.Messages;
++
++  res = updater.Result;
++  }
++
++  if (res == E_NOINTERFACE)
++  {
++    const UString errorMessage = LangString(IDS_OPERATION_IS_NOT_SUPPORTED);
++    if (showErrorMessages)
++      MessageBox_Error(errorMessage);
++    else if (messages)
++      messages->Add(errorMessage);
++    return E_ABORT;
++  }
++
++  RefreshTitleAlways();
++  return res;
++}
++
++void CPanel::CopyFromFolderNoAsk(bool moveMode, const UStringVector &filePaths)
++{
++  CDisableTimerProcessing disableTimerProcessing(*this);
++
++  CSelectedState srcSelState;
++  SaveSelectedState(srcSelState);
++
++  CDisableNotify disableNotify(*this);
++
++  const HRESULT result = CopyFromFolder(moveMode, L"", filePaths, true, NULL);
++
++  if (result != S_OK)
++  {
++    disableNotify.Restore();
++    // For Password:
++    SetFocusToList();
++    if (result != E_ABORT)
++      MessageBox_Error_HRESULT(result);
++    return;
++  }
++
++  RefreshListCtrl(srcSelState);
++
++  disableNotify.Restore();
++  SetFocusToList();
++}
+diff --git a/CPP/7zip/UI/FileManager/PanelDrag.cpp b/CPP/7zip/UI/FileManager/PanelDrag.cpp
+index c469653..576fe7a 100644
+--- a/CPP/7zip/UI/FileManager/PanelDrag.cpp
++++ b/CPP/7zip/UI/FileManager/PanelDrag.cpp
+@@ -285,7 +285,7 @@ struct CTargetTransferInfo
+ {
+   UInt32 Flags;
+   UInt32 FuncType;
+-  
++
+   UInt32 KeyState;
+   UInt32 OkEffects;
+   POINTL Point;
+@@ -379,7 +379,7 @@ static const CCmdLangPair g_Pairs[] =
+   { k_AddToArc   | k_MenuFlag_Copy,  IDS_CONTEXT_COMPRESS },
+   { k_Cancel, IDS_CANCEL }
+ };
+- 
++
+ }
+ 
+ 
+@@ -399,10 +399,10 @@ class CDropTarget Z7_final:
+   bool m_PanelDropIsAllowed; // = false, if current target_panel is source_panel.
+                              // check it only if m_DropIsAllowed == true
+                              // we use it to show icon effect that drop is not allowed here.
+-  
++
+   CMyComPtr<IDataObject> m_DataObject; // we set it in DragEnter()
+   UStringVector m_SourcePaths;
+-  
++
+   // int m_DropHighlighted_SelectionIndex;
+   // int m_SubFolderIndex;      // realIndex of item in m_Panel list (if drop cursor to that item)
+   // UString m_DropHighlighted_SubFolderName;   // name of folder in m_Panel list (if drop cursor to that folder)
+@@ -465,7 +465,7 @@ class CDropTarget Z7_final:
+     m_hGlobal_HDROP_Final : the list contains paths of all root items that
+         will be created in temp directory by archive extraction operation,
+         or the list of existing fs items, if source is filesystem directory.
+-     
++
+   The DRAWBACK: some programs (like Edge in Win10) can use names from IDataObject::GetData()
+   call that was called before IDropSource::QueryContinueDrag() where we set (UseFinalGlobal = true)
+   So such programs will use non-relevant m_hGlobal_HDROP_Pre item,
+@@ -492,7 +492,7 @@ class CDataObject Z7_final:
+ 
+   Z7_COMWF_B SetData(LPFORMATETC etc, STGMEDIUM *medium, BOOL release) Z7_override;
+   Z7_COMWF_B EnumFormatEtc(DWORD drection, LPENUMFORMATETC *enumFormatEtc) Z7_override;
+-  
++
+   Z7_COMWF_B DAdvise(FORMATETC * /* etc */, DWORD /* advf */, LPADVISESINK /* pAdvSink */, DWORD * /* pdwConnection */) Z7_override
+     { return OLE_E_ADVISENOTSUPPORTED; }
+   Z7_COMWF_B DUnadvise(DWORD /* dwConnection */) Z7_override
+@@ -549,7 +549,7 @@ class CDataObject Z7_final:
+   NMemory::CGlobal m_hGlobal_HDROP_Final;
+   // NMemory::CGlobal m_hGlobal_FileOpFlags;
+   // NMemory::CGlobal m_hGlobal_PreferredDropEffect;
+-  
++
+   CPanel *Panel;
+   CRecordVector<UInt32> Indices;
+ 
+@@ -595,7 +595,7 @@ CDataObject::CDataObject()
+   m_Format_7zip_SetTargetFolder = RegisterClipboardFormat(k_Format_7zip_SetTargetFolder);
+   m_Format_7zip_SetTransfer     = RegisterClipboardFormat(k_Format_7zip_SetTransfer);
+   m_Format_7zip_GetTransfer     = RegisterClipboardFormat(k_Format_7zip_GetTransfer);
+-  
++
+   m_Format_PerformedDropEffect  = RegisterClipboardFormat(CFSTR_PERFORMEDDROPEFFECT); // "Performed DropEffect"
+   m_Format_LogicalPerformedDropEffect = RegisterClipboardFormat(CFSTR_LOGICALPERFORMEDDROPEFFECT); // "Logical Performed DropEffect"
+   m_Format_DisableDragText      = RegisterClipboardFormat(TEXT("DisableDragText"));
+@@ -609,13 +609,13 @@ CDataObject::CDataObject()
+ 
+   m_PerformedDropEffect_WasSet = false;
+   m_LogicalPerformedDropEffect_WasSet = false;
+-  
++
+   m_DestDirPrefix_FromTarget_WasSet = false;
+   m_Transfer_WasSet = false;
+ 
+   IsRightButton = false;
+   IsTempFiles = false;
+-  
++
+   UsePreGlobal = false;
+   DoNotProcessInTarget = false;
+ 
+@@ -758,7 +758,7 @@ SetData(,, release = TRUE) from different processes (DropSource and DropTarget)
+    - allocates proxy-medium-in-Source process
+    - copies medium data from Target to that proxy-medium-in-Source
+    - sends proxy-medium-in-Source to DataObject_in_Source->SetData().
+-  
++
+   after returning from SetData() to Target process:
+     Win10 proxy_DataObject_in_Target releases original medium in Target process,
+     only if SetData() in Source returns S_OK. It's consistent with DOCs above.
+@@ -772,7 +772,7 @@ SetData(,, release = TRUE) from different processes (DropSource and DropTarget)
+     So there is memory leak in Source process.
+     Probably Win10 proxy_in_Source tries to avoid possible double releasing
+     that can be more fatal than memory leak.
+-    
++
+     Then Win10 proxy_DataObject_in_Target also doesn't release
+     original medium, that was allocated by DropTarget.
+     So if DropTarget also doesn't release medium, there is memory leak in
+@@ -809,7 +809,7 @@ SetData(,, release = TRUE) from different processes (DropSource and DropTarget)
+     (release == TRUE)  works, and SetData() returns S_OK, and
+                        it returns S_OK even for formats unsupported by Explorer.
+   }
+-  
++
+   To be more compatible with DOCs and Win10-Explorer and to avoid memory leaks,
+   we use the following scheme for our IDataObject::SetData(,, release == TRUE)
+   in DropSource code:
+@@ -1096,7 +1096,7 @@ Z7_COMWF_B CDataObject::GetData(LPFORMATETC etc, LPSTGMEDIUM medium)
+   // PrintFormat(etc->cfFormat);
+   HGLOBAL global;
+   RINOK(QueryGetData(etc))
+-  
++
+   /*
+   if (etc->cfFormat == m_Format_FileOpFlags)
+     global = m_hGlobal_FileOpFlags;
+@@ -1132,7 +1132,7 @@ Z7_COMWF_B CDataObject::GetData(LPFORMATETC etc, LPSTGMEDIUM medium)
+     }
+     else
+       transfer.Flags |= k_SourceFlags_DoNotWaitFinish;
+-    
++
+     if (IsRightButton)
+       transfer.Flags |= k_SourceFlags_RightButton;
+     else
+@@ -1149,7 +1149,7 @@ Z7_COMWF_B CDataObject::GetData(LPFORMATETC etc, LPSTGMEDIUM medium)
+   }
+   else
+     return DV_E_FORMATETC;
+-  
++
+   if (!global)
+     return DV_E_FORMATETC;
+   medium->tymed = m_Etc.tymed;
+@@ -1173,7 +1173,7 @@ Z7_COMWF_B CDataObject::GetDataHere(LPFORMATETC /* etc */, LPSTGMEDIUM /* medium
+   rendering the data as specified. Objects attempting a paste or drop
+   operation can call this method before calling IDataObject::GetData
+   to get an indication of whether the operation may be successful.
+-  
++
+   The client of a data object calls QueryGetData to determine whether
+   passing the specified FORMATETC structure to a subsequent call to
+   IDataObject::GetData is likely to be successful.
+@@ -1227,7 +1227,7 @@ class CDropSource Z7_final:
+ public:
+   CDataObject *DataObjectSpec;
+   CMyComPtr<IDataObject> DataObject;
+-  
++
+   HRESULT DragProcessing_HRESULT;
+   bool DragProcessing_WasFinished;
+ 
+@@ -1265,7 +1265,7 @@ Z7_COMWF_B CDropSource::QueryContinueDrag(BOOL escapePressed, DWORD keyState)
+     PRF4(s);
+   }
+   #endif
+-    
++
+   /*
+   if ((keyState & MK_LBUTTON) == 0)
+   {
+@@ -1299,7 +1299,7 @@ Z7_COMWF_B CDropSource::QueryContinueDrag(BOOL escapePressed, DWORD keyState)
+     }
+     return S_OK;
+   }
+-  
++
+   if ((keyState & MK_LBUTTON) != 0)
+   {
+     if (DataObjectSpec->IsRightButton)
+@@ -1315,7 +1315,7 @@ Z7_COMWF_B CDropSource::QueryContinueDrag(BOOL escapePressed, DWORD keyState)
+   }
+   {
+     // the mouse button starting the drag-and-drop operation has been released.
+-    
++
+     /* Win10 probably calls DragOver()/GiveFeedback() just before LBUTTON releasing.
+        so m_Effect is effect returned by DropTarget::DragOver()
+        just before LBUTTON releasing.
+@@ -1339,7 +1339,7 @@ Z7_COMWF_B CDropSource::QueryContinueDrag(BOOL escapePressed, DWORD keyState)
+     if (DataObjectSpec->IsRightButton)
+       return DRAGDROP_S_DROP;
+     */
+-   
++
+     if (DataObjectSpec->IsTempFiles)
+     {
+       if (!DataObjectSpec->DestDirPrefix_FromTarget.IsEmpty())
+@@ -1434,10 +1434,10 @@ static bool CopyNamesToHGlobal(NMemory::CGlobal &hgDrop, const UStringVector &na
+       namesA.Add(GetSystemString(names[i]));
+     for (i = 0; i < namesA.Size(); i++)
+       totalLen += namesA[i].Len() + 1;
+-    
++
+     if (!hgDrop.Alloc(GHND | GMEM_SHARE, totalLen * sizeof(CHAR) + sizeof(DROPFILES)))
+       return false;
+-    
++
+     NMemory::CGlobalLock dropLock(hgDrop);
+     DROPFILES *dropFiles = (DROPFILES *)dropLock.GetPointer();
+     if (!dropFiles)
+@@ -1464,10 +1464,10 @@ static bool CopyNamesToHGlobal(NMemory::CGlobal &hgDrop, const UStringVector &na
+     unsigned i;
+     for (i = 0; i < names.Size(); i++)
+       totalLen += names[i].Len() + 1;
+-    
++
+     if (!hgDrop.Alloc(GHND | GMEM_SHARE, totalLen * sizeof(WCHAR) + sizeof(DROPFILES)))
+       return false;
+-    
++
+     NMemory::CGlobalLock dropLock(hgDrop);
+     DROPFILES *dropFiles = (DROPFILES *)dropLock.GetPointer();
+     if (!dropFiles)
+@@ -1504,7 +1504,7 @@ void CPanel::OnDrag(LPNMLISTVIEW /* nmListView */, bool isRightButton)
+     return;
+ 
+   CDisableTimerProcessing disableTimerProcessing2(*this);
+-  
++
+   CRecordVector<UInt32> indices;
+   Get_ItemIndices_Operated(indices);
+   if (indices.Size() == 0)
+@@ -1614,7 +1614,7 @@ void CPanel::OnDrag(LPNMLISTVIEW /* nmListView */, bool isRightButton)
+     if (!CopyNamesToHGlobal(dataObjectSpec->m_hGlobal_HDROP_Final, names))
+       return;
+   }
+-  
++
+   CDropSource *dropSourceSpec = new CDropSource;
+   CMyComPtr<IDropSource> dropSource = dropSourceSpec;
+   dataObjectSpec->Panel = this;
+@@ -1624,7 +1624,7 @@ void CPanel::OnDrag(LPNMLISTVIEW /* nmListView */, bool isRightButton)
+   dropSourceSpec->DataObjectSpec = dataObjectSpec;
+   dropSourceSpec->DataObject = dataObjectSpec;
+ 
+- 
++
+   /*
+   CTime - file creation timestamp.
+   There are two operations in Windows with Drag and Drop:
+@@ -1638,7 +1638,7 @@ void CPanel::OnDrag(LPNMLISTVIEW /* nmListView */, bool isRightButton)
+     Does DoDragDrop() use some another function (not MoveFile())?
+ 
+   if (effectsOK == DROPEFFECT_COPY) it works as COPY_OPERATION
+-   
++
+   if (effectsOK == DROPEFFECT_MOVE) drag works as MOVE_OPERATION
+ 
+   if (effectsOK == (DROPEFFECT_COPY | DROPEFFECT_MOVE))
+@@ -1646,7 +1646,7 @@ void CPanel::OnDrag(LPNMLISTVIEW /* nmListView */, bool isRightButton)
+     if we drag file to same volume, then Windows suggests:
+        CTRL      - COPY_OPERATION
+        [default] - MOVE_OPERATION
+-    
++
+     if we drag file to another volume, then Windows suggests
+        [default] - COPY_OPERATION
+        SHIFT     - MOVE_OPERATION
+@@ -1722,9 +1722,9 @@ void CPanel::OnDrag(LPNMLISTVIEW /* nmListView */, bool isRightButton)
+   */
+ 
+   const bool canceled = (res == DRAGDROP_S_CANCEL);
+-  
++
+   CDisableNotify disableNotify(*this);
+-  
++
+   if (res == DRAGDROP_S_DROP)
+   {
+     /* DRAGDROP_S_DROP is returned. It means that
+@@ -1789,7 +1789,7 @@ void CPanel::OnDrag(LPNMLISTVIEW /* nmListView */, bool isRightButton)
+     messagesDialog.Messages = &dataObjectSpec->Messages;
+     messagesDialog.Create((*this));
+   }
+-  
++
+   if (res != S_OK && res != E_ABORT)
+   {
+     // we restore Notify before MessageBox_Error_HRESULT. So we will see files selection
+@@ -1856,7 +1856,7 @@ void CDropTarget::ClearState()
+   rendering the data as specified. Objects attempting a paste or drop
+   operation can call this method before calling IDataObject::GetData
+   to get an indication of whether the operation may be successful.
+-  
++
+   The client of a data object calls QueryGetData to determine whether
+   passing the specified FORMATETC structure to a subsequent call to
+   IDataObject::GetData is likely to be successful.
+@@ -2071,7 +2071,7 @@ bool CDropTarget::IsItSameDrive() const
+     return false;
+ 
+   UString drive;
+-  
++
+   if (m_Panel->IsFSFolder())
+   {
+     drive = m_Panel->GetDriveOrNetworkPrefix();
+@@ -2089,7 +2089,7 @@ bool CDropTarget::IsItSameDrive() const
+ 
+   if (m_SourcePaths.Size() == 0)
+     return false;
+-  
++
+   FOR_VECTOR (i, m_SourcePaths)
+   {
+     if (!m_SourcePaths[i].IsPrefixedBy_NoCase(drive))
+@@ -2438,7 +2438,7 @@ Z7_COMWF_B CDropTarget::DragOver(DWORD keyState, POINTL pt, DWORD *effect)
+     For efficiency reasons, a data object is not passed in IDropTarget::DragOver.
+     The data object passed in the most recent call to IDropTarget::DragEnter
+     is available and can be used.
+-  
++
+     When IDropTarget::DragOver has completed its operation, the DoDragDrop
+     function calls IDropSource::GiveFeedback so the source application can display
+     the appropriate visual feedback to the user.
+@@ -2523,7 +2523,7 @@ Z7_COMWF_B CDropTarget::Drop(IDataObject *dataObject, DWORD keyState,
+   */
+   if (!m_DropIsAllowed) LoadNames_From_DataObject(dataObject);
+   PositionCursor(pt);
+-  
++
+   CPanel::CDisableTimerProcessing2 disableTimerProcessing(m_Panel);
+   // CDisableNotify disableNotify2(m_Panel);
+ 
+@@ -2566,7 +2566,7 @@ Z7_COMWF_B CDropTarget::Drop(IDataObject *dataObject, DWORD keyState,
+           createNewArchive = false; // g_CreateArchive_for_Drag_from_7zip;
+         else
+           createNewArchive = true; // g_CreateArchive_for_Drag_from_Explorer;
+-        
++
+         if (createNewArchive)
+           cmd = NDragMenu::k_AddToArc;
+         else
+@@ -2640,7 +2640,7 @@ Z7_COMWF_B CDropTarget::Drop(IDataObject *dataObject, DWORD keyState,
+     target.Flags |= k_TargetFlags_WasCanceled;
+   if (menu_WasShown)
+     target.Flags |= k_TargetFlags_MenuWasShown;
+- 
++
+   SendToSource_auto(dataObject, target);
+ 
+   CDataObject_GetTransfer transfer;
+@@ -2696,11 +2696,28 @@ Z7_COMWF_B CDropTarget::Drop(IDataObject *dataObject, DWORD keyState,
+ 
+         RemoveSelection();
+         // disableTimerProcessing.Restore();
+-        m_Panel->CompressDropFiles(m_SourcePaths, path,
+-            (cmd == NDragMenu::k_AddToArc),  // createNewArchive,
+-            moveMode, sourceFlags,
+-            target.Flags
+-            );
++        if (target.FolderType == k_FolderType_Fs)
++        {
++          CCopyToOptions options;
++          options.moveMode = moveMode;
++          options.folder = GetFolderPath(m_Panel->_folder);
++          options.showErrorMessages = true;
++          options.NeedRegistryZone = false;
++          options.ZoneIdMode = NExtract::NZoneIdMode::kNone;
++          m_Panel->CopyFsItems(
++            options,
++            m_SourcePaths,
++            NULL
++          );
++        }
++        else
++        {
++          m_Panel->CompressDropFiles(m_SourcePaths, path,
++              (cmd == NDragMenu::k_AddToArc),  // createNewArchive,
++              moveMode, sourceFlags,
++              target.Flags
++              );
++        }
+       }
+     }
+   } // end of if (cmd != NDragMenu::k_Cancel)
+@@ -2740,7 +2757,7 @@ Z7_COMWF_B CDropTarget::Drop(IDataObject *dataObject, DWORD keyState,
+ 
+   SendToSource_TransferInfo(dataObject, target);
+   } catch(...) { hres = E_FAIL; }
+-  
++
+   ClearState();
+   // *effect |= (1 << 10); // for debug
+   // *effect = DROPEFFECT_COPY; // for debug
+@@ -2851,7 +2868,7 @@ void CPanel::CompressDropFiles(
+         false, // isHash
+         NULL,  // CFileInfo *fi
+         arcName_base);
+-    
++
+     bool needWait;
+     if (sourceFlags & k_SourceFlags_WaitFinish)
+       needWait = true;
+diff --git a/CPP/7zip/UI/FileManager/PanelKey.cpp b/CPP/7zip/UI/FileManager/PanelKey.cpp
+index 6136172..ee7c891 100644
+--- a/CPP/7zip/UI/FileManager/PanelKey.cpp
++++ b/CPP/7zip/UI/FileManager/PanelKey.cpp
+@@ -297,7 +297,8 @@ bool CPanel::OnKeyDown(LPNMLVKEYDOWN keyDownInfo, LRESULT &result)
+     case 'V':
+       if (ctrl)
+       {
+-        EditPaste();
++        // EditPaste();
++        EditPasteClipboard();
+         return true;
+       }
+       return false;
+diff --git a/CPP/7zip/UI/FileManager/PanelMenu.cpp b/CPP/7zip/UI/FileManager/PanelMenu.cpp
+index 04279c2..244a670 100644
+--- a/CPP/7zip/UI/FileManager/PanelMenu.cpp
++++ b/CPP/7zip/UI/FileManager/PanelMenu.cpp
+@@ -447,6 +447,20 @@ void CPanel::Properties()
+ void CPanel::EditCut()
+ {
+   // InvokeSystemCommand("cut");
++  UString s;
++  CRecordVector<UInt32> indices;
++  std::vector<std::wstring> files;
++  Get_ItemIndices_Selected(indices);
++  FOR_VECTOR (i, indices)
++  {
++    if (i != 0)
++      s += "\xD\n";
++    s += GetItemName(indices[i]);
++  // MessageBox(0, GetItemFullPath(indices[i]).Ptr(),GetItemFullPath(indices[i]).Ptr(),0);
++    files.push_back(GetItemFullPath(indices[i]).Ptr());
++  }
++  // ClipboardSetText(_mainWindow, s);
++  ClipboardSetFiles(_mainWindow, files, DROPEFFECT_MOVE);
+ }
+ 
+ void CPanel::EditCopy()
+@@ -473,7 +487,7 @@ void CPanel::EditCopy()
+     files.push_back(GetItemFullPath(indices[i]).Ptr());
+   }
+   // ClipboardSetText(_mainWindow, s);
+-  ClipboardSetFiles(files);
++  ClipboardSetFiles(_mainWindow, files, DROPEFFECT_COPY);
+ }
+ 
+ void CPanel::EditPaste()
+@@ -495,7 +509,33 @@ void CPanel::EditPaste()
+   InvokeSystemCommand("paste");
+ }
+ 
+-
++void CPanel::EditPasteClipboard()
++{
++  UStringVector files;
++  // std::vector<std::wstring> files;
++
++  DWORD effect{};
++  ClipboardGetFiles(_mainWindow, files, effect);
++
++  // if (files.size() == 0)
++  //   return;
++
++  // for ( auto const& f : files)
++  // {
++  //   filesVec.Add(UString(f.c_str()));
++  // }
++  // CopyFromFolderNoAsk(false, filesVec);
++  CCopyToOptions options;
++  options.moveMode = (bool)(effect & DROPEFFECT_MOVE);
++  options.folder = GetFolderPath(_folder);
++  options.showErrorMessages = true;
++  options.NeedRegistryZone = false;
++  options.ZoneIdMode = NExtract::NZoneIdMode::kNone;
++  CopyFsItems(options,
++    files,
++    NULL // UStringVector *messages
++    );
++}
+ 
+ struct CFolderPidls
+ {
+diff --git a/CPP/Common/MyCom.h b/CPP/Common/MyCom.h
+index 5c5344a..11875a7 100644
+--- a/CPP/Common/MyCom.h
++++ b/CPP/Common/MyCom.h
+@@ -19,6 +19,7 @@ class CMyComPtr
+   operator T*() const {  return (T*)_p;  }
+   // T& operator*() const {  return *_p; }
+   T** operator&() { return &_p; }
++  T* get() { return _p; }
+   T* operator->() const { return _p; }
+   T* operator=(T* p)
+   {
+@@ -108,7 +109,7 @@ class CMyComBSTR
+   // CMyComBSTR(int nSize) { m_str = ::SysAllocStringLen(NULL, nSize); }
+   // CMyComBSTR(int nSize, LPCOLESTR sz) { m_str = ::SysAllocStringLen(sz, nSize);  }
+   // CMyComBSTR(const CMyComBSTR& src) { m_str = src.MyCopy(); }
+-  
++
+   /*
+   CMyComBSTR(REFGUID src)
+   {
+@@ -118,7 +119,7 @@ class CMyComBSTR
+     CoTaskMemFree(szGuid);
+   }
+   */
+-  
++
+   /*
+   CMyComBSTR& operator=(const CMyComBSTR& src)
+   {
+@@ -131,14 +132,14 @@ class CMyComBSTR
+     return *this;
+   }
+   */
+-  
++
+   CMyComBSTR& operator=(LPCOLESTR src)
+   {
+     ::SysFreeString(m_str);
+     m_str = ::SysAllocString(src);
+     return *this;
+   }
+-  
++
+   unsigned Len() const { return ::SysStringLen(m_str); }
+ 
+   BSTR MyCopy() const
+@@ -153,7 +154,7 @@ class CMyComBSTR
+     return res;
+     */
+   }
+-  
++
+   /*
+   void Attach(BSTR src) { m_str = src; }
+   BSTR Detach()
+diff --git a/CPP/Common/MyString.h b/CPP/Common/MyString.h
+index 727c281..5775a7c 100644
+--- a/CPP/Common/MyString.h
++++ b/CPP/Common/MyString.h
+@@ -19,7 +19,7 @@
+ /* if (DEBUG_FSTRING_INHERITS_ASTRING is defined), then
+      FString inherits from AString, so we can find bugs related to FString at compile time.
+    DON'T define DEBUG_FSTRING_INHERITS_ASTRING in release code */
+-   
++
+ // #define DEBUG_FSTRING_INHERITS_ASTRING
+ 
+ #ifdef DEBUG_FSTRING_INHERITS_ASTRING
+@@ -275,9 +275,9 @@ class AString
+   {
+     memmove(_chars + dest, _chars + src, (size_t)(_len - src + 1) * sizeof(char));
+   }
+-  
++
+   void InsertSpace(unsigned &index, unsigned size);
+-  
++
+   void ReAlloc(unsigned newLimit);
+   void ReAlloc2(unsigned newLimit);
+   void SetStartLen(unsigned len);
+@@ -384,7 +384,7 @@ class AString
+     _len = len;
+     return *this;
+   }
+-  
++
+   void Add_Space();
+   void Add_Space_if_NotEmpty();
+   void Add_OptSpaced(const char *s);
+@@ -423,7 +423,7 @@ class AString
+   // int CompareNoCase(const AString &s) const { return MyStringCompareNoCase(_chars, s._chars); }
+   bool IsPrefixedBy(const char *s) const { return IsString1PrefixedByString2(_chars, s); }
+   bool IsPrefixedBy_Ascii_NoCase(const char *s) const throw();
+- 
++
+   bool IsAscii() const
+   {
+     unsigned len = Len();
+@@ -443,14 +443,14 @@ class AString
+   {
+     return Find(c, (unsigned)startIndex);
+   }
+-  
++
+   int ReverseFind(char c) const throw();
+   int ReverseFind_Dot() const throw() { return ReverseFind('.'); }
+   int ReverseFind_PathSepar() const throw();
+ 
+   int Find(const char *s) const { return Find(s, 0); }
+   int Find(const char *s, unsigned startIndex) const throw();
+-  
++
+   void TrimLeft() throw();
+   void TrimRight() throw();
+   void Trim()
+@@ -465,7 +465,7 @@ class AString
+   void Insert(unsigned index, const AString &s);
+ 
+   void RemoveChar(char ch) throw();
+-  
++
+   void Replace(char oldChar, char newChar) throw();
+   void Replace(const AString &oldString, const AString &newString);
+ 
+@@ -486,7 +486,7 @@ class AString
+     DeleteFrom((unsigned)index);
+   }
+ 
+-  
++
+   void Wipe_and_Empty()
+   {
+     if (_chars)
+@@ -556,9 +556,9 @@ class UString
+   {
+     memmove(_chars + dest, _chars + src, (size_t)(_len - src + 1) * sizeof(wchar_t));
+   }
+-  
++
+   void InsertSpace(unsigned index, unsigned size);
+-  
++
+   void ReAlloc(unsigned newLimit);
+   void ReAlloc2(unsigned newLimit);
+   void SetStartLen(unsigned len);
+@@ -578,11 +578,11 @@ class UString
+   friend UString operator+(const wchar_t *s1, const UString &s2);
+ 
+   // ---------- forbidden functions ----------
+-  
++
+   FORBID_STRING_OPS_UString(signed char)
+   FORBID_STRING_OPS_UString(unsigned char)
+   FORBID_STRING_OPS_UString(short)
+-  
++
+   #ifdef MY_NATIVE_WCHAR_T_DEFINED
+   FORBID_STRING_OPS_UString(unsigned short)
+   #endif
+@@ -753,7 +753,7 @@ class UString
+   void Insert(unsigned index, const UString &s);
+ 
+   void RemoveChar(wchar_t ch) throw();
+-  
++
+   void Replace(wchar_t oldChar, wchar_t newChar) throw();
+   void Replace(const UString &oldString, const UString &newString);
+ 
+@@ -771,7 +771,7 @@ class UString
+       _chars[index] = 0;
+     }
+   }
+-  
++
+   void Wipe_and_Empty()
+   {
+     if (_chars)
+@@ -851,7 +851,7 @@ class UString2
+   void SetStartLen(unsigned len);
+ 
+   // ---------- forbidden functions ----------
+-  
++
+   FORBID_STRING_OPS_UString2(char)
+   FORBID_STRING_OPS_UString2(signed char)
+   FORBID_STRING_OPS_UString2(unsigned char)
+diff --git a/CPP/Common/MyVector.h b/CPP/Common/MyVector.h
+index 803210e..16eb7d9 100644
+--- a/CPP/Common/MyVector.h
++++ b/CPP/Common/MyVector.h
+@@ -6,6 +6,8 @@
+ #include <string.h>
+ 
+ #include "Common.h"
++#include <type_traits>
++#include <iterator>
+ 
+ const unsigned k_VectorSizeMax = ((unsigned)1 << 31) - 1;
+ 
+@@ -15,7 +17,7 @@ class CRecordVector
+   T *_items;
+   unsigned _size;
+   unsigned _capacity;
+-  
++
+   void MoveItems(unsigned destIndex, unsigned srcIndex)
+   {
+     memmove(_items + destIndex, _items + srcIndex, (size_t)(_size - srcIndex) * sizeof(T));
+@@ -49,7 +51,7 @@ class CRecordVector
+   }
+ 
+   CRecordVector(): _items(NULL), _size(0), _capacity(0) {}
+-  
++
+   CRecordVector(const CRecordVector &v): _items(NULL), _size(0), _capacity(0)
+   {
+     const unsigned size = v.Size();
+@@ -62,10 +64,10 @@ class CRecordVector
+       memcpy(_items, v._items, (size_t)size * sizeof(T));
+     }
+   }
+-  
++
+   unsigned Size() const { return _size; }
+   bool IsEmpty() const { return _size == 0; }
+-  
++
+   void ConstructReserve(unsigned size)
+   {
+     if (size != 0)
+@@ -129,9 +131,9 @@ class CRecordVector
+     _items = p;
+     _capacity = _size;
+   }
+-  
++
+   ~CRecordVector() { delete []_items; }
+-  
++
+   void ClearAndFree()
+   {
+     delete []_items;
+@@ -139,17 +141,17 @@ class CRecordVector
+     _size = 0;
+     _capacity = 0;
+   }
+-  
++
+   void Clear() { _size = 0; }
+ 
+   void DeleteBack() { _size--; }
+-  
++
+   void DeleteFrom(unsigned index)
+   {
+     // if (index <= _size)
+       _size = index;
+   }
+-  
++
+   void DeleteFrontal(unsigned num)
+   {
+     if (num != 0)
+@@ -210,7 +212,7 @@ class CRecordVector
+     }
+     return *this;
+   }
+-  
++
+   unsigned Add(const T item)
+   {
+     ReserveOnePosition();
+@@ -472,6 +474,16 @@ class CObjectVector
+     for (unsigned i = 0; i < size; i++)
+       AddInReserved(v[i]);
+   }
++
++  template <class _Iter, std::enable_if_t<std::_Is_iterator_v<_Iter>, int> = 0>
++  CObjectVector(_Iter start, _Iter end)
++  {
++    while (start != end)
++    {
++      Add(*start++);
++    }
++  }
++
+   CObjectVector& operator=(const CObjectVector &v)
+   {
+     if (&v == this)
+@@ -498,7 +510,7 @@ class CObjectVector
+     }
+     return *this;
+   }
+-  
++
+   const T& operator[](unsigned index) const { return *((T *)_v[index]); }
+         T& operator[](unsigned index)       { return *((T *)_v[index]); }
+   const T& operator[](int index) const { return *((T *)_v[(unsigned)index]); }
+@@ -507,7 +519,7 @@ class CObjectVector
+         T& Front()       { return operator[](0); }
+   const T& Back() const  { return *(T *)_v.Back(); }
+         T& Back()        { return *(T *)_v.Back(); }
+-  
++
+   void MoveToFront(unsigned index) { _v.MoveToFront(index); }
+ 
+   unsigned Add(const T& item)
+@@ -515,7 +527,7 @@ class CObjectVector
+     _v.ReserveOnePosition();
+     return AddInReserved(item);
+   }
+-  
++
+   unsigned AddInReserved(const T& item)
+   {
+     return _v.AddInReserved(new T(item));
+@@ -534,8 +546,8 @@ class CObjectVector
+   #define VECTOR_ADD_NEW_OBJECT(v, a) \
+     (v).ReserveOnePosition(); \
+     (v).AddInReserved_Ptr_of_new(new a);
+-  
+-  
++
++
+   T& AddNew()
+   {
+     _v.ReserveOnePosition();
+@@ -543,20 +555,20 @@ class CObjectVector
+     _v.AddInReserved(p);
+     return *p;
+   }
+-  
++
+   T& AddNewInReserved()
+   {
+     T *p = new T;
+     _v.AddInReserved(p);
+     return *p;
+   }
+-  
++
+   void Insert(unsigned index, const T& item)
+   {
+     _v.ReserveOnePosition();
+     _v.InsertInReserved(index, new T(item));
+   }
+-  
++
+   T& InsertNew(unsigned index)
+   {
+     _v.ReserveOnePosition();
+@@ -570,20 +582,20 @@ class CObjectVector
+     for (unsigned i = _v.Size(); i != 0;)
+       delete (T *)_v[--i];
+   }
+-  
++
+   void ClearAndFree()
+   {
+     Clear();
+     _v.ClearAndFree();
+   }
+-  
++
+   void Clear()
+   {
+     for (unsigned i = _v.Size(); i != 0;)
+       delete (T *)_v[--i];
+     _v.Clear();
+   }
+-  
++
+   void DeleteFrom(unsigned index)
+   {
+     const unsigned size = _v.Size();
+@@ -631,7 +643,7 @@ class CObjectVector
+     return -1;
+   }
+   */
+-  
++
+   int FindInSorted(const T& item) const
+   {
+     unsigned left = 0, right = Size();
+diff --git a/CPP/Windows/Clipboard.cpp b/CPP/Windows/Clipboard.cpp
+index 8ba4219..ac22549 100644
+--- a/CPP/Windows/Clipboard.cpp
++++ b/CPP/Windows/Clipboard.cpp
+@@ -12,6 +12,8 @@
+ #include "Defs.h"
+ #include "MemoryGlobal.h"
+ #include "Shell.h"
++#include "../Common/MyCom.h"
++#include "com.h"
+ 
+ namespace NWindows {
+ 
+@@ -127,8 +129,367 @@ bool ClipboardSetText(HWND owner, const UString &s)
+   return res;
+ }
+ 
+-void ClipboardSetFiles(const std::vector<std::wstring>& filePaths)
++class EnumFormatEtc : public IEnumFORMATETC
+ {
++public:
++  HRESULT __stdcall QueryInterface(REFIID iid, void** ppvObject);
++  ULONG __stdcall AddRef();
++  ULONG __stdcall Release();
++
++  HRESULT __stdcall Next(ULONG celt, FORMATETC* rgelt, ULONG* pceltFetched);
++  HRESULT __stdcall Skip(ULONG celt);
++  HRESULT __stdcall Reset();
++  HRESULT __stdcall Clone(IEnumFORMATETC** ppEnumFormatEtc);
++
++  EnumFormatEtc(UInt32 numFormats, FORMATETC* pFormatEtc);
++  ~EnumFormatEtc();
++
++private:
++  int refCount;
++  UInt32 index;
++  UInt32 count;
++  FORMATETC* fmtetc;
++};
++
++HRESULT __stdcall EnumFormatEtc::QueryInterface(REFIID iid, void** ppvObject)
++{
++  if (iid == IID_IEnumFORMATETC || iid == IID_IUnknown)
++  {
++    AddRef();
++    *ppvObject = this;
++    return S_OK;
++  }
++  else
++  {
++    *ppvObject = NULL;
++    return E_NOINTERFACE;
++  }
++}
++ULONG __stdcall EnumFormatEtc::AddRef()
++{
++  return InterlockedIncrement((LONG*) &refCount);
++}
++ULONG __stdcall EnumFormatEtc::Release()
++{
++  int count = InterlockedDecrement((LONG*) &refCount);
++  if (count == 0)
++    delete this;
++  return count;
++}
++
++HRESULT __stdcall EnumFormatEtc::Next(ULONG celt, FORMATETC* rgelt, ULONG* pceltFetched)
++{
++  if (celt == 0 || rgelt == NULL)
++    return E_INVALIDARG;
++  UInt32 copied = 0;
++  while (index < count && copied < celt)
++  {
++    rgelt[copied] = fmtetc[index];
++    if (rgelt[copied].ptd)
++    {
++      rgelt[copied].ptd = (DVTARGETDEVICE*) CoTaskMemAlloc(sizeof(DVTARGETDEVICE));
++      *rgelt[copied].ptd = *fmtetc[index].ptd;
++    }
++    index++;
++    copied++;
++  }
++  if (pceltFetched)
++    *pceltFetched = copied;
++  return (copied == celt ? S_OK : S_FALSE);
++}
++HRESULT __stdcall EnumFormatEtc::Skip(ULONG celt)
++{
++  index += celt;
++  return (index <= count ? S_OK : S_FALSE);
++}
++HRESULT __stdcall EnumFormatEtc::Reset()
++{
++  index = 0;
++  return S_OK;
++}
++HRESULT __stdcall EnumFormatEtc::Clone(IEnumFORMATETC** ppEnumFormatEtc)
++{
++  EnumFormatEtc* clone = new EnumFormatEtc(count, fmtetc);
++  clone->index = index;
++  *ppEnumFormatEtc = clone;
++  return S_OK;
++}
++
++EnumFormatEtc::EnumFormatEtc(UInt32 numFormats, FORMATETC* pFormatEtc)
++{
++  refCount = 1;
++  index = 0;
++  count = numFormats;
++  if (count)
++  {
++    fmtetc = new FORMATETC[count];
++    for (UInt32 i = 0; i < count; i++)
++    {
++      fmtetc[i] = pFormatEtc[i];
++      if (fmtetc[i].ptd)
++      {
++        fmtetc[i].ptd = (DVTARGETDEVICE*) CoTaskMemAlloc(sizeof(DVTARGETDEVICE));
++        *fmtetc[i].ptd = *pFormatEtc[i].ptd;
++      }
++    }
++  }
++  else
++    fmtetc = NULL;
++}
++EnumFormatEtc::~EnumFormatEtc()
++{
++  for (UInt32 i = 0; i < count; i++)
++    if (fmtetc[i].ptd)
++      CoTaskMemFree(fmtetc[i].ptd);
++  delete[] fmtetc;
++}
++
++
++class DataObject : public IDataObject
++{
++public:
++  HRESULT __stdcall QueryInterface(REFIID iid, void** ppvObject);
++  ULONG __stdcall AddRef();
++  ULONG __stdcall Release();
++
++  HRESULT __stdcall GetData(FORMATETC* pFormatEtc, STGMEDIUM* pMedium);
++  HRESULT __stdcall GetDataHere(FORMATETC* pFormatEtc, STGMEDIUM* pMedium);
++  HRESULT __stdcall QueryGetData(FORMATETC* pFormatEtc);
++  HRESULT __stdcall GetCanonicalFormatEtc(FORMATETC* pFormatEtc, FORMATETC* pFormatEtcOut);
++  HRESULT __stdcall SetData(FORMATETC* pFormatEtc, STGMEDIUM* pMedium, BOOL fRelease);
++  HRESULT __stdcall EnumFormatEtc(DWORD dwDirection, IEnumFORMATETC** ppEnumFormatEtc);
++  HRESULT __stdcall DAdvise(FORMATETC* pFormatEtc, DWORD advf, IAdviseSink* pAdvSink, DWORD* pdwConnection);
++  HRESULT __stdcall DUnadvise(DWORD dwConnection);
++  HRESULT __stdcall EnumDAdvise(IEnumSTATDATA** ppEnumAdvise);
++
++  DataObject(CLIPFORMAT format, HGLOBAL data);
++  ~DataObject();
++
++private:
++  int refCount;
++  FORMATETC fmtetc;
++  STGMEDIUM stgmed;
++};
++
++HRESULT __stdcall DataObject::QueryInterface(REFIID iid, void** ppvObject)
++{
++  if (iid == IID_IDataObject || iid == IID_IUnknown)
++  {
++    AddRef();
++    *ppvObject = this;
++    return S_OK;
++  }
++  else
++  {
++    *ppvObject = NULL;
++    return E_NOINTERFACE;
++  }
++}
++ULONG __stdcall DataObject::AddRef()
++{
++  return InterlockedIncrement((LONG*) &refCount);
++}
++ULONG __stdcall DataObject::Release()
++{
++  int count = InterlockedDecrement((LONG*) &refCount);
++  if (count == 0)
++    delete this;
++  return count;
++}
++
++HRESULT __stdcall DataObject::GetData(FORMATETC* pFormatEtc, STGMEDIUM* pMedium)
++{
++  if (fmtetc.cfFormat != pFormatEtc->cfFormat || fmtetc.dwAspect != pFormatEtc->dwAspect ||
++      (fmtetc.tymed & pFormatEtc->tymed) == 0)
++    return DV_E_FORMATETC;
++  pMedium->tymed = fmtetc.tymed;
++  pMedium->pUnkForRelease = NULL;
++  if (fmtetc.tymed == TYMED_HGLOBAL)
++  {
++    UInt32 len = GlobalSize(stgmed.hGlobal);
++    void* source = GlobalLock(stgmed.hGlobal);
++    pMedium->hGlobal = GlobalAlloc(GMEM_FIXED, len);
++    memcpy((void*) pMedium->hGlobal, source, len);
++    GlobalUnlock(stgmed.hGlobal);
++    return S_OK;
++  }
++  else
++    return DV_E_FORMATETC;
++}
++HRESULT __stdcall DataObject::GetDataHere(FORMATETC* pFormatEtc, STGMEDIUM* pMedium)
++{
++  return DV_E_FORMATETC;
++}
++HRESULT __stdcall DataObject::QueryGetData(FORMATETC* pFormatEtc)
++{
++  if (fmtetc.cfFormat != pFormatEtc->cfFormat || fmtetc.dwAspect != pFormatEtc->dwAspect ||
++      (fmtetc.tymed & pFormatEtc->tymed) == 0)
++    return DV_E_FORMATETC;
++  return S_OK;
++}
++HRESULT __stdcall DataObject::GetCanonicalFormatEtc(FORMATETC* pFormatEtc, FORMATETC* pFormatEtcOut)
++{
++  pFormatEtcOut->ptd = NULL;
++  return E_NOTIMPL;
++}
++HRESULT __stdcall DataObject::SetData(FORMATETC* pFormatEtc, STGMEDIUM* pMedium, BOOL fRelease)
++{
++  return E_NOTIMPL;
++}
++HRESULT __stdcall DataObject::EnumFormatEtc(DWORD dwDirection, IEnumFORMATETC** ppEnumFormatEtc)
++{
++  if (dwDirection == DATADIR_GET)
++  {
++    *ppEnumFormatEtc = new NWindows::EnumFormatEtc(1, &fmtetc);
++    return S_OK;
++  }
++  else
++    return E_NOTIMPL;
++}
++HRESULT __stdcall DataObject::DAdvise(FORMATETC* pFormatEtc, DWORD advf, IAdviseSink* pAdvSink,
++                                      DWORD* pdwConnection)
++{
++  return OLE_E_ADVISENOTSUPPORTED;
++}
++HRESULT __stdcall DataObject::DUnadvise(DWORD dwConnection)
++{
++  return OLE_E_ADVISENOTSUPPORTED;
++}
++HRESULT __stdcall DataObject::EnumDAdvise(IEnumSTATDATA** ppEnumAdvise)
++{
++  return OLE_E_ADVISENOTSUPPORTED;
++}
++
++DataObject::DataObject(CLIPFORMAT format, HGLOBAL data)
++{
++  refCount = 1;
++  fmtetc.cfFormat = format;
++  fmtetc.ptd = NULL;
++  fmtetc.dwAspect = DVASPECT_CONTENT;
++  fmtetc.lindex = -1;
++  fmtetc.tymed = TYMED_HGLOBAL;
++  stgmed.tymed = TYMED_HGLOBAL;
++  stgmed.hGlobal = data;
++  stgmed.pUnkForRelease = NULL;
++}
++DataObject::~DataObject()
++{
++  GlobalFree(stgmed.hGlobal);
++}
++
++void ClipboardSetFiles(HWND owner, const std::vector<std::wstring>& filePaths, DWORD effect)
++{
++  UNREFERENCED_PARAMETER(owner);
++
++  NCOM::CStgMedium medium;
++  CMyComPtr<IDataObject> clipboardObject;
++
++  HRESULT hr = S_OK;
++  // hr = OleGetClipboard(&clipboardObject);
++
++  // if (FAILED(hr))
++  // {
++  //   return;
++  // }
++
++  // SHCreateDataObject(NULL, 0, NULL, NULL, IID_IDataObject, (void **)&clipboardObject);
++
++
++  DROPFILES *dropFiles = nullptr;
++  PDWORD pdwEffect = NULL;
++
++  // Allocate memory for the DROPFILES structure
++  size_t fileBufferSize = 0;
++  for (const auto &filePath : filePaths)
++  {
++    fileBufferSize += filePath.length() + 1;
++  }
++  // For the second null terminator.
++  fileBufferSize += 1;
++
++  medium.hGlobal = GlobalAlloc(GMEM_MOVEABLE | GHND | GMEM_SHARE, sizeof(DROPFILES) + fileBufferSize * sizeof(wchar_t));
++  if (medium.hGlobal == nullptr)
++  {
++    goto cleanup;
++  }
++
++  dropFiles = static_cast<DROPFILES *>(GlobalLock(medium.hGlobal));
++  if (dropFiles == nullptr)
++  {
++    goto cleanup;
++  }
++
++  dropFiles->pFiles = sizeof(DROPFILES);
++  dropFiles->pt.x = 0;
++  dropFiles->pt.y = 0;
++  dropFiles->fNC = FALSE;
++  dropFiles->fWide = TRUE;
++
++  wchar_t *fileBuffer = reinterpret_cast<wchar_t *>(dropFiles + 1);
++  wchar_t *fileBufferPos = fileBuffer;
++  for (const auto &filePath : filePaths)
++  {
++    int ret = wcsncpy_s(fileBufferPos, fileBufferSize - (fileBufferPos - fileBuffer),
++              filePath.c_str(), filePath.length());
++    if (ret != 0)
++    {
++      MessageBox(0, L"HI", L"HI", 0);
++    }
++    fileBufferPos += filePath.length() + 1;
++  }
++  // __debugbreak();
++  fileBufferPos[0] = '\0';
++  GlobalUnlock(medium.hGlobal);
++
++  clipboardObject = new DataObject(CF_HDROP, medium.hGlobal);
++
++  // NShell::DataObject_SetData_HGLOBAL(clipboardObject.get(), CF_HDROP, medium);
++
++  medium.hGlobal = NULL;
++  dropFiles = nullptr;
++
++
++  medium.hGlobal = GlobalAlloc(GMEM_MOVEABLE, sizeof(DWORD));
++  if (medium.hGlobal == nullptr)
++  {
++    goto cleanup;
++  }
++
++  pdwEffect = (DWORD *)GlobalLock(medium.hGlobal);
++  if (pdwEffect == nullptr)
++  {
++    return;
++  }
++  *pdwEffect = effect;
++  GlobalUnlock(medium.hGlobal);
++  pdwEffect = NULL;
++
++  // hr = NShell::DataObject_SetData_HGLOBAL(clipboardObject.get(), (CLIPFORMAT)
++  //     RegisterClipboardFormat(CFSTR_PREFERREDDROPEFFECT), medium);
++  // if (FAILED(hr))
++  // {
++  //   return;
++  // }
++  medium.hGlobal = NULL;
++
++  OleSetClipboard(clipboardObject.get());
++cleanup:
++  if (medium.hGlobal != NULL)
++  {
++    GlobalFree(medium.hGlobal);
++  }
++}
++
++
++void ClipboardSetFiles2(HWND owner, const std::vector<std::wstring>& filePaths, DWORD effect)
++{
++  (VOID)owner;
++  (VOID)effect;
++
++  // from #include <ShlObj.h>
++  DROPFILES *dropFiles = nullptr;
++  HGLOBAL hGlobal = NULL;
++
+   // Open the clipboard
+   if (!OpenClipboard(nullptr))
+   {
+@@ -146,18 +507,18 @@ void ClipboardSetFiles(const std::vector<std::wstring>& filePaths)
+   // For the second null terminator.
+   fileBufferSize += 1;
+ 
+-  HGLOBAL hGlobal = GlobalAlloc(GMEM_MOVEABLE | GHND | GMEM_SHARE, sizeof(DROPFILES) + fileBufferSize * sizeof(wchar_t));
++  hGlobal = GlobalAlloc(GMEM_MOVEABLE | GHND | GMEM_SHARE, sizeof(DROPFILES) + fileBufferSize * sizeof(wchar_t));
+   if (hGlobal == nullptr)
+   {
+-    return;
++    goto cleanup;
+   }
+ 
+-  // from #include <ShlObj.h>
+-  DROPFILES *dropFiles = static_cast<DROPFILES *>(GlobalLock(hGlobal));
++  dropFiles = static_cast<DROPFILES *>(GlobalLock(hGlobal));
+   if (dropFiles == nullptr)
+   {
+-    return;
++    goto cleanup;
+   }
++
+   dropFiles->pFiles = sizeof(DROPFILES);
+   dropFiles->pt.x = 0;
+   dropFiles->pt.y = 0;
+@@ -180,10 +541,119 @@ void ClipboardSetFiles(const std::vector<std::wstring>& filePaths)
+   fileBufferPos[0] = '\0';
+   GlobalUnlock(hGlobal);
+ 
+-  // Set the clipboard data
+   SetClipboardData(CF_HDROP, hGlobal);
++  hGlobal = NULL;
++  dropFiles = nullptr;
++
++cleanup:
++  if (hGlobal != NULL)
++  {
++    GlobalFree(hGlobal);
++  }
++  CloseClipboard();
++}
++
++
++void SetFORMATETC(FORMATETC *pftc, CLIPFORMAT cfFormat, DVTARGETDEVICE *ptd, DWORD dwAspect, LONG lindex, DWORD tymed)
++{
++  pftc->cfFormat = cfFormat;
++  pftc->tymed = tymed;
++  pftc->lindex = lindex;
++  pftc->dwAspect = dwAspect;
++  pftc->ptd = ptd;
++}
++
++void ClipboardGetFiles(HWND owner, UStringVector& filePaths, DWORD& effect)
++{
++  NCOM::CStgMedium medium;
++  CMyComPtr<IDataObject> clipboardObject;
++
++  HRESULT hr = OleGetClipboard(&clipboardObject);
++
++  if (FAILED(hr))
++  {
++    return;
++  }
++
++  hr = NShell::DataObject_GetData_HDROP_or_IDLIST_Names(clipboardObject.get(), filePaths);
++  if (FAILED(hr))
++  {
++    return;
++  }
++
++  hr = NShell::DataObject_GetData_HGLOBAL(clipboardObject.get(), (CLIPFORMAT)
++      RegisterClipboardFormat(CFSTR_PREFERREDDROPEFFECT), medium);
++  if (FAILED(hr))
++  {
++    return;
++  }
++
++  PDWORD pdwEffect = (DWORD *) GlobalLock(medium.hGlobal);
++  if (pdwEffect == nullptr)
++  {
++    return;
++  }
++
++  if (*pdwEffect != DROPEFFECT_NONE)
++  {
++    effect = *pdwEffect;
++  }
++  GlobalUnlock(medium.hGlobal);
++}
++
++void ClipboardGetFiles2(HWND owner, std::vector<std::wstring>& filePaths)
++{
++  HANDLE hDrop = NULL;
++  HDROP hDropInfo = nullptr;
++
++  if (!OpenClipboard(owner))
++  {
++    return;
++  }
++
++  if (IsClipboardFormatAvailable(CF_HDROP))
++  {
++    goto cleanup;
++  }
++
++  hDrop = GetClipboardData(CF_HDROP);
++  if (hDrop == nullptr)
++  {
++    goto cleanup;
++  }
++
++  hDropInfo = static_cast<HDROP>(GlobalLock(hDrop));
++  if (hDropInfo == nullptr)
++  {
++    goto cleanup;
++  }
++
++  UINT numFiles = DragQueryFileW(hDropInfo, 0xFFFFFFFF, nullptr, 0);
++
++  // Loop through the files and retrieve their names
++  for (UINT i = 0; i < numFiles; ++i)
++  {
++    UINT size = DragQueryFileW(hDropInfo, i, nullptr, 0);
++    std::wstring fileName(size + 1, L'\0');
++    DragQueryFileW(hDropInfo, i, &fileName[0], size + 1);
++    filePaths.push_back(fileName);
++  }
++
++  // Unlock the handle
++  GlobalUnlock(hDrop);
++  hDrop = nullptr;
++
++cleanup:
++  if (hDropInfo != nullptr)
++  {
++    GlobalUnlock(hDrop);
++  }
++
++  if (hDrop != NULL)
++  {
++    GlobalFree(hDrop);
++  }
+ 
+-  // Close the clipboard
+   CloseClipboard();
+ }
+ 
+diff --git a/CPP/Windows/Clipboard.h b/CPP/Windows/Clipboard.h
+index fd26442..d8b44b5 100644
+--- a/CPP/Windows/Clipboard.h
++++ b/CPP/Windows/Clipboard.h
+@@ -24,7 +24,9 @@ bool ClipboardIsFormatAvailableHDROP();
+ // bool ClipboardGetFileNames(UStringVector &names);
+ // bool ClipboardGetTextString(AString &s);
+ bool ClipboardSetText(HWND owner, const UString &s);
+-void ClipboardSetFiles(const std::vector<std::wstring>& filePaths);
++void ClipboardSetFiles(HWND owner, const std::vector<std::wstring>& filePaths, DWORD effect);
++// void ClipboardGetFiles(HWND owner, std::vector<std::wstring>& filePaths, DWORD& effect);
++void ClipboardGetFiles(HWND owner, UStringVector& filePaths, DWORD& effect);
+ 
+ }
+ 
+diff --git a/CPP/Windows/Shell.cpp b/CPP/Windows/Shell.cpp
+index 94993d4..6a6b64a 100644
+--- a/CPP/Windows/Shell.cpp
++++ b/CPP/Windows/Shell.cpp
+@@ -5,7 +5,6 @@
+ #include "../Common/MyCom.h"
+ #include "../Common/StringConvert.h"
+ 
+-#include "COM.h"
+ #include "FileName.h"
+ #include "MemoryGlobal.h"
+ #include "Shell.h"
+@@ -170,7 +169,7 @@ static HRESULT ReadAnsiStrings(const char *p, size_t size, UStringVector &names)
+ 
+ #define INIT_FORMATETC_HGLOBAL(type) { (type), NULL, DVASPECT_CONTENT, -1, TYMED_HGLOBAL }
+ 
+-static HRESULT DataObject_GetData_HGLOBAL(IDataObject *dataObject, CLIPFORMAT cf, NCOM::CStgMedium &medium)
++HRESULT DataObject_GetData_HGLOBAL(IDataObject *dataObject, CLIPFORMAT cf, NCOM::CStgMedium &medium)
+ {
+   FORMATETC etc = INIT_FORMATETC_HGLOBAL(cf);
+   RINOK(dataObject->GetData(&etc, &medium))
+@@ -179,11 +178,17 @@ static HRESULT DataObject_GetData_HGLOBAL(IDataObject *dataObject, CLIPFORMAT cf
+   return S_OK;
+ }
+ 
++HRESULT DataObject_SetData_HGLOBAL(IDataObject *dataObject, CLIPFORMAT cf, NCOM::CStgMedium &medium)
++{
++  FORMATETC etc = INIT_FORMATETC_HGLOBAL(cf);
++  RINOK(dataObject->SetData(&etc, &medium, TRUE));
++}
++
+ static HRESULT DataObject_GetData_HDROP_Names(IDataObject *dataObject, UStringVector &names)
+ {
+   names.Clear();
+   NCOM::CStgMedium medium;
+-  
++
+   /* Win10 : if (dataObject) is from IContextMenu::Initialize() and
+     if (len_of_path >= MAX_PATH (260) for some file in data object)
+     {
+@@ -276,7 +281,7 @@ static HRESULT DataObject_GetData_IDLIST(IDataObject *dataObject, UStringVector
+     RINOK(::SHGetDesktopFolder(&desktopFolder))
+     if (!desktopFolder)
+       return E_FAIL;
+-    
++
+     LPCITEMIDLIST const lpcItem = (LPCITEMIDLIST)(const void *)((const Byte *)cida + offset);
+ 
+    #ifdef SHOW_DEBUG_SHELL
+@@ -294,16 +299,16 @@ static HRESULT DataObject_GetData_IDLIST(IDataObject *dataObject, UStringVector
+       }
+     }
+    #endif
+-    
++
+     RINOK(desktopFolder->BindToObject(lpcItem,
+         NULL, IID_IShellFolder, (void **)&parentFolder))
+     if (!parentFolder)
+       return E_FAIL;
+   }
+-  
++
+   names.ClearAndReserve(cida->cidl);
+   UString path;
+-  
++
+   // for (int y = 0; y < 1; y++) // for debug
+   for (unsigned i = 1; i <= cida->cidl; i++)
+   {
+@@ -522,7 +527,7 @@ void CDrop::QueryFileName(UINT fileIndex, UString &fileName)
+ void CDrop::QueryFileNames(UStringVector &fileNames)
+ {
+   UINT numFiles = QueryCountOfFiles();
+-  
++
+   Print_Number(numFiles, "\n====== CDrop::QueryFileNames START ===== \n");
+ 
+   fileNames.ClearAndReserve(numFiles);
+diff --git a/CPP/Windows/Shell.h b/CPP/Windows/Shell.h
+index 7407ae3..5330e0e 100644
+--- a/CPP/Windows/Shell.h
++++ b/CPP/Windows/Shell.h
+@@ -5,6 +5,8 @@
+ 
+ #include "../Common/Common.h"
+ #include "../Common/MyWindows.h"
++// https://learn.microsoft.com/en-gb/windows/win32/winprog/using-the-windows-headers?redirectedfrom=MSDN
++#define NTDDI_VERSION NTDDI_VISTA
+ #if defined(__MINGW32__) || defined(__MINGW64__)
+ #include <shlobj.h>
+ #else
+@@ -14,6 +16,7 @@
+ #include "../Common/MyString.h"
+ 
+ #include "Defs.h"
++#include "com.h"
+ 
+ namespace NWindows {
+ namespace NShell {
+@@ -113,7 +116,8 @@ struct CFileAttribs
+ /* read pathnames from HDROP or SHELLIDLIST.
+    The parser can return E_INVALIDARG, if there is some unexpected data in dataObject */
+ HRESULT DataObject_GetData_HDROP_or_IDLIST_Names(IDataObject *dataObject, UStringVector &names);
+-
++HRESULT DataObject_GetData_HGLOBAL(IDataObject *dataObject, CLIPFORMAT cf, NCOM::CStgMedium &medium);
++HRESULT DataObject_SetData_HGLOBAL(IDataObject *dataObject, CLIPFORMAT cf, NCOM::CStgMedium &medium);
+ HRESULT DataObject_GetData_FILE_ATTRS(IDataObject *dataObject, CFileAttribs &attribs);
+ 
+ bool GetPathFromIDList(LPCITEMIDLIST itemIDList, CSysString &path);

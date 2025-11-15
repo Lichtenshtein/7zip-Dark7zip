@@ -1,0 +1,602 @@
+From d1a56148882468c8c8b71b44b4d8e9affcff73e3 Mon Sep 17 00:00:00 2001
+From: work <q@q.q>
+Date: Mon, 6 May 2019 12:29:47 +0200
+Subject: [PATCH] -added number for some context menu commands -new menu
+ "Extract to Folder or Plain", extracts an archive to a folder if it has more
+ than 1 elements in the root -updated FileManager context menu options to be
+ able to enable/disable them
+ 
+- added numbers for some context menu commands (**0-Compress, 1-Extract Here, 2-Extract to \***) for faster navigation
+- added **"Extract to Folder or Plain"** menu, extracts an archive contents to a folder if it has more than 1 element in the root or extracts the contents directly into the current folder
+- added **"Compress to \*"** menu to create separate archives for each selected file (currently it opens multiple compress dialogs, though it should be done using some sort of operations queue)
+- updated **FileManager** context menu options to be able to enable/disable the added menu items
+---
+ CPP/7zip/UI/Explorer/ArchInfo.cpp       | 112 ++++++++++++++++
+ CPP/7zip/UI/Explorer/ArchInfo.h         |   8 ++
+ CPP/7zip/UI/Explorer/ContextMenu.cpp    | 165 +++++++++++++++---------
+ CPP/7zip/UI/Explorer/ContextMenu.h      |   3 +-
+ CPP/7zip/UI/Explorer/ContextMenuFlags.h |   2 +
+ CPP/7zip/UI/Explorer/makefile           |  47 +++++++
+ CPP/7zip/UI/Explorer/resource.h         |   3 +
+ CPP/7zip/UI/Explorer/resource2.rc       |  10 +-
+ CPP/7zip/UI/FileManager/MenuPage.cpp    |   1 +
+ CPP/7zip/UI/FileManager/makefile        |   1 +
+ CPP/build-explorer.bat                  |  11 ++
+ CPP/build-fm.bat                        |  11 ++
+ 12 files changed, 310 insertions(+), 64 deletions(-)
+ create mode 100644 CPP/7zip/UI/Explorer/ArchInfo.cpp
+ create mode 100644 CPP/7zip/UI/Explorer/ArchInfo.h
+ create mode 100644 CPP/build-explorer.bat
+ create mode 100644 CPP/build-fm.bat
+
+diff --git a/CPP/7zip/UI/Explorer/ArchInfo.cpp b/CPP/7zip/UI/Explorer/ArchInfo.cpp
+new file mode 100644
+index 0000000..267fbe5
+--- /dev/null
++++ b/CPP/7zip/UI/Explorer/ArchInfo.cpp
+@@ -0,0 +1,112 @@
++#include "StdAfx.h"
++#include "../../../Common/MyInitGuid.h"
++#include "../Common/ArchiveCommandLine.h"
++
++#include "ArchInfo.h"
++
++// #include <iostream>
++// using namespace std;
++
++
++int getArchRootItems(const UString &fileName) {
++  try {
++    // std::cout << "--getArchRootItems()--\n";
++    
++    CCodecs *codecs = new CCodecs;
++    CExternalCodecs __externalCodecs;
++    __externalCodecs.GetCodecs = codecs;
++    __externalCodecs.GetHashers = codecs;
++    CCodecs::CReleaser codecsReleaser;
++    codecsReleaser.Set(codecs);
++    
++    codecs->CaseSensitiveChange = false;
++    codecs->CaseSensitive = false;
++    if (codecs->Load() != S_OK) {
++      // std::cout << "Codecs Load ERROR\n";
++      return 0;
++    }
++
++    CObjectVector<COpenType> types;
++    CIntVector excludedFormats;
++
++    UStringVector ArchivePathsSorted;
++    ArchivePathsSorted.ClearAndReserve(1);
++    ArchivePathsSorted.AddInReserved(fileName);
++
++    UInt64 numVolumes = 0;
++    UInt64 numArcs = 0;
++    UInt64 totalArcSizes = 0;
++    
++    for (unsigned arcIndex = 0; arcIndex < ArchivePathsSorted.Size(); arcIndex++) {
++      const UString &arcPath = ArchivePathsSorted[arcIndex];
++      UInt64 arcPackSize = 0;
++      
++      NWindows::NFile::NFind::CFileInfo fi;
++      if (!fi.Find(us2fs(arcPath))) {
++        // std::cout << "NO FILE\n";
++        continue;
++      }
++      
++      arcPackSize = fi.Size;
++      totalArcSizes += arcPackSize;
++      
++      COpenOptions options2;
++      #ifndef _SFX
++      CObjectVector<CProperty>* props = new CObjectVector<CProperty>();
++      options2.props = props;
++      #endif
++      options2.codecs = codecs;
++      options2.types = &types;
++      options2.excludedFormats = &excludedFormats;
++      options2.stdInMode = false;
++      options2.stream = NULL;
++      options2.filePath = arcPath;
++      
++      CArchiveLink arcLink;
++      HRESULT result = arcLink.Open(options2);
++      if (result != S_OK) {
++        // std::cout << "===NOK===\n";
++        continue;
++      }
++      else {
++        // std::cout << "===OK===\n";
++      }
++      
++      numArcs++;
++      numVolumes++;
++      
++      numVolumes += arcLink.VolumePaths.Size();
++      totalArcSizes += arcLink.VolumesSize;
++      
++      // std::cout << "numVolumes: " << numVolumes << endl;
++      // std::cout << "totalArcSizes: " << totalArcSizes << endl;
++      // std::cout << "arcLink.VolumePaths.Size: " << arcLink.VolumePaths.Size() << endl;
++      
++      const CArc &arc = arcLink.Arcs.Back();
++      IInArchive *archive = arc.Archive;
++      
++      UInt32 numItems;
++      archive->GetNumberOfItems(&numItems);
++      
++      // std::cout << "===ITEMS=== [" << numItems << "]\n";
++      
++      CReadArcItem item;
++      UInt32 rootItems = 0;
++      for (unsigned i = 0; i < numItems; ++i) {
++        HRESULT res2 = arc.GetItem(i, item);
++        if (res2 == S_OK) {
++          bool inRoot = item.PathParts.Size() == 1;
++          if (inRoot) rootItems++;
++        }
++      }
++      
++      return rootItems;
++    }
++  }
++  catch(...) {
++    return 0;
++  }
++  
++  return 0;
++}
++
+diff --git a/CPP/7zip/UI/Explorer/ArchInfo.h b/CPP/7zip/UI/Explorer/ArchInfo.h
+new file mode 100644
+index 0000000..8e1df76
+--- /dev/null
++++ b/CPP/7zip/UI/Explorer/ArchInfo.h
+@@ -0,0 +1,8 @@
++#ifndef __ARCHINFO_H
++#define __ARCHINFO_H
++
++#include "../../../Common/MyString.h"
++
++int getArchRootItems(const UString &fileName);
++
++#endif
+diff --git a/CPP/7zip/UI/Explorer/ContextMenu.cpp b/CPP/7zip/UI/Explorer/ContextMenu.cpp
+index a99ca81..4c8e9e3 100644
+--- a/CPP/7zip/UI/Explorer/ContextMenu.cpp
++++ b/CPP/7zip/UI/Explorer/ContextMenu.cpp
+@@ -31,6 +31,9 @@
+ 
+ #include "resource.h"
+ 
++#include "ArchInfo.h"
++
++
+ using namespace NWindows;
+ using namespace NFile;
+ using namespace NDir;
+@@ -172,6 +175,12 @@ static const CContextMenuCommand g_Commands[] =
+     "ExtractTo",
+     IDS_CONTEXT_EXTRACT_TO
+   },
++  {
++    NContextMenuFlags::kExtractToFolderOrPlain,
++    CZipContextMenu::kExtractToFolderOrPlain,
++    "ExtractTo",
++    IDS_CONTEXT_EXTRACT_TO_FOLDER_OR_PLAIN
++  },
+   {
+     NContextMenuFlags::kTest,
+     CZipContextMenu::kTest,
+@@ -206,7 +215,7 @@ static const CContextMenuCommand g_Commands[] =
+     NContextMenuFlags::kCompressToZip,
+     CZipContextMenu::kCompressToZip,
+     "CompressToZip",
+-    IDS_CONTEXT_COMPRESS_TO
++    IDS_CONTEXT_COMPRESS_TO_ZIP
+   },
+   {
+     NContextMenuFlags::kCompressToZipEmail,
+@@ -593,63 +602,6 @@ STDMETHODIMP CZipContextMenu::QueryContextMenu(HMENU hMenu, UINT indexMenu,
+       }
+     }
+     
+-    // const UString &fileName = _fileNames.Front();
+-    
+-    if (needExtract)
+-    {
+-      {
+-        UString baseFolder = fs2us(folderPrefix);
+-        if (_dropMode)
+-          baseFolder = _dropPath;
+-    
+-        UString specFolder ('*');
+-        if (_fileNames.Size() == 1)
+-          specFolder = GetSubFolderNameForExtract(fs2us(fi0.Name));
+-        specFolder.Add_PathSepar();
+-
+-        if ((contextMenuFlags & NContextMenuFlags::kExtract) != 0)
+-        {
+-          // Extract
+-          CCommandMapItem commandMapItem;
+-          FillCommand(kExtract, mainString, commandMapItem);
+-          commandMapItem.Folder = baseFolder + specFolder;
+-          MyInsertMenu(popupMenu, subIndex++, currentCommandID++, mainString, bitmap);
+-          _commandMap.Add(commandMapItem);
+-        }
+-
+-        if ((contextMenuFlags & NContextMenuFlags::kExtractHere) != 0)
+-        {
+-          // Extract Here
+-          CCommandMapItem commandMapItem;
+-          FillCommand(kExtractHere, mainString, commandMapItem);
+-          commandMapItem.Folder = baseFolder;
+-          MyInsertMenu(popupMenu, subIndex++, currentCommandID++, mainString, bitmap);
+-          _commandMap.Add(commandMapItem);
+-        }
+-
+-        if ((contextMenuFlags & NContextMenuFlags::kExtractTo) != 0)
+-        {
+-          // Extract To
+-          CCommandMapItem commandMapItem;
+-          UString s;
+-          FillCommand(kExtractTo, s, commandMapItem);
+-          commandMapItem.Folder = baseFolder + specFolder;
+-          MyFormatNew_ReducedName(s, specFolder);
+-          MyInsertMenu(popupMenu, subIndex++, currentCommandID++, s, bitmap);
+-          _commandMap.Add(commandMapItem);
+-        }
+-      }
+-
+-      if ((contextMenuFlags & NContextMenuFlags::kTest) != 0)
+-      {
+-        // Test
+-        CCommandMapItem commandMapItem;
+-        FillCommand(kTest, mainString, commandMapItem);
+-        MyInsertMenu(popupMenu, subIndex++, currentCommandID++, mainString, bitmap);
+-        _commandMap.Add(commandMapItem);
+-      }
+-    }
+-    
+     const UString arcName = CreateArchiveName(_fileNames, _fileNames.Size() == 1 ? &fi0 : NULL);
+ 
+     UString arcName7z = arcName;
+@@ -715,7 +667,7 @@ STDMETHODIMP CZipContextMenu::QueryContextMenu(HMENU hMenu, UINT indexMenu,
+       _commandMap.Add(commandMapItem);
+     }
+     #endif
+-
++    
+     // CompressToZip
+     if (contextMenuFlags & NContextMenuFlags::kCompressToZip &&
+         !arcNameZip.IsEqualTo_NoCase(fs2us(fi0.Name)))
+@@ -748,6 +700,73 @@ STDMETHODIMP CZipContextMenu::QueryContextMenu(HMENU hMenu, UINT indexMenu,
+       _commandMap.Add(commandMapItem);
+     }
+     #endif
++    
++    // const UString &fileName = _fileNames.Front();
++    
++    if (needExtract)
++    {
++      {
++        UString baseFolder = fs2us(folderPrefix);
++        if (_dropMode)
++          baseFolder = _dropPath;
++    
++        UString specFolder ('*');
++        if (_fileNames.Size() == 1)
++          specFolder = GetSubFolderNameForExtract(fs2us(fi0.Name));
++        specFolder.Add_PathSepar();
++
++        if ((contextMenuFlags & NContextMenuFlags::kExtract) != 0)
++        {
++          // Extract
++          CCommandMapItem commandMapItem;
++          FillCommand(kExtract, mainString, commandMapItem);
++          commandMapItem.Folder = baseFolder + specFolder;
++          MyInsertMenu(popupMenu, subIndex++, currentCommandID++, mainString, bitmap);
++          _commandMap.Add(commandMapItem);
++        }
++
++        if ((contextMenuFlags & NContextMenuFlags::kExtractHere) != 0)
++        {
++          // Extract Here
++          CCommandMapItem commandMapItem;
++          FillCommand(kExtractHere, mainString, commandMapItem);
++          commandMapItem.Folder = baseFolder;
++          MyInsertMenu(popupMenu, subIndex++, currentCommandID++, mainString, bitmap);
++          _commandMap.Add(commandMapItem);
++        }
++
++        if ((contextMenuFlags & NContextMenuFlags::kExtractTo) != 0)
++        {
++          // Extract To
++          CCommandMapItem commandMapItem;
++          UString s;
++          FillCommand(kExtractTo, s, commandMapItem);
++          commandMapItem.Folder = baseFolder + specFolder;
++          MyFormatNew_ReducedName(s, specFolder);
++          MyInsertMenu(popupMenu, subIndex++, currentCommandID++, s, bitmap);
++          _commandMap.Add(commandMapItem);
++        }
++        
++        if ((contextMenuFlags & NContextMenuFlags::kExtractToFolderOrPlain) != 0)
++        {
++          CCommandMapItem commandMapItem;
++          UString s;
++          FillCommand(kExtractToFolderOrPlain, s, commandMapItem);
++          commandMapItem.Folder = baseFolder;
++          MyInsertMenu(popupMenu, subIndex++, currentCommandID++, s, bitmap);
++          _commandMap.Add(commandMapItem);
++        }
++      }
++
++      if ((contextMenuFlags & NContextMenuFlags::kTest) != 0)
++      {
++        // Test
++        CCommandMapItem commandMapItem;
++        FillCommand(kTest, mainString, commandMapItem);
++        MyInsertMenu(popupMenu, subIndex++, currentCommandID++, mainString, bitmap);
++        _commandMap.Add(commandMapItem);
++      }
++    }
+   }
+ 
+ 
+@@ -899,6 +918,34 @@ STDMETHODIMP CZipContextMenu::InvokeCommand(LPCMINVOKECOMMANDINFO commandInfo)
+             );
+         break;
+       }
++      case kExtractToFolderOrPlain:
++      {
++        for (UInt32 i = 0; i < _fileNames.Size(); i++) {
++          const UString &fileName = _fileNames[i];
++          UStringVector arcPaths;
++          arcPaths.Add(fileName);
++          
++          bool toFolder = true;
++          int numItems = getArchRootItems(fileName);
++          if (numItems == 1) toFolder = false;
++          
++          FString folderPrefix;
++          GetOnlyDirPrefix(us2fs(fileName), folderPrefix);
++          UString baseFolder = fs2us(folderPrefix);
++          UString folder = baseFolder;
++          
++          if (toFolder) {
++            NFind::CFileInfo fileInfo;
++            if (!fileInfo.Find(us2fs(fileName))) continue;
++            UString specFolder = GetSubFolderNameForExtract(fs2us(fileInfo.Name));
++            specFolder.Add_PathSepar();
++            folder += specFolder;
++          }
++          
++          ExtractArchives(arcPaths, folder, (cmdID == kExtract), toFolder && _elimDup.Val);
++        }
++        break;
++      }
+       case kTest:
+       {
+         TestArchives(_fileNames);
+diff --git a/CPP/7zip/UI/Explorer/ContextMenu.h b/CPP/7zip/UI/Explorer/ContextMenu.h
+index 3a0eacc..fbca5ec 100644
+--- a/CPP/7zip/UI/Explorer/ContextMenu.h
++++ b/CPP/7zip/UI/Explorer/ContextMenu.h
+@@ -36,7 +36,8 @@ class CZipContextMenu:
+     kHash_CRC64,
+     kHash_SHA1,
+     kHash_SHA256,
+-    kHash_All
++    kHash_All,
++    kExtractToFolderOrPlain
+   };
+   
+   MY_UNKNOWN_IMP2_MT(IContextMenu, IShellExtInit)
+diff --git a/CPP/7zip/UI/Explorer/ContextMenuFlags.h b/CPP/7zip/UI/Explorer/ContextMenuFlags.h
+index f739cdc..d0beb6c 100644
+--- a/CPP/7zip/UI/Explorer/ContextMenuFlags.h
++++ b/CPP/7zip/UI/Explorer/ContextMenuFlags.h
+@@ -21,6 +21,8 @@ namespace NContextMenuFlags
+   const UInt32 kCompressToZipEmail = 1 << 13;
+ 
+   const UInt32 kCRC = (UInt32)1 << 31;
++  
++  const UInt32 kExtractToFolderOrPlain = 1 << 20;
+ }
+ 
+ #endif
+diff --git a/CPP/7zip/UI/Explorer/makefile b/CPP/7zip/UI/Explorer/makefile
+index 541122a..9a9bf46 100644
+--- a/CPP/7zip/UI/Explorer/makefile
++++ b/CPP/7zip/UI/Explorer/makefile
+@@ -2,6 +2,7 @@ PROG = 7-zip.dll
+ DEF_FILE = Explorer.def
+ CFLAGS = $(CFLAGS) \
+   -DLANG \
++  -DEXTERNAL_CODECS \
+ 
+ !IFDEF UNDER_CE
+ LIBS = $(LIBS) Commctrl.lib
+@@ -14,6 +15,8 @@ EXPLORER_OBJS = \
+   $O\DllExportsExplorer.obj \
+   $O\ContextMenu.obj \
+   $O\MyMessages.obj \
++  \
++  $O\ArchInfo.obj \
+ 
+ COMMON_OBJS = \
+   $O\IntToString.obj \
+@@ -26,6 +29,9 @@ COMMON_OBJS = \
+   $O\StringToInt.obj \
+   $O\UTFConvert.obj \
+   $O\Wildcard.obj \
++  \
++  $O\CommandLineParser.obj \
++  $O\ListFileUtils.obj \
+ 
+ WIN_OBJS = \
+   $O\DLL.obj \
+@@ -42,6 +48,13 @@ WIN_OBJS = \
+   $O\Shell.obj \
+   $O\Synchronization.obj \
+   $O\Window.obj \
++  \
++  $O\FileLink.obj \
++  $O\FileSystem.obj \
++  $O\PropVariant.obj \
++  $O\PropVariantConv.obj \
++  $O\System.obj \
++  $O\TimeUtils.obj \
+ 
+ !IFDEF UNDER_CE
+ 
+@@ -50,6 +63,20 @@ WIN_OBJS = $(WIN_OBJS) \
+ 
+ !ENDIF
+ 
++7ZIP_COMMON_OBJS = \
++  $O\FilePathAutoRename.obj \
++  $O\FileStreams.obj \
++  $O\LimitedStreams.obj \
++  $O\MethodProps.obj \
++  $O\ProgressUtils.obj \
++  $O\PropId.obj \
++  $O\StreamObjects.obj \
++  $O\StreamUtils.obj \
++  $O\UniqBlocks.obj \
++  
++COMPRESS_OBJS = \
++  $O\CopyCoder.obj \
++
+ WIN_CTRL_OBJS = \
+   $O\Dialog.obj \
+   $O\ListView.obj \
+@@ -59,6 +86,23 @@ UI_COMMON_OBJS = \
+   $O\CompressCall.obj \
+   $O\ExtractingFilePath.obj \
+   $O\ZipRegistry.obj \
++  \
++  $O\ArchiveCommandLine.obj \
++  $O\ArchiveExtractCallback.obj \
++  $O\ArchiveOpenCallback.obj \
++  $O\DefaultName.obj \
++  $O\EnumDirItems.obj \
++  $O\LoadCodecs.obj \
++  $O\OpenArchive.obj \
++  $O\PropIDUtils.obj \
++  $O\SetProperties.obj \
++  $O\SortUtils.obj \
++  $O\TempFiles.obj \
++  $O\Update.obj \
++  $O\UpdateAction.obj \
++  $O\UpdateCallback.obj \
++  $O\UpdatePair.obj \
++  $O\UpdateProduce.obj \
+ 
+ FM_OBJS = \
+   $O\FormatUtils.obj \
+@@ -70,5 +114,8 @@ FM_OBJS = \
+ C_OBJS = \
+   $O\CpuArch.obj \
+   $O\Threads.obj \
++  \
++  $O\Alloc.obj \
++  $O\Sort.obj \
+ 
+ !include "../../7zip.mak"
+diff --git a/CPP/7zip/UI/Explorer/resource.h b/CPP/7zip/UI/Explorer/resource.h
+index 8bb8210..0fe2106 100644
+--- a/CPP/7zip/UI/Explorer/resource.h
++++ b/CPP/7zip/UI/Explorer/resource.h
+@@ -10,4 +10,7 @@
+ #define IDS_CONTEXT_COMPRESS_EMAIL      2329
+ #define IDS_CONTEXT_COMPRESS_TO_EMAIL   2330
+ 
++#define IDS_CONTEXT_EXTRACT_TO_FOLDER_OR_PLAIN  23270
++#define IDS_CONTEXT_COMPRESS_TO_ZIP             23280
++
+ #define IDB_MENU_LOGO  190
+diff --git a/CPP/7zip/UI/Explorer/resource2.rc b/CPP/7zip/UI/Explorer/resource2.rc
+index c07148f..10c7633 100644
+--- a/CPP/7zip/UI/Explorer/resource2.rc
++++ b/CPP/7zip/UI/Explorer/resource2.rc
+@@ -5,14 +5,16 @@ BEGIN
+   IDS_CONTEXT_FOLDER      "<Folder>"
+   IDS_CONTEXT_ARCHIVE     "<Archive>"
+   IDS_CONTEXT_OPEN        "Open archive"
+-  IDS_CONTEXT_EXTRACT     "Extract files..."
+   IDS_CONTEXT_COMPRESS    "Add to archive..."
+-  IDS_CONTEXT_TEST        "Test archive"
+-  IDS_CONTEXT_EXTRACT_HERE "Extract Here"
+-  IDS_CONTEXT_EXTRACT_TO  "Extract to {0}"
+   IDS_CONTEXT_COMPRESS_TO "Add to {0}"
++  IDS_CONTEXT_COMPRESS_TO_ZIP "1-Add to ZIP {0}"
+   IDS_CONTEXT_COMPRESS_EMAIL "Compress and email..."
+   IDS_CONTEXT_COMPRESS_TO_EMAIL "Compress to {0} and email"
++  IDS_CONTEXT_EXTRACT     "Extract files..."
++  IDS_CONTEXT_EXTRACT_HERE "Extract Here"
++  IDS_CONTEXT_EXTRACT_TO  "2-Extract to {0}"
++  IDS_CONTEXT_EXTRACT_TO_FOLDER_OR_PLAIN  "3-Extract to Folder or Plain"
++  IDS_CONTEXT_TEST        "Test archive"
+ END
+ 
+ IDB_MENU_LOGO  BITMAP  "../../UI/Explorer/MenuLogo.bmp"
+diff --git a/CPP/7zip/UI/FileManager/MenuPage.cpp b/CPP/7zip/UI/FileManager/MenuPage.cpp
+index 4067ad7..b50f91e 100644
+--- a/CPP/7zip/UI/FileManager/MenuPage.cpp
++++ b/CPP/7zip/UI/FileManager/MenuPage.cpp
+@@ -50,6 +50,7 @@ static const CContextMenuItem kMenuItems[] =
+   { IDS_CONTEXT_EXTRACT, kExtract },
+   { IDS_CONTEXT_EXTRACT_HERE, kExtractHere },
+   { IDS_CONTEXT_EXTRACT_TO, kExtractTo },
++  { IDS_CONTEXT_EXTRACT_TO_FOLDER_OR_PLAIN, kExtractToFolderOrPlain },
+ 
+   { IDS_CONTEXT_TEST, kTest },
+ 
+diff --git a/CPP/7zip/UI/FileManager/makefile b/CPP/7zip/UI/FileManager/makefile
+index 4525d84..7c6f8ca 100644
+--- a/CPP/7zip/UI/FileManager/makefile
++++ b/CPP/7zip/UI/FileManager/makefile
+@@ -84,6 +84,7 @@ UI_COMMON_OBJS = \
+ 
+ EXPLORER_OBJS = \
+   $O\ContextMenu.obj \
++  $O\ArchInfo.obj \
+   $O\RegistryContextMenu.obj \
+ 
+ GUI_OBJS = \
+diff --git a/CPP/build-explorer.bat b/CPP/build-explorer.bat
+new file mode 100644
+index 0000000..8f58e17
+--- /dev/null
++++ b/CPP/build-explorer.bat
+@@ -0,0 +1,11 @@
++@echo off
++rem -- Run from VS dev console
++
++set PLATFORM=x64
++rem set PLATFORM=x86
++
++rem del /Q "7zip/UI/Explorer/%PLATFORM%"
++
++cd "7zip/UI/Explorer"
++call nmake PLATFORM=%PLATFORM%
++cd ../../..
+diff --git a/CPP/build-fm.bat b/CPP/build-fm.bat
+new file mode 100644
+index 0000000..83197e1
+--- /dev/null
++++ b/CPP/build-fm.bat
+@@ -0,0 +1,11 @@
++@echo off
++rem -- Run from VS dev console
++
++set PLATFORM=x64
++rem set PLATFORM=x86
++
++rem del /Q "7zip/UI/FileManager/%PLATFORM%"
++
++cd "7zip/UI/FileManager"
++call nmake PLATFORM=%PLATFORM%
++cd ../../..

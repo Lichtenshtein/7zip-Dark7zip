@@ -1,0 +1,618 @@
+From 00ffd48e6ab3dcf83f3e1145639dd078fa4c1b60 Mon Sep 17 00:00:00 2001
+From: ironyman <ironyman13@gmail.com>
+Date: Wed, 21 Feb 2024 00:40:14 -0800
+Subject: [PATCH] / to search is working
+
+---
+ .vscode/launch.json                         |   8 +-
+ CPP/7zip/UI/FileManager/FM.cpp              |   2 +
+ CPP/7zip/UI/FileManager/Panel.cpp           |  10 +-
+ CPP/7zip/UI/FileManager/Panel.h             |   2 +-
+ CPP/7zip/UI/FileManager/PanelFind.cpp       | 174 +++++++++++++++-----
+ CPP/7zip/UI/FileManager/PanelFind.h         |   1 +
+ CPP/7zip/UI/FileManager/PanelListNotify.cpp | 101 +++++++-----
+ CPP/7zip/UI/FileManager/RegistryUtils.cpp   |   5 +-
+ CPP/Common/Common.h                         |   7 +-
+ CPP/Common/Debug.cpp                        |   8 +
+ CPP/Common/Debug.h                          |  68 ++++++++
+ 11 files changed, 291 insertions(+), 95 deletions(-)
+ create mode 100644 CPP/Common/Debug.h
+
+diff --git a/.vscode/launch.json b/.vscode/launch.json
+index 8b1a481..5c38740 100644
+--- a/.vscode/launch.json
++++ b/.vscode/launch.json
+@@ -7,7 +7,7 @@
+         {
+             "type": "lldb",
+             "request": "launch",
+-            "name": "Debug 7zfm",
++            "name": "Debug 7zfm with lldb",
+             "program": "${workspaceFolder}/CPP/7zip/UI/FileManager/x64/7zfm.exe",
+             "args": [],
+             "cwd": "${workspaceFolder}",
+@@ -15,7 +15,7 @@
+         },
+         {
+             // $err in debug console to gle
+-            "name": "(Windows) Launch",
++            "name": "Debug 7zfm with vsdbg",
+             "type": "cppvsdbg",
+             "request": "launch",
+             "program": "${workspaceFolder}/CPP/7zip/UI/FileManager/x64/7zfm.exe",
+@@ -23,8 +23,8 @@
+             "stopAtEntry": false,
+             "cwd": "${fileDirname}",
+             "environment": [],
+-            "console": "externalTerminal",
+-            "preLaunchTask": "build 7zfm"
++            "preLaunchTask": "build 7zfm",
++            "internalConsoleOptions": "openOnSessionStart"
+         },
+         {
+             "type": "lldb",
+diff --git a/CPP/7zip/UI/FileManager/FM.cpp b/CPP/7zip/UI/FileManager/FM.cpp
+index f2b636c..442250f 100644
+--- a/CPP/7zip/UI/FileManager/FM.cpp
++++ b/CPP/7zip/UI/FileManager/FM.cpp
+@@ -702,6 +702,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE /* hPrevInstance */,
+ {
+   g_hInstance = hInstance;
+ 
++  Z7DbgEnableTags(L"Find");
++
+   try
+   {
+     try
+diff --git a/CPP/7zip/UI/FileManager/Panel.cpp b/CPP/7zip/UI/FileManager/Panel.cpp
+index fd65317..c23ae58 100644
+--- a/CPP/7zip/UI/FileManager/Panel.cpp
++++ b/CPP/7zip/UI/FileManager/Panel.cpp
+@@ -265,6 +265,7 @@ LRESULT CMyListView::OnMessage(UINT message, WPARAM wParam, LPARAM lParam)
+       case VK_ESCAPE:
+       {
+         DeselectAll();
++        _panel->ExitFindMode();
+         return 0;
+       }
+       break;
+@@ -708,7 +709,14 @@ void CPanel::ChangeWindowSize(int xSize, int ySize)
+     _headerComboBox.Move(kStartXPos, 2,
+         MyMax(xSize - kStartXPos - 10, kStartXPos), 0);
+   }
+-  _listView.Move(0, kHeaderSize, xSize, yListViewSize);
++  if (_findMode)
++  {
++    _listView.Move(0, kHeaderSize, xSize, yListViewSize - kStatusBarSize);
++  }
++  else
++  {
++    _listView.Move(0, kHeaderSize, xSize, yListViewSize);
++  }
+   _panelFind.Move(0, kHeaderSize + yListViewSize - kStatusBarSize, xSize, kStatusBarSize);
+   _statusBar.Move(0, kHeaderSize + yListViewSize, xSize, kStatusBarSize);
+   // _statusBar2.MoveWindow(0, kHeaderSize + yListViewSize + kStatusBarSize, xSize, kStatusBar2Size);
+diff --git a/CPP/7zip/UI/FileManager/Panel.h b/CPP/7zip/UI/FileManager/Panel.h
+index 5e7e935..9e5da4d 100644
+--- a/CPP/7zip/UI/FileManager/Panel.h
++++ b/CPP/7zip/UI/FileManager/Panel.h
+@@ -1005,7 +1005,7 @@ class CPanel Z7_final: public NWindows::NControl::CWindow2
+   Debounce<void (*)(CPanel*)> _debounceOnPanelFindEditChange;
+   void EnterFindMode();
+   void ExitFindMode();
+-  void FindNextItem(UString const& text);
++  void FindNextItem(UString const& query, int skip);
+   void OnPanelFindEditChange();
+   void OnPanelFindEditChangeDebouncedHandler();
+   // CPanel::OnPanelFindEditChangeDebouncedHandler, 400);
+diff --git a/CPP/7zip/UI/FileManager/PanelFind.cpp b/CPP/7zip/UI/FileManager/PanelFind.cpp
+index 7157bd3..4ba0f15 100644
+--- a/CPP/7zip/UI/FileManager/PanelFind.cpp
++++ b/CPP/7zip/UI/FileManager/PanelFind.cpp
+@@ -40,6 +40,26 @@ LRESULT CPanelFind::OnMessage(UINT message, WPARAM wParam, LPARAM lParam)
+ {
+   switch (message)
+   {
++    case WM_KEYDOWN:
++    {
++      bool alt = NWindows::IsKeyDown(VK_MENU);
++      bool ctrl = NWindows::IsKeyDown(VK_CONTROL);
++      bool shift = NWindows::IsKeyDown(VK_SHIFT);
++      switch (wParam)
++      {
++        case VK_RETURN:
++          if (ctrl && !alt && !shift)
++          {
++            if (_panel->_listView.GetSelectedCount() == 1)
++            {
++              _panel->ExitFindMode();
++              _panel->OnNotifyActivateItems();
++            }
++            return 0;
++          }
++      }
++      break;
++    }
+     case WM_CHAR:
+     {
+       switch (wParam)
+@@ -50,27 +70,17 @@ LRESULT CPanelFind::OnMessage(UINT message, WPARAM wParam, LPARAM lParam)
+           // Return immediately to prevent audible bell.
+           return 0;
+         case VK_RETURN:
+-          if (NWindows::IsKeyDown(VK_CONTROL))
+-          {
+-            _panel->ExitFindMode();
+-            _panel->OnNotifyActivateItems();
+-          }
+-          else
+-          {
+-            int textLen = Edit_GetTextLength(*this);
+-            UString text;
+-            Edit_GetText(*this, text.GetBuf(textLen), textLen);
+-            _panel->FindNextItem(text);
+-          }
++        {
++          int textLen = Edit_GetTextLength(*this) + 1;
++          UString text;
++          Edit_GetText(*this, text.GetBuf_SetEnd(textLen), textLen);
++          _panel->FindNextItem(text, 1);
++          return 0;
++        }
++        case '\n':
++          // Prevent MessageBeep from ctrl enter.
+           return 0;
+       }
+-
+-      // LRESULT result = CallWindowProc(_origWindowProc, *this, message, wParam, lParam);
+-      // int textLen = Edit_GetTextLength(*this);
+-      // UString text;
+-      // Edit_GetText(*this, text.GetBuf(textLen), textLen);
+-      // _panel->FindNextItem(text);
+-      // return result;
+     }
+   }
+ 
+@@ -101,6 +111,10 @@ void CPanel::EnterFindMode()
+   int length = Edit_GetTextLength(this->_panelFind);
+   Edit_SetSel(this->_panelFind, 0, length);
+ 
++  // Trigger resize.
++  RECT rect;
++  GetWindowRect(&rect);
++  ChangeWindowSize(RECT_SIZE_X(rect), RECT_SIZE_Y(rect));
+ }
+ 
+ void CPanel::ExitFindMode()
+@@ -108,6 +122,11 @@ void CPanel::ExitFindMode()
+   this->_findMode = false;
+   ShowWindow(this->_panelFind, FALSE);
+   SetFocusToList();
++
++  // Trigger resize.
++  RECT rect;
++  GetWindowRect(&rect);
++  ChangeWindowSize(RECT_SIZE_X(rect), RECT_SIZE_Y(rect));
+ }
+ 
+ void CPanel::OnPanelFindEditChange()
+@@ -124,39 +143,116 @@ void CPanel::OnPanelFindEditChangeDebouncedHandler()
+   int textLen = Edit_GetTextLength(this->_panelFind) + 1;
+   UString text;
+   Edit_GetText(this->_panelFind, text.GetBuf_SetEnd(textLen), textLen);
+-  FindNextItem(text);
++  FindNextItem(text, 0);
+ }
+ 
+-void CPanel::FindNextItem(UString const& text)
++void CPanel::FindNextItem(UString const& query, int skip)
+ {
+-  // MessageBox(*this, (LPCWSTR)text.GetBuf(),  NULL, MB_OK);
+-  Z7DbgPrintW(L"FindNextItem %s\n", (LPCWSTR)text.GetBuf());
++  // MessageBox(*this, (LPCWSTR)query.GetBuf(),  NULL, MB_OK);
++  Z7DbgPrintEx(L"Find", L"FindNextItem entry query %s  skip %d\n", (LPCWSTR)query.GetBuf(), skip);
++
++  UString lowerCaseQuery(query);
++  lowerCaseQuery.MakeLower_Ascii();
++
++  // The order is wrong, we want to search not by realIndex, with which _selectedStatusVector is indexed by
++  // But by the visible sorted index.
++  // for (unsigned i = 0; i < _selectedStatusVector.Size(); i++)
++  // {
++  //   if (_selectedStatusVector[i])
++  //   {
++  //     searchStart = i;
++  //     SelectAll(false);
++  //     break;
++  //   }
++  // }
+ 
+-  UString lowerCaseText(text);
+-  lowerCaseText.MakeLower_Ascii();
++  // UString itemName;
++  // int found = -1;
++  // for (unsigned i = searchStart; i < _selectedStatusVector.Size(); i++)
++  // {
++  //   GetItemName(i, itemName);
++  //   itemName.MakeLower_Ascii();
++  //   if (itemName.Find(lowerCaseQuery) != -1)
++  //   {
++  //     found = i;
++  //     break;
++  //   }
++  // }
+ 
+-  int searchStart = 0;
+-  for (unsigned i = 0; i < _selectedStatusVector.Size(); i++)
++  // if (found == -1)
++  // {
++  //   return;
++  // }
++
++  // _selectedStatusVector[found] = true;
++  int numItems = _listView.GetItemCount();
++  UString itemName;
++  int searchStart = -1;
++
++  for (int i = 0; i < numItems; i++)
+   {
+-    if (_selectedStatusVector[i])
++    const unsigned realIndex = GetRealItemIndex(i);
++    if (realIndex == kParentIndex)
++      continue;
++
++    if (_selectedStatusVector[realIndex])
+     {
+-      searchStart = i;
+-      SelectAll(false);
++      Z7DbgPrintEx(L"Find", L"FindNextItem found selected at %d\n", i);
++
++      searchStart = (i + skip) % numItems;
+       break;
+     }
+   }
+ 
+-  UString itemName;
+-  for (unsigned i = searchStart; i < _selectedStatusVector.Size(); i++)
++  int found = -1;
++  if (searchStart == -1)
+   {
+-    GetItemName(i, itemName);
+-    itemName.MakeLower_Ascii();
+-    if (itemName.Find(lowerCaseText) != -1)
+-    {
+-      _selectedStatusVector[i] = true;
+-      break;
++    searchStart = 0;
++  }
++
++  GetItemName(GetRealItemIndex(searchStart), itemName);
++  itemName.MakeLower_Ascii();
++  if (itemName.Find(lowerCaseQuery) != -1)
++  {
++    found = searchStart;
++  }
++
++  if (found != searchStart || skip != 0)
++  {
++    SelectAll(false);
++  }
++
++  Z7DbgPrintEx(L"Find", L"FindNextItem setting searchStart to %d %s found %d\n", searchStart, (LPCWSTR)itemName.GetBuf(), found);
++
++  if (found == -1)
++  {
++    for (int i = (searchStart + 1) % numItems; i != searchStart; i = (i + 1) % numItems) {
++      const unsigned realIndex = GetRealItemIndex(i);
++      if (realIndex == kParentIndex)
++        continue;
++
++      GetItemName(realIndex, itemName);
++      itemName.MakeLower_Ascii();
++      Z7DbgPrintEx(L"Find", L"FindNextItem checking %d %s\n", i, itemName.GetBuf());
++      if (itemName.Find(lowerCaseQuery) != -1)
++      {
++        found = i;
++        break;
++      }
+     }
+   }
+ 
+-  UpdateSelection();
++  Z7DbgPrintEx(L"Find", L"FindNextItem found %d\n", found);
++
++  if (found != -1)
++  {
++    _listView.SetItemState_Selected(found);
++    _listView.EnsureVisible(found, false);
++    _listView.SetItemState_FocusedSelected(found);
++  }
++
++  if (found != searchStart)
++  {
++    _listView.RedrawAllItems();
++  }
+ }
+\ No newline at end of file
+diff --git a/CPP/7zip/UI/FileManager/PanelFind.h b/CPP/7zip/UI/FileManager/PanelFind.h
+index 64dc180..053da7b 100644
+--- a/CPP/7zip/UI/FileManager/PanelFind.h
++++ b/CPP/7zip/UI/FileManager/PanelFind.h
+@@ -5,6 +5,7 @@
+ 
+ #include "../../../Common/MyWindows.h"
+ 
++
+ #if defined(__MINGW32__) || defined(__MINGW64__)
+ #include <shlobj.h>
+ #else
+diff --git a/CPP/7zip/UI/FileManager/PanelListNotify.cpp b/CPP/7zip/UI/FileManager/PanelListNotify.cpp
+index 11ab653..5dc6cfd 100644
+--- a/CPP/7zip/UI/FileManager/PanelListNotify.cpp
++++ b/CPP/7zip/UI/FileManager/PanelListNotify.cpp
+@@ -707,7 +707,7 @@ bool CPanel::OnNotifyList(LPNMHDR header, LRESULT &result)
+ 
+     case NM_CUSTOMDRAW:
+     {
+-      if (_mySelectMode || (_markDeletedItems && _thereAreDeletedItems))
++      if (_mySelectMode || (_markDeletedItems && _thereAreDeletedItems) || _findMode)
+         return OnCustomDraw((LPNMLVCUSTOMDRAW)header, result);
+       break;
+     }
+@@ -723,6 +723,11 @@ bool CPanel::OnNotifyList(LPNMHDR header, LRESULT &result)
+       Post_Refresh_StatusBar();
+       break;
+     }
++    // How does this help??
++    case NM_KILLFOCUS:
++    {
++      return true;
++    }
+     // case LVN_BEGINRDRAG:
+   }
+   return false;
+@@ -730,57 +735,69 @@ bool CPanel::OnNotifyList(LPNMHDR header, LRESULT &result)
+ 
+ bool CPanel::OnCustomDraw(LPNMLVCUSTOMDRAW lplvcd, LRESULT &result)
+ {
++  // https://learn.microsoft.com/en-us/windows/win32/controls/about-custom-draw#responding-to-the-prepaint-notification
+   switch (lplvcd->nmcd.dwDrawStage)
+   {
+   case CDDS_PREPAINT :
+     result = CDRF_NOTIFYITEMDRAW;
+     return true;
+-
+   case CDDS_ITEMPREPAINT:
+-    /*
+-    SelectObject(lplvcd->nmcd.hdc,
+-    GetFontForItem(lplvcd->nmcd.dwItemSpec,
+-    lplvcd->nmcd.lItemlParam) );
+-    lplvcd->clrText = GetColorForItem(lplvcd->nmcd.dwItemSpec,
+-    lplvcd->nmcd.lItemlParam);
+-    lplvcd->clrTextBk = GetBkColorForItem(lplvcd->nmcd.dwItemSpec,
+-    lplvcd->nmcd.lItemlParam);
+-    */
+-    const unsigned realIndex = (unsigned)lplvcd->nmcd.lItemlParam;
+-    lplvcd->clrTextBk = _listView.GetBkColor();
+-    if (_mySelectMode)
+     {
+-      if (realIndex != kParentIndex && _selectedStatusVector[realIndex])
+-       lplvcd->clrTextBk = RGB(255, 192, 192);
+-    }
++      /*
++      SelectObject(lplvcd->nmcd.hdc,
++      GetFontForItem(lplvcd->nmcd.dwItemSpec,
++      lplvcd->nmcd.lItemlParam) );
++      lplvcd->clrText = GetColorForItem(lplvcd->nmcd.dwItemSpec,
++      lplvcd->nmcd.lItemlParam);
++      lplvcd->clrTextBk = GetBkColorForItem(lplvcd->nmcd.dwItemSpec,
++      lplvcd->nmcd.lItemlParam);
++      */
++      const unsigned realIndex = (unsigned)lplvcd->nmcd.lItemlParam;
++      // lplvcd->clrTextBk = _listView.GetBkColor();
++      if (_mySelectMode)
++      {
++        if (realIndex != kParentIndex && _selectedStatusVector[realIndex])
++          lplvcd->clrTextBk = RGB(255, 192, 192);
++      }
+ 
+-    if (_markDeletedItems && _thereAreDeletedItems)
+-    {
+-      if (IsItem_Deleted(realIndex))
+-        lplvcd->clrText = RGB(255, 0, 0);
+-    }
+-    // lplvcd->clrText = RGB(0, 0, 0);
+-    // result = CDRF_NEWFONT;
+-    result = CDRF_NOTIFYITEMDRAW;
+-    return true;
++      // I don't think _markDeletedItems is being used yet?
++      _markDeletedItems = false;
++      if (_markDeletedItems && _thereAreDeletedItems)
++      {
++        if (IsItem_Deleted(realIndex))
++          lplvcd->clrText = RGB(255, 0, 0);
++      }
+ 
+-    // return false;
+-    // return true;
+-    /*
+-    case CDDS_SUBITEM | CDDS_ITEMPREPAINT:
+-    if (lplvcd->iSubItem == 0)
+-    {
+-    // lplvcd->clrText = RGB(255, 0, 0);
+-    lplvcd->clrTextBk = RGB(192, 192, 192);
+-    }
+-    else
+-    {
+-    lplvcd->clrText = RGB(0, 0, 0);
+-    lplvcd->clrTextBk = RGB(255, 255, 255);
+-    }
+-    return true;
+-    */
++      if (_findMode && realIndex != kParentIndex && _selectedStatusVector[realIndex])
++      {
++        // lplvcd->iStateId = CDIS_CHECKED | CDIS_SELECTED;
++        // lplvcd->iIconEffect = ILD_MASK;
++        // lplvcd->clrFace = RGB(0, 0x78, 0xD7);
++        lplvcd->clrText = RGB(0xFF, 0xFF, 0xFF);
++        lplvcd->clrTextBk = RGB(0, 0x78, 0xD7);
++      }
++      // lplvcd->clrText = RGB(0, 0, 0);
++      result = CDRF_NEWFONT;
++      // result = CDRF_NOTIFYITEMDRAW;
++      return true;
+ 
++      // return false;
++      // return true;
++      /*
++      case CDDS_SUBITEM | CDDS_ITEMPREPAINT:
++      if (lplvcd->iSubItem == 0)
++      {
++      // lplvcd->clrText = RGB(255, 0, 0);
++      lplvcd->clrTextBk = RGB(192, 192, 192);
++      }
++      else
++      {
++      lplvcd->clrText = RGB(0, 0, 0);
++      lplvcd->clrTextBk = RGB(255, 255, 255);
++      }
++      return true;
++      */
++    }
+         /* At this point, you can change the background colors for the item
+         and any subitems and return CDRF_NEWFONT. If the list-view control
+         is in report mode, you can simply return CDRF_NOTIFYSUBITEMREDRAW
+diff --git a/CPP/7zip/UI/FileManager/RegistryUtils.cpp b/CPP/7zip/UI/FileManager/RegistryUtils.cpp
+index dd785e5..743a80b 100644
+--- a/CPP/7zip/UI/FileManager/RegistryUtils.cpp
++++ b/CPP/7zip/UI/FileManager/RegistryUtils.cpp
+@@ -159,8 +159,9 @@ void CFmSettings::Load()
+      to select group of files. We need to implement additional
+      way to select files in any column as in Explorer.
+      Then we can enable (FullRow == true) default mode. */
+-  // FullRow = true;
+-  FullRow = false;
++  FullRow = true;
++  // We default to true to prevent flickering in find mode when we draw the custom background for find result.
++  // FullRow = false;
+   ShowGrid = false;
+   SingleClick = false;
+   AlternativeSelection = false;
+diff --git a/CPP/Common/Common.h b/CPP/Common/Common.h
+index a8edeea..93763b9 100644
+--- a/CPP/Common/Common.h
++++ b/CPP/Common/Common.h
+@@ -311,9 +311,4 @@ _Pragma("GCC diagnostic pop")
+ 
+ // for precompiler:
+ #include "MyWindows.h"
+-
+-void __cdecl Z7DbgPrintA(const char *format, ...);
+-void __cdecl Z7DbgPrintW(const wchar_t *format, ...);
+-VOID
+-DbgDumpHex(PBYTE pbData, SIZE_T cbData);
+-void DbgDumpRange(PVOID begin, PVOID end, PCSTR format, ...);
+\ No newline at end of file
++#include "Debug.h"
+\ No newline at end of file
+diff --git a/CPP/Common/Debug.cpp b/CPP/Common/Debug.cpp
+index 95606c5..305d210 100644
+--- a/CPP/Common/Debug.cpp
++++ b/CPP/Common/Debug.cpp
+@@ -1,6 +1,10 @@
+ #include <StdAfx.h>
+ #include <cstdarg>
+ #include <cstdio>
++#include <set>
++#include <string>
++
++std::set<std::wstring> g_debugTags;
+ 
+ void __cdecl Z7DbgPrintA(const char *format, ...)
+ {
+@@ -50,6 +54,10 @@ void __cdecl Z7DbgPrintW(const wchar_t *format, ...)
+   //   wprintf(L"%s", buf);
+ }
+ 
++void Z7DbgEnableTag(const wchar_t *tag)
++{
++  g_debugTags.insert(tag);
++}
+ 
+ VOID
+ DbgDumpHex(PBYTE pbData, SIZE_T cbData)
+diff --git a/CPP/Common/Debug.h b/CPP/Common/Debug.h
+new file mode 100644
+index 0000000..678757e
+--- /dev/null
++++ b/CPP/Common/Debug.h
+@@ -0,0 +1,68 @@
++#ifndef ZIP7_INC_DEBUG_H
++#define ZIP7_INC_DEBUG_H
++#include <type_traits>
++#include <set>
++#include <string>
++#include "MyWindows.h"
++
++extern std::set<std::wstring> g_debugTags;
++
++VOID
++DbgDumpHex(PBYTE pbData, SIZE_T cbData);
++void DbgDumpRange(PVOID begin, PVOID end, PCSTR format, ...);
++
++void __cdecl Z7DbgPrintA(const char *format, ...);
++void __cdecl Z7DbgPrintW(const wchar_t *format, ...);
++void __cdecl Z7DbgPrintEx(const wchar_t *tag, const wchar_t *format, ...);
++void Z7DbgEnableTag(const wchar_t *tag);
++
++// template <const wchar_t*... Types>
++// void Z7DbgEnableTags(const wchar_t* arg, Types... rest)
++// {
++//   Z7DbgEnableTag(arg);
++//   if constexpr (sizeof...(rest) > 0)
++//   {
++//       Z7DbgEnableTags(rest...);
++//   }
++// }
++
++template <typename T, typename... Args>
++constexpr bool AllAreSame() {
++  return (std::is_same_v<T, Args> && ...);
++}
++
++template <typename... Types>
++std::enable_if_t<AllAreSame<const wchar_t*, Types...>(), void>
++Z7DbgEnableTags(const wchar_t* arg, Types... rest)
++{
++  Z7DbgEnableTag(arg);
++  if constexpr (sizeof...(rest) > 0)
++  {
++    Z7DbgEnableTags(rest...);
++  }
++}
++
++template<typename... Args>
++void __cdecl Z7DbgPrintEx(const wchar_t *tag, const wchar_t *format, Args... args)
++{
++  if (g_debugTags.find(tag) == g_debugTags.end())
++  {
++    return;
++  }
++
++  Z7DbgPrintW(L"[%s] ", tag);
++  Z7DbgPrintW(format, args...);
++}
++
++// This works but we want to restrict to const wchar_t* rest
++// template <class... Types>
++// void Z7DbgEnableTags(const wchar_t* arg, Types... rest)
++// {
++//   Z7DbgEnableTag(arg);
++//   if constexpr (sizeof...(rest) > 0)
++//   {
++//       Z7DbgEnableTags(rest...);
++//   }
++// }
++
++#endif
+\ No newline at end of file

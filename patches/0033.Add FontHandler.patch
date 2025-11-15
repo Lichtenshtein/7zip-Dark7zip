@@ -1,0 +1,592 @@
+From 83cba42ae829972e117f77df9a7400ca31a147da Mon Sep 17 00:00:00 2001
+From: Nobody
+Date: Sat, 8 Nov 2025 11:18:48 +0300
+Subject: [PATCH] Add font hangler
+
+---
+ CPP/7zip/7zip_gcc.mak                   |   2 +
+ CPP/7zip/Archive/FontHandler.cpp        | 515 ++++++++++++++++++++++++
+ CPP/7zip/Bundles/Format7zF/Arc.mak      |   1 +
+ CPP/7zip/Bundles/Format7zF/Arc_gcc.mak  |   1 +
+ CPP/7zip/Bundles/Format7zF/Format7z.dsp |   4 +
+ CPP/7zip/UI/FileManager/Navibar.bmp     | Bin 934 -> 5238 bytes
+ 6 files changed, 523 insertions(+)
+ create mode 100644 CPP/7zip/Archive/FontHandler.cpp
+
+diff --git a/CPP/7zip/7zip_gcc.mak b/CPP/7zip/7zip_gcc.mak
+index c203e56..34d1811 100644
+--- a/CPP/7zip/7zip_gcc.mak
++++ b/CPP/7zip/7zip_gcc.mak
+@@ -534,6 +534,8 @@ $O/FatHandler.o: ../../Archive/FatHandler.cpp
+ 	$(CXX) $(CXXFLAGS) $<
+ $O/FlvHandler.o: ../../Archive/FlvHandler.cpp
+ 	$(CXX) $(CXXFLAGS) $<
++$O/FontHandler.o: ../../Archive/FontHandler.cpp
++	$(CXX) $(CXXFLAGS) $<
+ $O/GptHandler.o: ../../Archive/GptHandler.cpp
+ 	$(CXX) $(CXXFLAGS) $<
+ $O/GzHandler.o: ../../Archive/GzHandler.cpp
+diff --git a/CPP/7zip/Archive/FontHandler.cpp b/CPP/7zip/Archive/FontHandler.cpp
+new file mode 100644
+index 0000000..6e34f62
+--- /dev/null
++++ b/CPP/7zip/Archive/FontHandler.cpp
+@@ -0,0 +1,515 @@
++// FontHandler.cpp
++
++#include "StdAfx.h"
++
++#include "../../../C/CpuArch.h"
++
++#include "../../Common/ComTry.h"
++#include "../../Common/MyBuffer.h"
++#include "../../Common/StringConvert.h"
++#include "../../Common/IntToString.h"
++
++#include "../../Windows/PropVariantUtils.h"
++
++#include "../Common/LimitedStreams.h"
++#include "../Common/ProgressUtils.h"
++#include "../Common/RegisterArc.h"
++#include "../Common/StreamUtils.h"
++
++#include "../Compress/CopyCoder.h"
++
++/****************************************************************************/
++// types for reading and writing big endian integers in files
++
++#ifdef MY_CPU_BE
++
++typedef UInt16 BigUInt16;
++typedef UInt32 BigUInt32;
++
++#else //MY_CPU_BE
++
++#ifdef __APPLE__
++
++#include <Kernel/libkern/c++/OSEndianTypes.h>
++
++#else //__APPLE__
++
++#define BigIntDef(type,size) \
++class Big##type##size\
++ {\
++  type##size i_;\
++  public:\
++  Big##type##size() {i_=0;}\
++  Big##type##size(type##size i) {i_=(type##size)Z7_BSWAP##size(i);}\
++  operator type##size() const {return (type##size)Z7_BSWAP##size(i_);}\
++  Big##type##size& operator=(type##size i) {i_=(type##size)Z7_BSWAP##size(i); return *this;}\
++ }
++
++BigIntDef(UInt,16);
++BigIntDef(UInt,32);
++
++#undef BigIntDef
++
++#endif //__APPLE__
++
++#endif //MY_CPU_BE
++
++/****************************************************************************/
++
++using namespace NWindows;
++using namespace NCOM;
++
++namespace NArchive {
++namespace NFont {
++
++#define MAXPSNAMELEN 63 // max Postscript name length without \0
++
++const UInt32 sig_0100 = 0x00010000;
++const UInt32 sig_true = 0x74727565;
++const UInt32 sig_OTTO = 0x4F54544F;
++const UInt32 sig_ttcf = 0x74746366;
++const UInt32 tag_name = 0x6E616D65;
++
++#pragma pack(1)
++
++struct TTCHeader
++{
++  BigUInt32 ttcSig;
++  BigUInt16 majorVersion;
++  BigUInt16 minorVersion;
++  BigUInt32 numFonts;
++};
++
++struct TTFHeader
++{
++  BigUInt32 ttfSig;
++  BigUInt16 numTables;
++  BigUInt16 searchRange;
++  BigUInt16 entrySelector;
++  BigUInt16 rangeShift;
++};
++
++struct TTFTable
++{
++  BigUInt32 tag;
++  BigUInt32 checkSum;
++  BigUInt32 offset;
++  BigUInt32 length;
++};
++
++struct TTFNameRecord
++{
++  BigUInt16 platformID;
++  BigUInt16 platformSpecificID;
++  BigUInt16 languageID;
++  BigUInt16 nameID;
++  BigUInt16 length;
++  BigUInt16 offset;
++};
++
++struct TTFNameTable
++{
++  BigUInt16 format;
++  BigUInt16 count;
++  BigUInt16 stringOffset;
++};
++
++#pragma pack()
++
++struct CFont
++{
++  UInt32 numTables;
++  UInt32 length;
++  char name[MAXPSNAMELEN + 4 + 1]; // font file name (Postscript name + extension)
++  TTFHeader ttfHeader;
++  CObjArray<TTFTable> tables;
++};
++
++Z7_CLASS_IMP_CHandler_IInArchive_0
++
++  CMyComPtr<IInStream> _inStream;
++  CObjArray<CFont> _fonts;
++  UInt32 _numFonts{0};
++  BOOL _collection{false};
++
++  HRESULT Open2(IInStream *stream);
++};
++
++IMP_IInArchive_ArcProps_NO_Table
++
++Z7_COM7F_IMF(CHandler::GetArchiveProperty(PROPID, PROPVARIANT *value))
++{
++  PropVariant_Clear(value);
++  return S_OK;
++}
++
++static const Byte kProps[] =
++{
++  kpidPath,
++  kpidSize,
++  kpidPackSize,
++};
++
++IMP_IInArchive_Props
++
++Z7_COM7F_IMF(CHandler::GetProperty(UInt32 index, PROPID propID, PROPVARIANT *value))
++{
++  if (_numFonts == 0)
++    return S_FALSE;
++  if (_collection ? index >= _numFonts : index >= _fonts[0].numTables)
++    return S_FALSE;
++
++  PropVariant_Clear(value);
++  switch (propID)
++  {
++    case kpidPath:
++    {
++      if (_collection)
++	return PropVarEm_Set_Str(value, _fonts[index].name);
++      char name[5];
++      int j = 0;
++      char *cp = (char*)&_fonts[0].tables[index].tag;
++      for (int i = 0; i < 4; i++, cp++)
++      {
++	if (isalnum(*cp))
++	  name[j++] = *cp;
++      }
++      name[j] = 0;
++      return PropVarEm_Set_Str(value, name);
++    }
++    case kpidSize:
++    case kpidPackSize:
++      if (_collection)
++	PropVarEm_Set_UInt64(value, _fonts[index].length);
++      else
++	PropVarEm_Set_UInt64(value, _fonts[0].tables[index].length);
++      break;
++  }
++  return S_OK;
++}
++
++HRESULT CHandler::Open2(IInStream *stream)
++{
++  TTCHeader ttcHeader;
++  UInt32 numTables = 0;
++  CObjArray<BigUInt32> offsets;
++
++  RINOK(ReadStream_FALSE(stream, (Byte*)&ttcHeader, sizeof(TTCHeader)));
++  if (ttcHeader.ttcSig == sig_ttcf)
++  {
++    _numFonts = ttcHeader.numFonts;
++    _collection = true;
++    if (_numFonts == 0)
++      return S_FALSE;
++    offsets.Alloc(_numFonts);
++    RINOK(ReadStream_FALSE(stream, (Byte*)&offsets[0], _numFonts * sizeof(UInt32)));
++  }
++  else
++  {
++    _numFonts = 1;
++    offsets.Alloc(1);
++    offsets[0] = 0;
++  }
++
++  _fonts.Alloc(_numFonts);
++  for (UInt32 f = 0; f < _numFonts; f++)
++  {
++    CFont &font = _fonts[f];
++    RINOK(InStream_SeekSet(stream, offsets[f]));
++    RINOK(ReadStream_FALSE(stream, (Byte*)&font.ttfHeader, sizeof(TTFHeader)));
++    if ( font.ttfHeader.ttfSig != sig_0100
++      && font.ttfHeader.ttfSig != sig_true
++      && font.ttfHeader.ttfSig != sig_OTTO)
++    {
++      font.numTables = 0;
++    }
++    else
++     {
++      font.numTables = font.ttfHeader.numTables;
++     }
++    if (font.numTables == 0)
++      continue;
++
++    font.tables.Alloc(font.numTables);
++    RINOK(ReadStream_FALSE(stream, (Byte*)&font.tables[0], font.numTables * sizeof(TTFTable)));
++#ifdef _MSC_VER
++    #pragma warning(push)
++    #pragma warning(disable: 4996) // do no complain about using strcpy() and strcat()
++#endif //_MSC_VER
++    strcpy(font.name, "noname");
++    font.length = sizeof(TTFHeader) + font.numTables * sizeof(TTFTable);
++
++    for (UInt32 t = 0; t < font.numTables; t++)
++    {
++      TTFTable &table = font.tables[t];
++      font.length += (table.length + 3) & (UInt32)~3;
++
++      // get PostScript name and extension
++      if (table.tag == tag_name)
++      {
++	TTFNameTable nameTable;
++	UInt32 offset = table.offset;
++	RINOK(InStream_SeekSet(stream, offset));
++	RINOK(ReadStream_FALSE(stream, (Byte*)&nameTable, sizeof(TTFNameTable)));
++	CObjArray<TTFNameRecord> names;
++	UInt16 numNames = nameTable.count;
++	names.Alloc(numNames);
++	RINOK(ReadStream_FALSE(stream, (Byte*)&names[0], numNames * sizeof(TTFNameRecord)));
++	for (int n = 0; n < numNames; n++)
++	{
++	  TTFNameRecord &name = names[n];
++	  if (name.nameID == 6) // Postscript name
++	  {
++	    if (name.platformID == 1 && name.platformSpecificID == 0) // Macintosh, Roman
++	    {
++	      RINOK(InStream_SeekSet(stream, offset + nameTable.stringOffset + name.offset));
++	      UInt32 len = name.length;
++	      if (len > MAXPSNAMELEN)
++		len = MAXPSNAMELEN;
++	      RINOK(ReadStream_FALSE(stream, (Byte*)font.name, len));
++	      font.name[len] = 0;
++	      break;
++	    }
++	    if ((name.platformID == 3 && name.platformSpecificID == 1) // Microsoft, Unicode
++	      || name.platformID == 0) // Unicode
++	    {
++	      BigUInt16 psname[MAXPSNAMELEN];
++	      RINOK(InStream_SeekSet(stream, offset + nameTable.stringOffset + name.offset));
++	      UInt32 len = name.length;
++	      if (len > sizeof(psname))
++		len = sizeof(psname);
++	      if (name.length > sizeof(psname))
++		name.length = sizeof(psname);
++	      RINOK(ReadStream_FALSE(stream, (Byte*)&psname, name.length));
++	      len /= sizeof(*psname);
++	      UInt32 i;
++	      for (i = 0; i < len; i++)
++		font.name[i] = (char)psname[i];
++	      font.name[i] = 0;
++	      break;
++	    }
++	  }
++	}
++      }
++    }
++
++    strcat(font.name, font.ttfHeader.ttfSig == sig_OTTO ? ".otf" : ".ttf");
++#ifdef _MSC_VER
++    #pragma warning(pop)
++#endif //_MSC_VER
++    numTables += font.numTables;
++  }
++  if (numTables == 0)
++    return E_ABORT; // don't search signature in file
++
++  return S_OK;
++}
++
++Z7_COM7F_IMF(CHandler::Open(IInStream *inStream,
++  const UInt64 * /* maxCheckStartPosition */,
++  IArchiveOpenCallback * /* openArchiveCallback */))
++{
++  COM_TRY_BEGIN
++  Close();
++  RINOK(Open2(inStream));
++  _inStream = inStream;
++  return S_OK;
++  COM_TRY_END
++}
++
++Z7_COM7F_IMF(CHandler::Close())
++{
++  _numFonts = 0;
++  _inStream.Release();
++  _fonts.Free();
++  return S_OK;
++}
++
++Z7_COM7F_IMF(CHandler::GetNumberOfItems(UInt32 *numItems))
++{
++  if (_numFonts == 0)
++    return S_FALSE;
++  if (_collection)
++    *numItems = _numFonts;
++  else
++  {
++    *numItems = _fonts[0].numTables;
++    if (*numItems == 0)
++      return S_FALSE;
++  }
++  return S_OK;
++}
++
++Z7_COM7F_IMF(CHandler::Extract(const UInt32 *indices, UInt32 numItems,
++  Int32 testMode, IArchiveExtractCallback *extractCallback))
++{
++  COM_TRY_BEGIN
++
++  if (_numFonts == 0 || (!_collection && _fonts[0].numTables == 0))
++    return S_FALSE;
++
++  UInt32 i;
++  UInt64 totalSize = 0;
++  UInt64 currentTotalSize = 0;
++  UInt64 currentItemSize;
++
++  const bool allFilesMode = (numItems == (UInt32)(Int32)-1);
++  if (allFilesMode)
++    numItems = _collection ? _numFonts : _fonts[0].numTables;
++  if (numItems == 0)
++    return S_OK;
++
++  if (_collection)
++  {
++    for (i = 0; i < numItems; i++)
++    {
++      UInt32 index = allFilesMode ? i : indices[i];
++      if (index < _numFonts)
++	totalSize += _fonts[index].length;
++    }
++    extractCallback->SetTotal(totalSize);
++
++    NCompress::CCopyCoder *copyCoderSpec = new NCompress::CCopyCoder();
++    CMyComPtr<ICompressCoder> copyCoder = copyCoderSpec;
++
++    CLocalProgress *lps = new CLocalProgress;
++    CMyComPtr<ICompressProgressInfo> progress = lps;
++    lps->Init(extractCallback, false);
++
++    CLimitedSequentialInStream *streamSpec = new CLimitedSequentialInStream;
++    CMyComPtr<ISequentialInStream> inStream(streamSpec);
++    streamSpec->SetStream(_inStream);
++
++    for (i = 0; i < numItems; i++, currentTotalSize += currentItemSize)
++    {
++      currentItemSize = 0;
++      lps->InSize = lps->OutSize = currentTotalSize;
++      RINOK(lps->SetCur());
++      const Int32 askMode = testMode
++	? NExtract::NAskMode::kTest
++	: NExtract::NAskMode::kExtract;
++      UInt32 index = allFilesMode ? i : indices[i];
++      if (index >= _numFonts)
++	continue;
++
++      CFont &font = _fonts[index];
++      CObjArray<TTFTable> newtables(font.numTables);
++      memcpy(&newtables[0], &font.tables[0], font.numTables * sizeof(TTFTable));
++
++      // calculate new offsets
++      UInt32 length = sizeof(TTFHeader) + font.numTables * sizeof(TTFTable);
++      for (UInt32 t = 0; t < font.numTables; t++)
++      {
++	TTFTable &table = newtables[t];
++	table.offset = length;
++	length += (table.length + 3) & (UInt32)~3;
++      }
++      currentItemSize = length;
++
++      CMyComPtr<ISequentialOutStream> outStream;
++      RINOK(extractCallback->GetStream(index, &outStream, askMode));
++
++      if (!testMode && !outStream)
++	continue;
++
++      RINOK(extractCallback->PrepareOperation(askMode));
++
++      if (outStream)
++      {
++	RINOK(WriteStream(outStream, (Byte*)&font.ttfHeader, sizeof(TTFHeader)));
++	RINOK(WriteStream(outStream, (Byte*)&newtables[0],
++	  font.numTables * sizeof(TTFTable)));
++      }
++
++      BOOL ok = true;
++      for (UInt32 t = 0; t < font.numTables; t++)
++      {
++	TTFTable &table = newtables[t];
++	length = (table.length + 3) & (UInt32)~3;
++	RINOK(InStream_SeekSet(_inStream, font.tables[t].offset));
++	streamSpec->Init(length);
++	RINOK(copyCoder->Code(inStream, outStream, NULL, NULL, progress));
++	if (copyCoderSpec->TotalSize != length)
++	{
++	  ok = false;
++	  break;
++	}
++      }
++      RINOK(extractCallback->SetOperationResult(ok
++	? NExtract::NOperationResult::kOK
++	: NExtract::NOperationResult::kDataError));
++
++      outStream.Release();
++    }
++  }
++
++  else // not collection
++  {
++    for (i = 0; i < numItems; i++)
++    {
++      UInt32 index = allFilesMode ? i : indices[i];
++      if (index < _fonts[0].numTables)
++	totalSize += _fonts[0].tables[index].length;
++    }
++    extractCallback->SetTotal(totalSize);
++
++    NCompress::CCopyCoder *copyCoderSpec = new NCompress::CCopyCoder();
++    CMyComPtr<ICompressCoder> copyCoder = copyCoderSpec;
++
++    CLocalProgress *lps = new CLocalProgress;
++    CMyComPtr<ICompressProgressInfo> progress = lps;
++    lps->Init(extractCallback, false);
++
++    CLimitedSequentialInStream *streamSpec = new CLimitedSequentialInStream;
++    CMyComPtr<ISequentialInStream> inStream(streamSpec);
++    streamSpec->SetStream(_inStream);
++
++    for (i = 0; i < numItems; i++, currentTotalSize += currentItemSize)
++    {
++      currentItemSize = 0;
++      lps->InSize = lps->OutSize = currentTotalSize;
++      RINOK(lps->SetCur());
++      const Int32 askMode = testMode ? NExtract::NAskMode::kTest : NExtract::NAskMode::kExtract;
++      UInt32 index = allFilesMode ? i : indices[i];
++      if (index >= _fonts[0].numTables)
++	continue;
++      const TTFTable &table = _fonts[0].tables[index];
++      currentItemSize = table.length;
++
++      CMyComPtr<ISequentialOutStream> outStream;
++      RINOK(extractCallback->GetStream(index, &outStream, askMode));
++      if (!testMode && !outStream)
++	continue;
++
++      RINOK(extractCallback->PrepareOperation(askMode));
++      RINOK(InStream_SeekSet(_inStream, table.offset));
++      streamSpec->Init(currentItemSize);
++      RINOK(copyCoder->Code(inStream, outStream, NULL, NULL, progress));
++      outStream.Release();
++      RINOK(extractCallback->SetOperationResult(copyCoderSpec->TotalSize == currentItemSize
++	? NExtract::NOperationResult::kOK
++	: NExtract::NOperationResult::kDataError));
++    }
++  }
++
++  return S_OK;
++  COM_TRY_END
++}
++
++static const Byte k_Signature[] =
++{
++  4, 0x00, 0x01, 0x00, 0x00, //        TrueType
++  4, 0x74, 0x72, 0x75, 0x65, // 'true' TrueType
++  4, 0x4F, 0x54, 0x54, 0x4F, // 'OTTO' OpenType
++  4, 0x74, 0x74, 0x63, 0x66, // 'ttcf' font collection
++};
++
++REGISTER_ARC_I(
++  "Font", "ttf otf ttc", NULL, 0xE0,
++  k_Signature,
++  0,
++  NArcInfoFlags::kMultiSignature | NArcInfoFlags::kByExtOnlyOpen,
++  NULL)
++
++} // namespace NFont
++} // namespace NArchive
+diff --git a/CPP/7zip/Bundles/Format7zF/Arc.mak b/CPP/7zip/Bundles/Format7zF/Arc.mak
+index ca650a7..bd1a424 100644
+--- a/CPP/7zip/Bundles/Format7zF/Arc.mak
++++ b/CPP/7zip/Bundles/Format7zF/Arc.mak
+@@ -82,6 +82,7 @@ AR_OBJS = \
+   $O\ExtHandler.obj \
+   $O\FatHandler.obj \
+   $O\FlvHandler.obj \
++  $O\FontHandler.obj \
+   $O\GzHandler.obj \
+   $O\GptHandler.obj \
+   $O\HandlerCont.obj \
+diff --git a/CPP/7zip/Bundles/Format7zF/Arc_gcc.mak b/CPP/7zip/Bundles/Format7zF/Arc_gcc.mak
+index 202e556..50344d8 100644
+--- a/CPP/7zip/Bundles/Format7zF/Arc_gcc.mak
++++ b/CPP/7zip/Bundles/Format7zF/Arc_gcc.mak
+@@ -111,6 +111,7 @@ AR_OBJS = \
+   $O/ExtHandler.o \
+   $O/FatHandler.o \
+   $O/FlvHandler.o \
++  $O/FontHandler.o \
+   $O/GzHandler.o \
+   $O/GptHandler.o \
+   $O/HandlerCont.o \
+diff --git a/CPP/7zip/Bundles/Format7zF/Format7z.dsp b/CPP/7zip/Bundles/Format7zF/Format7z.dsp
+index ef2867b..7820829 100644
+--- a/CPP/7zip/Bundles/Format7zF/Format7z.dsp
++++ b/CPP/7zip/Bundles/Format7zF/Format7z.dsp
+@@ -2991,6 +2991,10 @@ SOURCE=..\..\Archive\FlvHandler.cpp
+ # End Source File
+ # Begin Source File
+ 
++SOURCE=..\..\Archive\FontHandler.cpp
++# End Source File
++# Begin Source File
++
+ SOURCE=..\..\Archive\GptHandler.cpp
+ # End Source File
+ # Begin Source File
+
+-- 
+2.49.0.windows.1
+

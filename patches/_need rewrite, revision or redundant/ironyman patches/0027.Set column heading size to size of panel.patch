@@ -1,0 +1,144 @@
+From bb1dfcb9d6182cd520c5d1767bbf3886ddb068af Mon Sep 17 00:00:00 2001
+From: ironyman <ironyman13@gmail.com>
+Date: Fri, 3 May 2024 00:14:31 -0700
+Subject: [PATCH] Set column heading size to size of panel
+
+---
+ CPP/7zip/UI/FileManager/App.h          |  1 +
+ CPP/7zip/UI/FileManager/MultiPanel.cpp | 30 ++++++++++++++++++++++++--
+ CPP/7zip/UI/FileManager/Panel.h        |  1 +
+ CPP/7zip/UI/FileManager/PanelItems.cpp | 14 ++++++++++++
+ CPP/Windows/Control/ListView.h         |  1 +
+ 5 files changed, 45 insertions(+), 2 deletions(-)
+
+diff --git a/CPP/7zip/UI/FileManager/App.h b/CPP/7zip/UI/FileManager/App.h
+index afd15fa..577aeca 100644
+--- a/CPP/7zip/UI/FileManager/App.h
++++ b/CPP/7zip/UI/FileManager/App.h
+@@ -328,6 +328,7 @@ class CApp
+   HRESULT InitializeMultiPanel();
+   HRESULT UninitializeMultiPanel();
+   HRESULT SyncMultiPanel();
++  HRESULT ResizeSingleColumn();
+ };
+ 
+ 
+diff --git a/CPP/7zip/UI/FileManager/MultiPanel.cpp b/CPP/7zip/UI/FileManager/MultiPanel.cpp
+index c6e4874..4d48b9f 100644
+--- a/CPP/7zip/UI/FileManager/MultiPanel.cpp
++++ b/CPP/7zip/UI/FileManager/MultiPanel.cpp
+@@ -33,6 +33,9 @@ void CApp::MoveSubWindowsMultiPanel()
+   Panels[2].Move(panel2StartX, headerSize, xWidth0, ySize);
+   Panels[1].Move(panel1StartX, headerSize, xWidth0, ySize);
+   Panels[0].Move(0,            headerSize, xWidth0, ySize);
++  Panels[0]._xSize = Panels[1]._xSize = Panels[2]._xSize = xWidth0;
++
++  // ResizeSingleColumn();
+ 
+   // Remove left over artifacts from resizing smaller.
+   InvalidateRect(Panels[1]._mainWindow, NULL, TRUE);
+@@ -81,8 +84,8 @@ HRESULT CApp::InitializeMultiPanel()
+   Panels[1]._listView.SetItemState_Selected(0, true);
+   MultiPanelMode = 1;
+ 
+-  SyncMultiPanel();
+   MoveSubWindowsMultiPanel();
++  SyncMultiPanel();
+ 
+   return S_OK;
+ }
+@@ -102,6 +105,26 @@ HRESULT CApp::UninitializeMultiPanel()
+   return S_OK;
+ }
+ 
++HRESULT CApp::ResizeSingleColumn()
++{
++  // Make column headings fit to width of panel.
++  if (NumPanels == 3)
++  {
++    for (int i = 0; i < (int)NumPanels; ++i)
++    {
++      if (Panels[i]._visibleColumns.Size() > 0)
++      {
++        RECT rc {};
++        GetClientRect(Panels[i]._listView, &rc);
++        // Panels[i]._visibleColumns[0].Width = Panels[i]._xSize;
++        Panels[i]._visibleColumns[0].Width = rc.right - rc.left;
++        Panels[i].UpdateColumn(0, Panels[i]._visibleColumns[0]);
++      }
++    }
++  }
++  return S_OK;
++}
++
+ HRESULT CApp::SyncMultiPanel()
+ {
+   auto cwd = Panels[1].GetFsPath();
+@@ -150,6 +173,9 @@ HRESULT CApp::SyncMultiPanel()
+       Panels[2].DeleteListItems();
+     }
+   }
++
++  ResizeSingleColumn();
++
+   return S_OK;
+ }
+ 
+@@ -180,7 +206,7 @@ HRESULT CPanelCallbackImp::OnSelectedItemChanged()
+ 
+   if (multiPanelReentrancyCount++ == 0)
+   {
+-    _app->SyncMultiPanel();
++    // _app->SyncMultiPanel();
+     --multiPanelReentrancyCount;
+   }
+   return S_OK;
+diff --git a/CPP/7zip/UI/FileManager/Panel.h b/CPP/7zip/UI/FileManager/Panel.h
+index 58970aa..c6ef4d8 100644
+--- a/CPP/7zip/UI/FileManager/Panel.h
++++ b/CPP/7zip/UI/FileManager/Panel.h
+@@ -383,6 +383,7 @@ class CPanel Z7_final: public NWindows::NControl::CWindow2
+   HRESULT InitColumns();
+   void DeleteColumn(unsigned index);
+   void AddColumn(const CPropColumn &prop);
++  void UpdateColumn(const unsigned index, const CPropColumn &prop);
+ 
+   void SetFocusedSelectedItem(int index, bool select);
+ 
+diff --git a/CPP/7zip/UI/FileManager/PanelItems.cpp b/CPP/7zip/UI/FileManager/PanelItems.cpp
+index c2d18a9..c1ed416 100644
+--- a/CPP/7zip/UI/FileManager/PanelItems.cpp
++++ b/CPP/7zip/UI/FileManager/PanelItems.cpp
+@@ -339,6 +339,20 @@ void CPanel::AddColumn(const CPropColumn &prop)
+   _listView.InsertColumn(index, &column);
+ }
+ 
++void CPanel::UpdateColumn(const unsigned index, const CPropColumn &prop)
++{
++  LV_COLUMNW column;
++  column.mask = LVCF_FMT | LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM | LVCF_ORDER;
++  column.cx = (int)prop.Width;
++  column.fmt = GetColumnAlign(prop.ID, prop.Type);
++  column.iOrder = (int)index; // must be <= _listView.ItemCount
++  column.iSubItem = (int)index; // must be <= _listView.ItemCount
++  column.pszText = const_cast<wchar_t *>((const wchar_t *)prop.Name);
++
++  _listView.SetColumn(index, &column);
++}
++
++
+ 
+ HRESULT CPanel::RefreshListCtrl()
+ {
+diff --git a/CPP/Windows/Control/ListView.h b/CPP/Windows/Control/ListView.h
+index 94e9404..bddbbbd 100644
+--- a/CPP/Windows/Control/ListView.h
++++ b/CPP/Windows/Control/ListView.h
+@@ -31,6 +31,7 @@ class CListView: public NWindows::CWindow
+   bool DeleteColumn(unsigned columnIndex) { return BOOLToBool(ListView_DeleteColumn(_window, columnIndex)); }
+ 
+   int InsertColumn(unsigned columnIndex, const LVCOLUMN *columnInfo) { return ListView_InsertColumn(_window, columnIndex, columnInfo); }
++  int SetColumn(unsigned columnIndex, const LVCOLUMN *columnInfo) { return ListView_SetColumn(_window, columnIndex, columnInfo); }
+   int InsertColumn(unsigned columnIndex, LPCTSTR text, int width);
+   bool SetColumnOrderArray(unsigned count, const int *columns)
+     { return BOOLToBool(ListView_SetColumnOrderArray(_window, count, (int *)(void *)columns)); }

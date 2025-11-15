@@ -1,0 +1,4793 @@
+From 6f8fabb511a0093e8634ac8cda78771b690397a3 Mon Sep 17 00:00:00 2001
+From: ironyman
+Date: May 7, 2024 19:12:27 +0300
+Subject: [PATCH] ironyman additions
+
+---
+ CPP/7zip/UI/FileManager/App.cpp               |  36 +-
+ CPP/7zip/UI/FileManager/App.h                 |  40 +-
+ CPP/7zip/UI/FileManager/Debounce.cpp          |  35 ++
+ CPP/7zip/UI/FileManager/Debounce.h            | 124 ++++
+ CPP/7zip/UI/FileManager/ExternalTools.cpp     | 141 +++++
+ CPP/7zip/UI/FileManager/ExternalTools.h       |  11 +
+ CPP/7zip/UI/FileManager/FM.cpp                |  30 +-
+ CPP/7zip/UI/FileManager/FM.mak                |   8 +-
+ CPP/7zip/UI/FileManager/FSFolderCopy.cpp      |  20 +-
+ CPP/7zip/UI/FileManager/MultiPanel.cpp        | 289 +++++++++
+ CPP/7zip/UI/FileManager/MultiPanel.h          |   5 +
+ CPP/7zip/UI/FileManager/MyLoadMenu.cpp        |   6 +
+ CPP/7zip/UI/FileManager/Panel.cpp             | 114 +++-
+ CPP/7zip/UI/FileManager/Panel.h               |  65 +-
+ CPP/7zip/UI/FileManager/PanelCopy.cpp         | 117 ++++
+ CPP/7zip/UI/FileManager/PanelDrag.cpp         |  34 +-
+ CPP/7zip/UI/FileManager/PanelFind.cpp         | 272 +++++++++
+ CPP/7zip/UI/FileManager/PanelFind.h           |  37 ++
+ CPP/7zip/UI/FileManager/PanelFolderChange.cpp | 110 +++-
+ CPP/7zip/UI/FileManager/PanelItemOpen.cpp     | 100 +++-
+ CPP/7zip/UI/FileManager/PanelItems.cpp        | 111 ++++
+ CPP/7zip/UI/FileManager/PanelKey.cpp          |  23 +-
+ CPP/7zip/UI/FileManager/PanelListNotify.cpp   | 104 ++--
+ CPP/7zip/UI/FileManager/PanelMenu.cpp         |  50 +-
+ CPP/7zip/UI/FileManager/Path.cpp              |  29 +
+ CPP/7zip/UI/FileManager/Path.h                |   5 +
+ CPP/7zip/UI/FileManager/RegistryUtils.cpp     |  33 +-
+ CPP/7zip/UI/FileManager/RegistryUtils.h       |   2 +
+ CPP/7zip/UI/FileManager/StdAfx.h              |   4 +-
+ CPP/7zip/UI/FileManager/makefile              |   3 +
+ CPP/7zip/UI/FileManager/resource.h            |   7 +
+ CPP/7zip/UI/FileManager/resource.rc           |   6 +
+ CPP/Build.mak                                 |   7 +-
+ CPP/Common/Common.h                           |   1 +
+ CPP/Common/Debug.cpp                          | 162 +++++
+ CPP/Common/Debug.h                            |  68 +++
+ CPP/Common/MyCom.h                            |   1 +
+ CPP/Common/MyString.cpp                       |  21 +-
+ CPP/Common/MyString.h                         |  34 ++
+ CPP/Common/MyVector.h                         |  45 +-
+ CPP/Windows/Clipboard.cpp                     | 562 +++++++++++++++++-
+ CPP/Windows/Clipboard.h                       |   5 +
+ CPP/Windows/Control/ListView.h                |   2 +
+ CPP/Windows/ProcessUtils.cpp                  | 475 ++++++++++++++-
+ CPP/Windows/ProcessUtils.h                    |  52 +-
+ CPP/Windows/Shell.cpp                         |  10 +-
+ CPP/Windows/Shell.h                           |   5 +-
+ 47 files changed, 3293 insertions(+), 128 deletions(-)
+ create mode 100644 CPP/7zip/UI/FileManager/Debounce.cpp
+ create mode 100644 CPP/7zip/UI/FileManager/Debounce.h
+ create mode 100644 CPP/7zip/UI/FileManager/ExternalTools.cpp
+ create mode 100644 CPP/7zip/UI/FileManager/ExternalTools.h
+ create mode 100644 CPP/7zip/UI/FileManager/MultiPanel.cpp
+ create mode 100644 CPP/7zip/UI/FileManager/MultiPanel.h
+ create mode 100644 CPP/7zip/UI/FileManager/PanelFind.cpp
+ create mode 100644 CPP/7zip/UI/FileManager/PanelFind.h
+ create mode 100644 CPP/7zip/UI/FileManager/Path.cpp
+ create mode 100644 CPP/7zip/UI/FileManager/Path.h
+ create mode 100644 CPP/Common/Debug.cpp
+ create mode 100644 CPP/Common/Debug.h
+
+diff --git a/CPP/7zip/UI/FileManager/App.cpp b/CPP/7zip/UI/FileManager/App.cpp
+index 3461c92..384b52f 100644
+--- a/CPP/7zip/UI/FileManager/App.cpp
++++ b/CPP/7zip/UI/FileManager/App.cpp
+@@ -43,7 +43,7 @@ extern HINSTANCE g_hInstance;
+ void CPanelCallbackImp::OnTab()
+ {
+   if (g_App.NumPanels != 1)
+-    _app->Panels[1 - _index].SetFocusToList();
++    _app->Panels[(_index + 1) % kNumPanelsMax].SetFocusToList();
+   _app->RefreshTitle();
+ }
+ 
+@@ -57,6 +57,21 @@ void CPanelCallbackImp::SetFocusToPath(unsigned index)
+   _app->Panels[newPanelIndex]._headerComboBox.ShowDropDown();
+ }
+ 
++void CPanelCallbackImp::SetFocusToPathNoDropDown()
++{
++  _app->RefreshTitle();
++
++  if (_app->MultiPanelMode == 0)
++  {
++    _app->Panels[g_App.LastFocusedPanel]._headerComboBox.SetFocus();
++  }
++  else
++  {
++    UString text = _app->Panels[1].GetFsPath();
++    _app->Panels[0]._headerComboBox.SetText(text);
++    _app->Panels[0]._headerComboBox.SetFocus();
++  }
++}
+ 
+ void CPanelCallbackImp::OnCopy(bool move, bool copyToSame) { _app->OnCopy(move, copyToSame, _index); }
+ void CPanelCallbackImp::OnSetSameFolder() { _app->OnSetSameFolder(_index); }
+@@ -65,6 +80,7 @@ void CPanelCallbackImp::PanelWasFocused() { _app->SetFocusedPanel(_index); _app-
+ void CPanelCallbackImp::DragBegin() { _app->DragBegin(_index); }
+ void CPanelCallbackImp::DragEnd() { _app->DragEnd(); }
+ void CPanelCallbackImp::RefreshTitle(bool always) { _app->RefreshTitlePanel(_index, always); }
++int CPanelCallbackImp::GetIndex() { return _index; }
+ 
+ void CApp::ReloadLangItems()
+ {
+@@ -360,6 +376,11 @@ HRESULT CApp::Create(HWND hwnd, const UString &mainPath, const UString &arcForma
+ 
+ HRESULT CApp::SwitchOnOffOnePanel()
+ {
++  if (MultiPanelMode != 0)
++  {
++    UninitializeMultiPanel();
++  }
++
+   if (NumPanels == 1)
+   {
+     NumPanels++;
+@@ -380,6 +401,18 @@ HRESULT CApp::SwitchOnOffOnePanel()
+   return S_OK;
+ }
+ 
++HRESULT CApp::SwitchOnOffMultiPanel()
++{
++  if (MultiPanelMode == 0)
++  {
++    return InitializeMultiPanel();
++  }
++  else
++  {
++    return UninitializeMultiPanel();
++  }
++}
++
+ void CApp::Save()
+ {
+   AppState.Save();
+@@ -400,6 +433,7 @@ void CApp::Save()
+   }
+   
+   listMode.Save();
++  SavePanelMode(MultiPanelMode);
+   // Save_ShowDeleted(ShowDeletedFiles);
+ }
+ 
+diff --git a/CPP/7zip/UI/FileManager/App.h b/CPP/7zip/UI/FileManager/App.h
+index fc54501..af24bfe 100644
+--- a/CPP/7zip/UI/FileManager/App.h
++++ b/CPP/7zip/UI/FileManager/App.h
+@@ -14,7 +14,7 @@ class CApp;
+ extern CApp g_App;
+ extern HWND g_HWND;
+ 
+-const unsigned kNumPanelsMax = 2;
++const unsigned kNumPanelsMax = 3;
+ 
+ extern bool g_IsSmallScreen;
+ 
+@@ -34,14 +34,18 @@ class CPanelCallbackImp Z7_final: public CPanelCallback
+ {
+   CApp *_app;
+   unsigned _index;
++  Int32 multiPanelReentrancyCount;
+ public:
+   void Init(CApp *app, unsigned index)
+   {
+     _app = app;
+     _index = index;
++    multiPanelReentrancyCount = 0;
+   }
+   virtual void OnTab() Z7_override;
+   virtual void SetFocusToPath(unsigned index) Z7_override;
++  virtual void SetFocusToPathNoDropDown();
++
+   virtual void OnCopy(bool move, bool copyToSame) Z7_override;
+   virtual void OnSetSameFolder() Z7_override;
+   virtual void OnSetSubFolder() Z7_override;
+@@ -49,6 +53,16 @@ public:
+   virtual void DragBegin() Z7_override;
+   virtual void DragEnd() Z7_override;
+   virtual void RefreshTitle(bool always) Z7_override;
++
++  // Multi panel callbacks.
++  virtual HRESULT OnRefreshList(bool& shouldReturn) Z7_override;
++  virtual HRESULT OnBind(bool& shouldReturn) Z7_override;
++  virtual HRESULT OnSelectedItemChanged() Z7_override;
++  virtual HRESULT OnOpenFolder(std::optional<std::reference_wrapper<bool>> shouldReturn = std::nullopt, std::optional<UString> path = std::nullopt) Z7_override;
++  virtual HRESULT OnOpenParentFolder() Z7_override;
++  virtual UString OnSetComboText(UString const& text) Z7_override;
++  virtual bool IsMultiPanelMode() Z7_override;
++  int GetIndex() Z7_override;
+ };
+ 
+ 
+@@ -63,6 +77,7 @@ public:
+   // bool ShowDeletedFiles;
+   unsigned NumPanels;
+   unsigned LastFocusedPanel;
++  unsigned MultiPanelMode;
+ 
+   bool ShowStandardToolbar;
+   bool ShowArchiveToolbar;
+@@ -91,7 +106,8 @@ public:
+     _window(NULL),
+     AutoRefresh_Mode(true),
+     NumPanels(2),
+-    LastFocusedPanel(0)
++    LastFocusedPanel(0),
++    MultiPanelMode(0)
+   {
+     SetPanels_AutoRefresh_Mode();
+   }
+@@ -121,6 +137,12 @@ public:
+   void OpenItem() { GetFocusedPanel().OpenSelectedItems(true); }
+   void OpenItemInside(const wchar_t *type) { GetFocusedPanel().OpenFocusedItemAsInternal(type); }
+   void OpenItemOutside() { GetFocusedPanel().OpenSelectedItems(false); }
++  void OpenItemVscode() { GetFocusedPanel().OpenSelectedItem(L"code.cmd", L"", SW_HIDE); }
++  void OpenItemTerminal() { GetFocusedPanel().OpenInSelectedItem(L"powershell.exe"); }
++  void OpenItemExplorer() { GetFocusedPanel().OpenInSelectedItem(L"", L"explore"); }
++  void FindFzf() { GetFocusedPanel().FindFzf(); }
++  // void FindIgrep() { GetFocusedPanel().FindIgrep(); }
++  void CopyItemPath() { GetFocusedPanel().CopyItemPath(); }
+   void EditItem(bool useEditor) { GetFocusedPanel().EditItem(useEditor); }
+   void Rename() { GetFocusedPanel().RenameFile(); }
+   void CopyTo() { OnCopy(false, false, GetFocusedPanelIndex()); }
+@@ -195,7 +217,8 @@ public:
+ 
+   void SetListSettings();
+   HRESULT SwitchOnOffOnePanel();
+-  
++  HRESULT SwitchOnOffMultiPanel();
++
+   CIntVector _timestampLevels;
+ 
+   bool GetFlatMode() { return Panels[LastFocusedPanel].GetFlatMode(); }
+@@ -301,6 +324,17 @@ public:
+   void RefreshTitlePanel(unsigned panelIndex, bool always = false);
+ 
+   void MoveSubWindows();
++
++  void MoveSubWindowsMultiPanel();
++  HRESULT InitializeMultiPanel();
++  HRESULT UninitializeMultiPanel();
++  HRESULT SyncMultiPanel();
++  HRESULT ResizeSingleColumn();
+ };
+ 
++
++enum MyAppMessages
++{
++  kOpenPath = WM_USER + 1,
++};
+ #endif
+diff --git a/CPP/7zip/UI/FileManager/Debounce.cpp b/CPP/7zip/UI/FileManager/Debounce.cpp
+new file mode 100644
+index 0000000..69caf14
+--- /dev/null
++++ b/CPP/7zip/UI/FileManager/Debounce.cpp
+@@ -0,0 +1,35 @@
++#include <StdAfx.h>
++#include <functional>
++#include <chrono>
++#include <thread>
++#include "Debounce.h"
++
++template<typename F>
++void Debounce<F>::operator()(auto&&... args)
++{
++    std::lock_guard<std::mutex> guard(this->selfDeletionMutex);
++
++    if (this->timer == nullptr)
++    {
++        this->timer = CreateThreadpoolTimer((PTP_TIMER_CALLBACK)TimerCallback<F, decltype(args)...>, (PVOID)&this->context, NULL);
++    }
++    if (this->context != nullptr)
++    {
++        contextDeletionFutures.emplace(std::async(std::launch::async, [](Debounce *parent, CallbackContext<F, decltype(args)...> *callContext)
++        {
++            // Avoid deleting the context while it's being used.
++            std::this_thread::sleep_for(std::chrono::milliseconds(2*parent->delayMs));
++            delete callContext;
++        }, this, (CallbackContext<F, decltype(args)...> *)this->context));
++    }
++
++    auto callContext = new CallbackContext<F, decltype(args)...> { std::tuple<decltype(args)...>(std::forward<decltype(args)>(args)...), this->callback, };
++
++    this->context = (PVOID)callContext;
++    SetThreadpoolTimer(this->timer, &this->delay, 0, 0);
++
++    while (!contextDeletionFutures.empty() && contextDeletionFutures.front().wait_for(std::chrono::nanoseconds(1)) == std::future_status::ready)
++    {
++        contextDeletionFutures.pop();
++    }
++}
+diff --git a/CPP/7zip/UI/FileManager/Debounce.h b/CPP/7zip/UI/FileManager/Debounce.h
+new file mode 100644
+index 0000000..2b39d0e
+--- /dev/null
++++ b/CPP/7zip/UI/FileManager/Debounce.h
+@@ -0,0 +1,124 @@
++#ifndef ZIP7_INC_DEBOUNCE_H
++#define ZIP7_INC_DEBOUNCE_H
++#include "../../../Common/MyWindows.h"
++#include <queue>
++// Disable noisy stl warnings. https://developercommunity.visualstudio.com/t/stl-header-causes-c4355-and-c5204/1046989
++#pragma warning( disable  : 4355 )
++#pragma warning( disable  : 5204 )
++#pragma warning( disable  : 5204 )
++#pragma warning( disable  : 5220 )
++#include <future>
++#include <mutex>
++#include <tuple>
++#include <functional>
++#include <chrono>
++#include <thread>
++
++template<typename F>
++struct Debounce
++{
++    template<typename F, typename ...Args>
++    struct CallbackContext {
++        std::tuple<Args...> arguments;
++        F callback;
++    };
++    F callback;
++    PTP_TIMER timer;
++    PVOID context;
++    int delayMs;
++    std::queue<std::future<void>> contextDeletionFutures;
++    // Actually it just synchronizes accesses to the queue because this object can't be deleted while it's being used.
++    // There needs to be a lock outside of this object to handle that.
++    std::mutex selfDeletionMutex;
++
++    Debounce(F callback, const int &delayMs)
++    {
++        this->delayMs = delayMs;
++        this->callback = callback;
++        this->timer = nullptr;
++        this->context = nullptr;
++    }
++    ~Debounce()
++    {
++        std::lock_guard<std::mutex> guard(this->selfDeletionMutex);
++        while (!this->contextDeletionFutures.empty())
++        {
++            this->contextDeletionFutures.front().wait();
++            this->contextDeletionFutures.pop();
++        }
++    }
++
++    // This must be defined in class body.
++    // Putting this in cpp file will error.
++    // Debounce.cpp(18): error C2768: 'Debounce<F>::TimerCallback': illegal use of explicit template arguments
++    // template<typename F>
++    // template<typename G, typename ...Args>
++    // static
++    // VOID
++    // CALLBACK
++    // Debounce<F>::TimerCallback<G, Args...>(
++    //     PTP_CALLBACK_INSTANCE Instance,
++    //     PVOID                 Parameter,
++    //     PTP_TIMER             Timer
++    // )
++    // {
++    template<typename G, typename ...Args>
++    static
++    VOID
++    CALLBACK
++    TimerCallback(
++        PTP_CALLBACK_INSTANCE Instance,
++        PVOID                 Parameter,
++        PTP_TIMER             Timer
++    )
++    {
++        UNREFERENCED_PARAMETER(Instance);
++        UNREFERENCED_PARAMETER(Timer);
++        auto callContext = *reinterpret_cast<CallbackContext<G, Args...>**>(Parameter);
++        std::apply(callContext->callback, callContext->arguments);
++    }
++
++    void operator()(auto... args)
++    {
++        std::lock_guard<std::mutex> guard(this->selfDeletionMutex);
++
++        if (this->timer == nullptr)
++        {
++            this->timer = CreateThreadpoolTimer((PTP_TIMER_CALLBACK)TimerCallback<F, decltype(args)...>, (PVOID)&this->context, NULL);
++        }
++        if (this->context != nullptr)
++        {
++            contextDeletionFutures.emplace(std::async(std::launch::async, [](Debounce *parent, CallbackContext<F, decltype(args)...> *callContext)
++            {
++                // Avoid deleting the context while it's being used.
++                std::this_thread::sleep_for(std::chrono::milliseconds(2*parent->delayMs));
++                delete callContext;
++            }, this, (CallbackContext<F, decltype(args)...> *)this->context));
++        }
++
++        auto callContext = new CallbackContext<F, decltype(args)...>{std::tuple<decltype(args)...>(std::forward<decltype(args)>(args)...), this->callback};
++
++        this->context = (PVOID)callContext;
++
++        FILETIME dueTime;
++        // GetSystemTimeAsFileTime(&dueTime);
++        // ULONGLONG ft = (ULONGLONG)dueTime.dwHighDateTime << 32 | dueTime.dwLowDateTime; // Convert to 64-bit integer
++        // ft += delayMs*1000*10; // Add 1 second in 100-nanosecond intervals
++        // dueTime.dwLowDateTime = (DWORD)ft;
++        // dueTime.dwHighDateTime = (DWORD)(ft >> 32);
++
++        ULARGE_INTEGER ulDueTime;
++        ulDueTime.QuadPart = -delayMs*1000*10LL;  // 1 second in 100-nanosecond intervals
++        dueTime.dwLowDateTime = ulDueTime.LowPart;
++        dueTime.dwHighDateTime = ulDueTime.HighPart;
++
++        SetThreadpoolTimer(this->timer, &dueTime, 0, 0);
++
++        while (!contextDeletionFutures.empty() && contextDeletionFutures.front().wait_for(std::chrono::nanoseconds(1)) == std::future_status::ready)
++        {
++            contextDeletionFutures.pop();
++        }
++    }
++};
++
++#endif
+\ No newline at end of file
+diff --git a/CPP/7zip/UI/FileManager/ExternalTools.cpp b/CPP/7zip/UI/FileManager/ExternalTools.cpp
+new file mode 100644
+index 0000000..2e62fb4
+--- /dev/null
++++ b/CPP/7zip/UI/FileManager/ExternalTools.cpp
+@@ -0,0 +1,141 @@
++#include "StdAfx.h"
++#include "../../../Windows/ProcessUtils.h"
++#include <functional>
++#include <cstdio>
++
++void StartFzf(UString searchPath, std::function<void(UString)> callback)
++{
++  auto findProc = new NWindows::CProcess();
++  findProc->_overlapWindow = TRUE;
++  findProc->_readOutput = TRUE;
++
++  // Doubly null terminated string, last null is for list of null terminated strings.
++  // If you're setting this in shell it would be
++  // $env:FZF_DEFAULT_COMMAND = 'rg --hidden --no-ignore -l --max-depth 5 ""'
++  UString envStr = L"FZF_DEFAULT_COMMAND=rg --hidden --no-ignore -l --max-depth 5 \"\"";
++  auto env = CRecordVector<WCHAR>(envStr.Ptr(), envStr.Ptr() + envStr.Len() + 1); // Include null terminator
++  env.Add(0);
++
++  UString pipeName = NWindows::MyGetNextPipeName();
++  int backSlash = pipeName.ReverseFind_PathSepar();
++  constexpr WCHAR cmdTemplate[] = LR"(
++powershell -command " & { $output = fzf;
++$pipeName    = '%s';
++$npipeClient = new-object System.IO.Pipes.NamedPipeClientStream('.', $pipeName, [System.IO.Pipes.PipeDirection]::Out,
++[System.IO.Pipes.PipeOptions]::None,
++[System.Security.Principal.TokenImpersonationLevel]::Impersonation);
++$npipeClient.Connect();
++$script:pipeWriter = new-object System.IO.StreamWriter($npipeClient);
++$pipeWriter.AutoFlush = $true;
++$pipeWriter.WriteLine($output);
++$pipeWriter.Close(); }"
++  )";
++  WCHAR cmd[4096]{};
++
++#pragma warning(disable : 4774)
++
++  _snwprintf_s(cmd, ARRAYSIZE(cmd), ARRAYSIZE(cmd), cmdTemplate, pipeName.Ptr() + backSlash + 1);
++
++  // No newlines allowed.
++  for (auto &ch : cmd)
++  {
++    if (ch == '\n')
++    {
++      ch = ' ';
++    }
++  }
++
++  // Use conhost, it's faster.
++  findProc->_createPipeOnly = TRUE;
++  findProc->Create(L"conhost", cmd, searchPath, (LPVOID)env.begin());
++
++  // Use default terminal, need to set
++  // findProc->_createPipeOnly = FALSE
++  // findProc->Create(L"fzf.exe", L"", searchPath, (LPVOID)env.begin());
++
++  // to test
++  // findProc->Create(L"cmd.exe", L"", searchPath, (LPVOID)env.Ptr());
++  // findProc->Create(L"conhost", L"fzf.exe", searchPath);
++  // findProc->Create(L"conhost", L"powershell -noexit -command fzf.exe", searchPath);
++  // findProc->Create(L"conhost", L"powershell -command \" & { $output = fzf; [Console]::Error.WriteLine($output) }\"", searchPath, (LPVOID)env.begin());
++
++  if (findProc->WaitAndRun(callback) != 0)
++  {
++    delete findProc;
++  }
++  // On success, findProc is freed after callback is called.
++
++  // auto path = findProc.WaitRead();
++
++  // if (!PathIsDirectory(path))
++  // {
++  //   path = path.GetDirectory();
++  // }
++  // OnNotifyComboBoxEnter(path);
++}
++
++void StartExternalConsoleCommandToReadOutput(UString searchPath, UString envStr, UString consoleCommand, std::function<void(UString)> callback)
++{
++  auto findProc = new NWindows::CProcess();
++  findProc->_overlapWindow = TRUE;
++  findProc->_readOutput = TRUE;
++
++  auto env = CRecordVector<WCHAR>(envStr.Ptr(), envStr.Ptr() + envStr.Len() + 1); // Include null terminator
++  env.Add(0);
++
++  UString pipeName = NWindows::MyGetNextPipeName();
++  int backSlash = pipeName.ReverseFind_PathSepar();
++  constexpr WCHAR cmdTemplate[] = LR"(
++powershell -command " & { $output = %s;
++$pipeName    = '%s';
++$npipeClient = new-object System.IO.Pipes.NamedPipeClientStream('.', $pipeName, [System.IO.Pipes.PipeDirection]::Out,
++[System.IO.Pipes.PipeOptions]::None,
++[System.Security.Principal.TokenImpersonationLevel]::Impersonation);
++$npipeClient.Connect();
++$script:pipeWriter = new-object System.IO.StreamWriter($npipeClient);
++$pipeWriter.AutoFlush = $true;
++$pipeWriter.WriteLine($output);
++$pipeWriter.Close(); }"
++  )";
++  WCHAR cmd[4096]{};
++
++#pragma warning(disable : 4774)
++
++  _snwprintf_s(cmd, ARRAYSIZE(cmd), ARRAYSIZE(cmd), cmdTemplate, consoleCommand.Ptr_non_const(), pipeName.Ptr() + backSlash + 1);
++
++  for (auto &ch : cmd)
++  {
++    if (ch == '\n')
++    {
++      ch = ' ';
++    }
++  }
++
++  findProc->_createPipeOnly = TRUE;
++  findProc->Create(L"conhost", cmd, searchPath, (LPVOID)env.begin());
++
++
++  if (findProc->WaitAndRun(callback) != 0)
++  {
++    delete findProc;
++  }
++}
++
++// This doesn't work because WaitAndRun expect a read pipe to be setup.
++void StartExternalConsoleCommand(UString searchPath, UString envStr, UString consoleCommand, std::function<void(UString)> callback)
++{
++  auto findProc = new NWindows::CProcess();
++  findProc->_overlapWindow = TRUE;
++
++  auto env = CRecordVector<WCHAR>(envStr.Ptr(), envStr.Ptr() + envStr.Len() + 1); // Include null terminator
++  env.Add(0);
++
++  findProc->Create(L"conhost", consoleCommand.Ptr_non_const(), searchPath, (LPVOID)env.begin());
++
++
++  if (findProc->WaitAndRun(callback) != 0)
++  {
++    delete findProc;
++  }
++}
++
+diff --git a/CPP/7zip/UI/FileManager/ExternalTools.h b/CPP/7zip/UI/FileManager/ExternalTools.h
+new file mode 100644
+index 0000000..bcecff8
+--- /dev/null
++++ b/CPP/7zip/UI/FileManager/ExternalTools.h
+@@ -0,0 +1,11 @@
++#ifndef ZIP7_INC_EXTERNALTOOLS_H
++#define ZIP7_INC_EXTERNALTOOLS_H
++
++#include "../../../Common/MyString.h"
++#include <functional>
++
++void StartFzf(UString searchPath, std::function<void(UString)> callback);
++void StartExternalConsoleCommand(UString searchPath, UString envStr, UString consoleCommand, std::function<void(UString)> callback);
++void StartExternalConsoleCommandToReadOutput(UString searchPath, UString envStr, UString consoleCommand, std::function<void(UString)> callback);
++
++#endif
+diff --git a/CPP/7zip/UI/FileManager/FM.cpp b/CPP/7zip/UI/FileManager/FM.cpp
+index 13189a7..67005bc 100644
+--- a/CPP/7zip/UI/FileManager/FM.cpp
++++ b/CPP/7zip/UI/FileManager/FM.cpp
+@@ -41,6 +41,8 @@
+ #include "StringUtils.h"
+ #include "ViewSettings.h"
+ 
++#include <vector>
++
+ using namespace NWindows;
+ using namespace NFile;
+ using namespace NFind;
+@@ -126,6 +128,7 @@ static const int kPanelSizeMin = 120;
+ 
+ class CSplitterPos
+ {
++protected:
+   int _ratio; // 10000 is max
+   int _pos;
+   int _fullWidth;
+@@ -141,6 +144,10 @@ public:
+     ::GetClientRect(hWnd, &rect);
+     return rect.right;
+   }
++  // This is the initialization procedure if there's no position saved in registry.
++  // Called from WM_CREATE handler for main window. This sets pos which WM_CREATE handler
++  // assigns to g_SplitterPos, which will be saved in registry so next time, on start up,
++  // in WM_CREATE handler, SetPos is used to initialize with the saved g_SplitterPos value.
+   void SetRatio(HWND hWnd, int aRatio)
+   {
+     _ratio = aRatio;
+@@ -288,6 +295,7 @@ static BOOL InitInstance(int nCmdShow)
+ 
+   g_App.NumPanels = info.numPanels;
+   g_App.LastFocusedPanel = info.currentPanel;
++  g_App.MultiPanelMode = ReadPanelMode();
+ 
+   if (!wnd.Create(kWindowClass, title, style,
+     x, y, xSize, ySize, NULL, NULL, g_hInstance, NULL))
+@@ -694,6 +702,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE /* hPrevInstance */,
+ {
+   g_hInstance = hInstance;
+ 
++  Z7DbgEnableTags(L"Find");
++
+   try
+   {
+     try
+@@ -895,7 +905,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+ 
+       if (res == E_ABORT)
+         return -1;
+-      
++
++      if (g_App.MultiPanelMode != 0)
++      {
++        g_App.InitializeMultiPanel();
++      }
++
+       if ((needOpenArc && !openRes.ArchiveIsOpened) || res != S_OK)
+       {
+         UString m ("Error");
+@@ -1035,7 +1050,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+       g_App.OnNotify((int)wParam, (LPNMHDR)lParam);
+       break;
+     }
+-    
++
++    case kOpenPath:
++    {
++      UString *path = reinterpret_cast<UString *>(wParam);
++      g_App.Panels[g_App.LastFocusedPanel].NavigatePath(*path);
++      break;
++    }
+     /*
+     case WM_DROPFILES:
+     {
+@@ -1068,6 +1089,11 @@ static int Window_GetRealHeight(NWindows::CWindow &w)
+ 
+ void CApp::MoveSubWindows()
+ {
++  if (MultiPanelMode != 0)
++  {
++    return MoveSubWindowsMultiPanel();
++  }
++
+   HWND hWnd = _window;
+   RECT rect;
+   if (!hWnd)
+diff --git a/CPP/7zip/UI/FileManager/FM.mak b/CPP/7zip/UI/FileManager/FM.mak
+index 8331285..b05d25a 100644
+--- a/CPP/7zip/UI/FileManager/FM.mak
++++ b/CPP/7zip/UI/FileManager/FM.mak
+@@ -4,8 +4,8 @@ CFLAGS = $(CFLAGS) \
+ !IFDEF UNDER_CE
+ LIBS = $(LIBS) ceshell.lib Commctrl.lib
+ !ELSE
+-LIBS = $(LIBS) comctl32.lib htmlhelp.lib comdlg32.lib Mpr.lib Gdi32.lib
+-CFLAGS = $(CFLAGS) -DZ7_LONG_PATH -DZ7_DEVICE_FILE
++LIBS = $(LIBS) comctl32.lib htmlhelp.lib comdlg32.lib Mpr.lib Gdi32.lib shlwapi.lib Pathcch.lib
++CFLAGS = $(CFLAGS) -DZ7_LONG_PATH -DZ7_DEVICE_FILE /std:c++20
+ LFLAGS = $(LFLAGS) /DELAYLOAD:mpr.dll
+ LIBS = $(LIBS) delayimp.lib
+ !ENDIF
+@@ -30,6 +30,7 @@ FM_OBJS = \
+   $O\OpenCallback.obj \
+   $O\OptionsDialog.obj \
+   $O\Panel.obj \
++  $O\PanelFind.obj \
+   $O\PanelCopy.obj \
+   $O\PanelCrc.obj \
+   $O\PanelDrag.obj \
+@@ -37,6 +38,7 @@ FM_OBJS = \
+   $O\PanelItemOpen.obj \
+   $O\PanelItems.obj \
+   $O\PanelKey.obj \
++  $O\ExternalTools.obj \
+   $O\PanelListNotify.obj \
+   $O\PanelMenu.obj \
+   $O\PanelOperations.obj \
+@@ -69,6 +71,8 @@ FM_OBJS = \
+   $O\SplitDialog.obj \
+   $O\SystemPage.obj \
+   $O\VerCtrl.obj \
++  $O\Path.obj \
++  $O\MultiPanel.obj \
+ 
+ !IFNDEF UNDER_CE
+ 
+diff --git a/CPP/7zip/UI/FileManager/FSFolderCopy.cpp b/CPP/7zip/UI/FileManager/FSFolderCopy.cpp
+index db4ae0a..14ef3bc 100644
+--- a/CPP/7zip/UI/FileManager/FSFolderCopy.cpp
++++ b/CPP/7zip/UI/FileManager/FSFolderCopy.cpp
+@@ -785,21 +785,23 @@ HRESULT CopyFileSystemItems(
+ /* we don't use CFSFolder::CopyFrom() because the caller of CopyFrom()
+    is optimized for IFolderArchiveUpdateCallback interface,
+    but we want to use IFolderOperationsExtractCallback interface instead */
+-
+-Z7_COM7F_IMF(CFSFolder::CopyFrom(Int32 /* moveMode */, const wchar_t * /* fromFolderPath */,
+-    const wchar_t * const * /* itemsPaths */, UInt32 /* numItems */, IProgress * /* progress */))
++// Not used yet.
++Z7_COM7F_IMF(CFSFolder::CopyFrom(Int32 moveMode, const wchar_t * /*folderPrefix*/,
++    const wchar_t * const *itemsPaths, UInt32 numItems, IProgress *progress))
+ {
+-  /*
+   Z7_DECL_CMyComPtr_QI_FROM(
+       IFolderOperationsExtractCallback,
+       callback, progress)
+   if (!callback)
+     return E_NOTIMPL;
+-  return CopyFileSystemItems(_path,
+-      moveMode, fromDirPrefix,
+-      itemsPaths, numItems, callback);
+-  */
+-  return E_NOTIMPL;
++  // return CopyFileSystemItems(_path,
++  //     moveMode, fromDirPrefix,
++  //     itemsPaths, numItems, callback);
++
++  // UStringVector itemPathsVector(itemsPaths, itemsPaths + numItems);
++  CObjectVector<UString> itemPathsVector(itemsPaths, itemsPaths + numItems);
++  return CopyFileSystemItems(itemPathsVector, _path,
++      (bool)moveMode, callback);
+ }
+ 
+ Z7_COM7F_IMF(CFSFolder::CopyFromFile(UInt32 /* index */, const wchar_t * /* fullFilePath */, IProgress * /* progress */))
+diff --git a/CPP/7zip/UI/FileManager/MultiPanel.cpp b/CPP/7zip/UI/FileManager/MultiPanel.cpp
+new file mode 100644
+index 0000000..f691eb8
+--- /dev/null
++++ b/CPP/7zip/UI/FileManager/MultiPanel.cpp
+@@ -0,0 +1,289 @@
++#include "StdAfx.h"
++#include "App.h"
++#include <shlwapi.h>
++
++void CApp::MoveSubWindowsMultiPanel()
++{
++  HWND hWnd = _window;
++  RECT rect;
++  if (!hWnd)
++    return;
++  ::GetClientRect(hWnd, &rect);
++  int xSize = rect.right;
++  if (xSize == 0)
++    return;
++  int headerSize = 0;
++
++  if (_toolBar)
++  {
++    _toolBar.AutoSize();
++    RECT toolbarRect{};
++    _toolBar.GetWindowRect(&toolbarRect);
++    // headerSize += Window_GetRealHeight(_toolBar);
++    // Effectively the same.
++    headerSize += RECT_SIZE_Y(toolbarRect);
++  }
++
++  int ySize = MyMax((int)(rect.bottom - headerSize), 0);
++  static const int kSplitterWidth = 4;
++
++  int xWidth0 = xSize / 3 - kSplitterWidth / 2;
++  int panel1StartX = xSize / 3 + kSplitterWidth / 2;
++  int panel2StartX = xSize / 3 * 2 + kSplitterWidth / 2;
++  Panels[2].Move(panel2StartX, headerSize, xWidth0, ySize);
++  Panels[1].Move(panel1StartX, headerSize, xWidth0, ySize);
++  Panels[0].Move(0,            headerSize, xWidth0, ySize);
++  Panels[0]._xSize = Panels[1]._xSize = Panels[2]._xSize = xWidth0;
++
++  // ResizeSingleColumn();
++
++  // Remove left over artifacts from resizing smaller.
++  InvalidateRect(Panels[1]._mainWindow, NULL, TRUE);
++}
++
++HRESULT CApp::InitializeMultiPanel()
++{
++  NumPanels = 3;
++  // There's a weird case in CApp::Create where it doesn't initialize the first panel
++  // so just initialize all of them here.
++  for (int i = 0; i < kNumPanelsMax; ++i)
++  {
++    COpenResult openRes;
++    RINOK(CreateOnePanel(i, UString(), UString(),
++                         false, // needOpenArc
++                         openRes));
++    // List mode
++    Panels[i].SetListViewMode(3);
++    Panels[i].Show(SW_SHOWNORMAL);
++    Panels[i].Enable(true);
++
++    // Initialize columns to only the name column
++    bool foundName = false;
++    for (int j = Panels[i]._visibleColumns.Size() - 1; j >= 0; --j)
++    {
++      if (Panels[i]._visibleColumns[j].Name.Compare(L"Name") != 0)
++      {
++        Panels[i].DeleteColumn(j);
++      }
++      else
++      {
++        foundName = true;
++      }
++    }
++
++    if (!foundName)
++    {
++      for (auto const& column : Panels[i]._columns)
++      {
++        Panels[i].AddColumn(column);
++      }
++    }
++  }
++
++  Panels[1].SetFocusToList();
++  Panels[1]._listView.SetItemState_Selected(0, true);
++  MultiPanelMode = 1;
++
++  MoveSubWindowsMultiPanel();
++  SyncMultiPanel();
++
++  return S_OK;
++}
++
++HRESULT CApp::UninitializeMultiPanel()
++{
++  while (NumPanels > 1)
++  {
++    Panels[NumPanels - 1].Enable(false);
++    Panels[NumPanels - 1].Show(SW_HIDE);
++    --NumPanels;
++  }
++  LastFocusedPanel = 0;
++  MultiPanelMode = 0;
++
++  MoveSubWindows();
++  return S_OK;
++}
++
++HRESULT CApp::ResizeSingleColumn()
++{
++  // Make column headings fit to width of panel.
++  if (NumPanels == 3)
++  {
++    for (int i = 0; i < (int)NumPanels; ++i)
++    {
++      if (Panels[i]._visibleColumns.Size() > 0)
++      {
++        RECT rc {};
++        GetClientRect(Panels[i]._listView, &rc);
++        // Panels[i]._visibleColumns[0].Width = Panels[i]._xSize;
++        Panels[i]._visibleColumns[0].Width = rc.right - rc.left;
++        Panels[i].UpdateColumn(0, Panels[i]._visibleColumns[0]);
++      }
++    }
++  }
++  return S_OK;
++}
++
++HRESULT CApp::SyncMultiPanel()
++{
++  auto cwd = Panels[1].GetFsPath();
++  auto parent = Panels[1].GetParentDirPrefix(); // could use std::filesystem::parent_path:
++  UString preview;
++
++  if (parent.Len() > 0 && parent[parent.Len()-1] == L':')
++  {
++    parent.Add_PathSepar();
++  }
++  CRecordVector<UInt32> selected;
++  Panels[1].Get_ItemIndices_Selected(selected);
++
++  if (selected.Size() > 0)
++  {
++    preview = Panels[1].GetItemFullPath(selected[0]).Ptr();
++    preview.TrimPathSepar();
++  }
++
++  // Update parent panel
++  if (Panels[0].PanelCreated)
++  {
++    if (parent.Compare(cwd) != 0 && parent.Compare(L"Computer") != 0)
++    {
++      if (Panels[0].GetFsPath() != parent)
++      {
++        Panels[0].BindToPathAndRefresh(parent);
++      }
++    }
++    else
++    {
++      Panels[0].BindToPathAndRefresh(L"");
++      Panels[0].DeleteListItems();
++    }
++  }
++
++  // Update preview panel
++  if (Panels[2].PanelCreated)
++  {
++    if (preview.Len() > 0 && PathIsDirectory(preview) && Panels[2].PanelCreated)
++    {
++      auto panelPath = Panels[2].GetFsPath();
++      panelPath.TrimPathSepar();
++      if (panelPath != preview)
++      {
++        Panels[2].BindToPathAndRefresh(preview);
++      }
++    }
++    else
++    {
++      Panels[2].BindToPathAndRefresh(L"");
++      Panels[2].DeleteListItems();
++    }
++  }
++
++  ResizeSingleColumn();
++
++  return S_OK;
++}
++
++HRESULT CPanelCallbackImp::OnRefreshList(bool& shouldReturn)
++{
++  (void)shouldReturn;
++  return S_OK;
++}
++
++HRESULT CPanelCallbackImp::OnBind(bool& shouldReturn)
++{
++  (void)shouldReturn;
++  return S_OK;
++}
++
++HRESULT CPanelCallbackImp::OnSelectedItemChanged()
++{
++
++  if (_app->MultiPanelMode == 0)
++  {
++    return S_OK;
++  }
++
++  if (_index != 1)
++  {
++    return S_OK;
++  }
++
++  if (multiPanelReentrancyCount++ == 0)
++  {
++    _app->SyncMultiPanel();
++    --multiPanelReentrancyCount;
++  }
++  return S_OK;
++}
++
++HRESULT CPanelCallbackImp::OnOpenFolder(std::optional<std::reference_wrapper<bool>> shouldReturn, std::optional<UString> path)
++{
++  if (_app->MultiPanelMode == 0)
++  {
++    return S_OK;
++  }
++
++  if (shouldReturn.has_value())
++  {
++    shouldReturn->get() = false;
++  }
++
++  if (_index != 1)
++  {
++    auto cwd = _app->Panels[_index].GetFsPath();
++    _app->Panels[1].BindToPathAndRefresh(cwd);
++
++    // This is to notify OnNotifyComboBoxEnter to skip default action.
++    if (shouldReturn.has_value())
++    {
++      shouldReturn->get() = true;
++    }
++  }
++
++  _app->Panels[1]._appState->FolderHistory.AddString(_app->Panels[1]._currentFolderPrefix);
++  // You don't need to sync the panels here, because SetItemState_Selected will trigger OnSelectedItemChanged
++  // which will sync.
++  // _app->SyncMultiPanel();
++  _app->Panels[1]._listView.SetItemState_Selected(0, true);
++  _app->Panels[1].SetFocusToList();
++
++  if (path.has_value())
++  {
++    auto file = path.value().GetFileName();
++    file.TrimRight();
++    _app->Panels[1].FindNextItem(file, 0);
++  }
++  return S_OK;
++}
++
++HRESULT CPanelCallbackImp::OnOpenParentFolder()
++{
++  if (_app->MultiPanelMode == 0)
++  {
++    return S_OK;
++  }
++
++  _app->SyncMultiPanel();
++
++  return S_OK;
++}
++
++UString CPanelCallbackImp::OnSetComboText(UString const& text)
++{
++  if (_app->MultiPanelMode == 0 || _index == 0)
++  {
++    return UString();
++  }
++
++  // The second and third panel should only display the file name.
++  return text.GetFileName();
++
++  // _app->Panels[1].SetFocusToList();
++}
++
++bool CPanelCallbackImp::IsMultiPanelMode()
++{
++  return _app->MultiPanelMode != 0;
++}
+\ No newline at end of file
+diff --git a/CPP/7zip/UI/FileManager/MultiPanel.h b/CPP/7zip/UI/FileManager/MultiPanel.h
+new file mode 100644
+index 0000000..6748ff4
+--- /dev/null
++++ b/CPP/7zip/UI/FileManager/MultiPanel.h
+@@ -0,0 +1,5 @@
++
++#ifndef ZIP7_INC_MULTIPANEL_H
++#define ZIP7_INC_MULTIPANEL_H
++
++#endif
+\ No newline at end of file
+diff --git a/CPP/7zip/UI/FileManager/MyLoadMenu.cpp b/CPP/7zip/UI/FileManager/MyLoadMenu.cpp
+index 9453536..19cdfd3 100644
+--- a/CPP/7zip/UI/FileManager/MyLoadMenu.cpp
++++ b/CPP/7zip/UI/FileManager/MyLoadMenu.cpp
+@@ -729,6 +729,12 @@ bool ExecuteFileCommand(unsigned id)
+     case IDM_OPEN_INSIDE:        g_App.OpenItemInside(NULL); break;
+     case IDM_OPEN_INSIDE_ONE:    g_App.OpenItemInside(L"*"); break;
+     case IDM_OPEN_INSIDE_PARSER: g_App.OpenItemInside(L"#"); break;
++    case IDM_OPEN_VSCODE: g_App.OpenItemVscode(); break;
++    case IDM_OPEN_TERMINAL: g_App.OpenItemTerminal(); break;
++    case IDM_OPEN_EXPLORER: g_App.OpenItemExplorer(); break;
++    case IDM_COPY_PATH: g_App.CopyItemPath(); break;
++    case IDM_FIND_FZF: g_App.FindFzf(); break;
++    // case IDM_FIND_IGREP: g_App.FindIgrep(); break;
+ 
+     case IDM_OPEN_OUTSIDE: g_App.OpenItemOutside(); break;
+     case IDM_FILE_VIEW: g_App.EditItem(false); break;
+diff --git a/CPP/7zip/UI/FileManager/Panel.cpp b/CPP/7zip/UI/FileManager/Panel.cpp
+index 72b72c6..4ea1422 100644
+--- a/CPP/7zip/UI/FileManager/Panel.cpp
++++ b/CPP/7zip/UI/FileManager/Panel.cpp
+@@ -33,6 +33,8 @@
+ 
+ #include "PropertyNameRes.h"
+ 
++#include <Shlwapi.h>
++
+ using namespace NWindows;
+ using namespace NControl;
+ 
+@@ -90,6 +92,7 @@ HRESULT CPanel::Create(HWND mainWindow, HWND parentWindow, UINT id,
+   _baseID = id;
+   _comboBoxID = _baseID + 3;
+   _statusBarID = _comboBoxID + 1;
++  _panelFindID = _statusBarID + 1;
+ 
+   UString cfp = currentFolderPrefix;
+ 
+@@ -106,7 +109,7 @@ HRESULT CPanel::Create(HWND mainWindow, HWND parentWindow, UINT id,
+   if (needOpenArc && !openRes.ArchiveIsOpened)
+     return S_OK;
+ 
+-  if (!CreateEx(0, kClassName, NULL, WS_CHILD | WS_VISIBLE,
++  if (!CreateEx(0, kClassName, NULL, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS,
+       0, 0, _xSize, 260,
+       parentWindow, (HMENU)(UINT_PTR)id, g_hInstance))
+     return E_FAIL;
+@@ -142,6 +145,12 @@ LRESULT CPanel::OnMessage(UINT message, WPARAM wParam, LPARAM lParam)
+       LoadFullPathAndShow();
+       return 0;
+     #endif
++    case WM_COMMAND:
++      if (HIWORD(wParam) == EN_CHANGE && LOWORD(wParam) == _panelFindID)
++      {
++        OnPanelFindEditChange();
++      }
++      break;
+     case WM_TIMER:
+       OnTimer();
+       return 0;
+@@ -163,33 +172,55 @@ LRESULT CMyListView::OnMessage(UINT message, WPARAM wParam, LPARAM lParam)
+   if (message == WM_CHAR)
+   {
+     UINT scanCode = (UINT)((lParam >> 16) & 0xFF);
+-    bool extended = ((lParam & 0x1000000) != 0);
++    // bool extended = ((lParam & 0x1000000) != 0);
+     UINT virtualKey = MapVirtualKey(scanCode, 1);
+     if (virtualKey == VK_MULTIPLY || virtualKey == VK_ADD ||
+         virtualKey == VK_SUBTRACT)
+       return 0;
+-    if ((wParam == '/' && extended)
+-        || wParam == '\\' || wParam == '/')
++    if (wParam == '\\')
+     {
+       _panel->OpenDrivesFolder();
+       return 0;
+     }
++    else if (wParam == '/')
++    {
++      _panel->EnterFindMode();
++      return 0;
++    }
+   }
+   else if (message == WM_SYSCHAR)
+   {
+     // For Alt+Enter Beep disabling
++    // And disable beep for Alt + number key row.
+     UINT scanCode = (UINT)(lParam >> 16) & 0xFF;
+     UINT virtualKey = MapVirtualKey(scanCode, 1);
+     if (virtualKey == VK_RETURN || virtualKey == VK_MULTIPLY ||
+-        virtualKey == VK_ADD || virtualKey == VK_SUBTRACT)
++        virtualKey == VK_ADD || virtualKey == VK_SUBTRACT || virtualKey == 'C'
++        || (virtualKey >= '0' && virtualKey <= '9'))
+       return 0;
+   }
+-  /*
+   else if (message == WM_SYSKEYDOWN)
+   {
+-    // return 0;
++    // This handles alt key presses.
++    bool alt = IsKeyDown(VK_MENU);
++    bool ctrl = IsKeyDown(VK_CONTROL);
++    bool shift = IsKeyDown(VK_SHIFT);
++    switch (wParam)
++    {
++      case 'C':
++      if (!ctrl && alt && shift)
++      {
++        g_App.CopyItemPath();
++        return 0;
++      }
++      case VK_RETURN:
++      if (!ctrl && alt && shift)
++      {
++        g_App.OpenItemTerminal();
++        return 0;
++      }
++    }
+   }
+-  */
+   else if (message == WM_KEYDOWN)
+   {
+     bool alt = IsKeyDown(VK_MENU);
+@@ -223,6 +254,22 @@ LRESULT CMyListView::OnMessage(UINT message, WPARAM wParam, LPARAM lParam)
+         _panel->OpenParentFolder();
+         return 0;
+       }
++      break;
++      case VK_RETURN:
++      // return (activation) are handled in CPanel::OnNotifyActivateItems after this.
++      if (ctrl && !alt && !shift)
++      {
++        g_App.OpenItemVscode();
++        return 0;
++      }
++      break;
++      case VK_ESCAPE:
++      {
++        DeselectAll();
++        _panel->ExitFindMode();
++        return 0;
++      }
++      break;
+     }
+   }
+   #ifdef UNDER_CE
+@@ -302,10 +349,10 @@ LRESULT CMyComboBoxEdit::OnMessage(UINT message, WPARAM wParam, LPARAM lParam)
+     case WM_KEYDOWN:
+       switch (wParam)
+       {
+-        case VK_TAB:
+-          // SendMessage(hwndMain, WM_ENTER, 0, 0);
+-          _panel->SetFocusToList();
+-          return 0;
++        // case VK_TAB:
++        //   // SendMessage(hwndMain, WM_ENTER, 0, 0);
++        //   _panel->SetFocusToList();
++        //   return 0;
+         case VK_F9:
+         {
+           bool alt = IsKeyDown(VK_MENU);
+@@ -328,6 +375,15 @@ LRESULT CMyComboBoxEdit::OnMessage(UINT message, WPARAM wParam, LPARAM lParam)
+           }
+           break;
+         }
++        case 'L':
++        {
++          bool ctrl = IsKeyDown(VK_CONTROL);
++          if (ctrl)
++          {
++            _panel->_panelCallback->SetFocusToPathNoDropDown();
++          }
++          break;
++        }
+       }
+       break;
+     case WM_CHAR:
+@@ -388,6 +444,9 @@ bool CPanel::OnCreate(CREATESTRUCT * /* createStruct */)
+   _ascending = true;
+   _lastFocusedIsList = true;
+ 
++  // Create _panelFind on top of _listView
++  _panelFind.Create(L"Window name", g_hInstance, this, (HWND)*this, _panelFindID);
++
+   DWORD style = WS_CHILD | WS_VISIBLE; //  | WS_BORDER ; // | LVS_SHAREIMAGELISTS; //  | LVS_SHOWSELALWAYS;
+ 
+   style |= LVS_SHAREIMAGELISTS;
+@@ -401,7 +460,9 @@ bool CPanel::OnCreate(CREATESTRUCT * /* createStruct */)
+ 
+   style |= kStyles[_listViewMode]
+     | WS_TABSTOP
+-    | LVS_EDITLABELS;
++    | LVS_EDITLABELS
++    | WS_CLIPCHILDREN
++    | WS_CLIPSIBLINGS;
+   if (_mySelectMode)
+     style |= LVS_SINGLESEL;
+ 
+@@ -492,6 +553,13 @@ bool CPanel::OnCreate(CREATESTRUCT * /* createStruct */)
+       (LPCTBBUTTON)&tbb, Z7_ARRAY_SIZE(tbb),
+       0, 0, 0, 0, sizeof (TBBUTTON)));
+ 
++  // Creating child window here means it goes behind the list view.
++  // _panelFind.Attach(::CreateWindowEx(0, L"EDIT", L"E:\\bk",
++  //                     WS_VISIBLE | WS_CHILD | WS_BORDER | ES_LEFT,
++  //                     87, 81, 150, 17,
++  //                     main_window.hwnd,
++  //                     (HMENU)5, hInstance, NULL);)
++
+   #ifndef UNDER_CE
+   // Load ComboBoxEx class
+   icex.dwSize = sizeof(INITCOMMONCONTROLSEX);
+@@ -527,6 +595,9 @@ bool CPanel::OnCreate(CREATESTRUCT * /* createStruct */)
+   */
+   _comboBoxEdit.Attach(_headerComboBox.GetEditControl());
+ 
++  // Turn file path auto completion.
++  SHAutoComplete(_headerComboBox.GetEditControl(), SHACF_FILESYSTEM | SHACF_AUTOSUGGEST_FORCE_ON | SHACF_USETAB);
++
+   // _comboBoxEdit.SendMessage(CCM_SETUNICODEFORMAT, (WPARAM)(BOOL)TRUE, 0);
+ 
+   _comboBoxEdit.SetUserDataLongPtr(LONG_PTR(&_comboBoxEdit));
+@@ -639,7 +710,15 @@ void CPanel::ChangeWindowSize(int xSize, int ySize)
+     _headerComboBox.Move(kStartXPos, 2,
+         MyMax(xSize - kStartXPos - 10, kStartXPos), 0);
+   }
+-  _listView.Move(0, kHeaderSize, xSize, yListViewSize);
++  if (_findMode)
++  {
++    _listView.Move(0, kHeaderSize, xSize, yListViewSize - kStatusBarSize);
++  }
++  else
++  {
++    _listView.Move(0, kHeaderSize, xSize, yListViewSize);
++  }
++  _panelFind.Move(0, kHeaderSize + yListViewSize - kStatusBarSize, xSize, kStatusBarSize);
+   _statusBar.Move(0, kHeaderSize + yListViewSize, xSize, kStatusBarSize);
+   // _statusBar2.MoveWindow(0, kHeaderSize + yListViewSize + kStatusBarSize, xSize, kStatusBar2Size);
+   // _statusBar.MoveWindow(0, 100, xSize, kStatusBarSize);
+@@ -824,7 +903,7 @@ UString CPanel::GetFolderTypeID() const
+ {
+   {
+     NCOM::CPropVariant prop;
+-    if (_folder->GetFolderProperty(kpidType, &prop) == S_OK)
++    if (_folder && _folder->GetFolderProperty(kpidType, &prop) == S_OK)
+       if (prop.vt == VT_BSTR)
+         return (const wchar_t *)prop.bstrVal;
+   }
+@@ -1180,3 +1259,8 @@ void CPanel::TestArchives()
+   }
+   ::TestArchives(paths);
+ }
++
++void CPanel::NavigatePath(UString const& path)
++{
++  OnNotifyComboBoxEnter(path);
++}
+diff --git a/CPP/7zip/UI/FileManager/Panel.h b/CPP/7zip/UI/FileManager/Panel.h
+index e512cad..da16310 100644
+--- a/CPP/7zip/UI/FileManager/Panel.h
++++ b/CPP/7zip/UI/FileManager/Panel.h
+@@ -32,6 +32,7 @@
+ #include "../../../Windows/Control/StatusBar.h"
+ #include "../../../Windows/Control/ToolBar.h"
+ #include "../../../Windows/Control/Window2.h"
++#include "../../../Windows/ProcessUtils.h"
+ 
+ #include "../../Archive/IArchive.h"
+ 
+@@ -42,6 +43,11 @@
+ #include "MyCom2.h"
+ #include "ProgressDialog2.h"
+ #include "SysIconUtils.h"
++#include "PanelFind.h"
++#include "Debounce.h"
++
++#include <optional>
++#include <functional>
+ 
+ #ifdef UNDER_CE
+ #define NON_CE_VAR(_v_)
+@@ -66,6 +72,7 @@ DECLARE_INTERFACE(CPanelCallback)
+ {
+   virtual void OnTab() = 0;
+   virtual void SetFocusToPath(unsigned index) = 0;
++  virtual void SetFocusToPathNoDropDown() = 0;
+   virtual void OnCopy(bool move, bool copyToSame) = 0;
+   virtual void OnSetSameFolder() = 0;
+   virtual void OnSetSubFolder() = 0;
+@@ -73,6 +80,16 @@ DECLARE_INTERFACE(CPanelCallback)
+   virtual void DragBegin() = 0;
+   virtual void DragEnd() = 0;
+   virtual void RefreshTitle(bool always) = 0;
++
++  // Multi panel callbacks.
++  virtual HRESULT OnRefreshList(bool& shouldReturn) = 0;
++  virtual HRESULT OnBind(bool& shouldReturn) = 0;
++  virtual HRESULT OnSelectedItemChanged() = 0;
++  virtual HRESULT OnOpenFolder(std::optional<std::reference_wrapper<bool>> shouldReturn = std::nullopt, std::optional<UString> path = std::nullopt) = 0;
++  virtual HRESULT OnOpenParentFolder() = 0;
++  virtual UString OnSetComboText(UString const& text) = 0;
++  virtual bool IsMultiPanelMode() = 0;
++  virtual int GetIndex() = 0;
+ };
+ Z7_PURE_INTERFACES_END
+ 
+@@ -301,7 +318,7 @@ struct COpenResult
+ };
+ 
+ 
+-
++class CApp;
+ 
+ class CPanel Z7_final: public NWindows::NControl::CWindow2
+ {
+@@ -309,6 +326,7 @@ class CPanel Z7_final: public NWindows::NControl::CWindow2
+   UINT _baseID;
+   unsigned _comboBoxID;
+   UINT _statusBarID;
++  UINT _panelFindID;
+ 
+   CAppState *_appState;
+ 
+@@ -326,6 +344,8 @@ class CPanel Z7_final: public NWindows::NControl::CWindow2
+   #ifndef UNDER_CE
+   
+   LRESULT OnNotifyComboBoxEnter(const UString &s);
++  LRESULT OnNotifyComboBoxEnterShowInDirectory(const UString &s);
++
+   bool OnNotifyComboBoxEndEdit(PNMCBEENDEDITW info, LRESULT &result);
+   #ifndef _UNICODE
+   bool OnNotifyComboBoxEndEdit(PNMCBEENDEDIT info, LRESULT &result);
+@@ -336,7 +356,6 @@ class CPanel Z7_final: public NWindows::NControl::CWindow2
+   bool OnNotifyReBar(LPNMHDR lParam, LRESULT &result);
+   bool OnNotifyComboBox(LPNMHDR lParam, LRESULT &result);
+   void OnItemChanged(NMLISTVIEW *item);
+-  void OnNotifyActivateItems();
+   bool OnNotifyList(LPNMHDR lParam, LRESULT &result);
+   void OnDrag(LPNMLISTVIEW nmListView, bool isRightButton = false);
+   bool OnKeyDown(LPNMLVKEYDOWN keyDownInfo, LRESULT &result);
+@@ -347,6 +366,7 @@ class CPanel Z7_final: public NWindows::NControl::CWindow2
+ 
+ 
+ public:
++  void OnNotifyActivateItems();
+   HWND _mainWindow;
+   CPanelCallback *_panelCallback;
+ 
+@@ -357,6 +377,7 @@ public:
+   void CreateFile();
+   bool CorrectFsPath(const UString &path, UString &result);
+   // bool IsPathForPlugin(const UString &path);
++  void NavigatePath(UString const& path);
+ 
+ private:
+ 
+@@ -365,6 +386,7 @@ private:
+   HRESULT InitColumns();
+   void DeleteColumn(unsigned index);
+   void AddColumn(const CPropColumn &prop);
++  void UpdateColumn(const unsigned index, const CPropColumn &prop);
+ 
+   void SetFocusedSelectedItem(int index, bool select);
+   
+@@ -569,6 +591,7 @@ public:
+   void SaveListViewInfo();
+ 
+   CPanel() :
++      _panelCallback(NULL),
+       _thereAre_ListView_Items(false),
+       _exStyle(0),
+       _showDots(false),
+@@ -599,7 +622,10 @@ public:
+ 
+       _needSaveInfo(false),
+       _startGroupSelect(0),
+-      _selectionIsDefined(false)
++      _selectionIsDefined(false),
++      _debounceOnPanelFindEditChange([](CPanel *panel) {
++        panel->OnPanelFindEditChangeDebouncedHandler();
++      }, 400)
+   {}
+ 
+   void SetExtendedStyle()
+@@ -666,6 +692,7 @@ public:
+   void EditCut();
+   void EditCopy();
+   void EditPaste();
++  void EditPasteClipboard();
+ 
+   int _startGroupSelect;
+ 
+@@ -856,6 +883,11 @@ public:
+ 
+   void OpenFocusedItemAsInternal(const wchar_t *type = NULL);
+   void OpenSelectedItems(bool internal);
++  void OpenSelectedItem(UString const& command, UString const& operation = L"", int nShow = SW_SHOWNORMAL);
++  void OpenInSelectedItem(UString const& command, UString const& operation = L"");
++  void CopyItemPath();
++  void FindFzf();
++  void FindIgrep(UString text);
+ 
+   void OpenFolderExternal(unsigned index);
+ 
+@@ -956,8 +988,11 @@ public:
+ 
+   HRESULT CopyFrom(bool moveMode, const UString &folderPrefix, const UStringVector &filePaths,
+       bool showErrorMessages, UStringVector *messages);
++  HRESULT CopyFromFolder(bool moveMode, const UString &folderPrefix, const UStringVector &filePaths,
++    bool showErrorMessages, UStringVector *messages);
+ 
+   void CopyFromNoAsk(bool moveMode, const UStringVector &filePaths);
++  void CopyFromFolderNoAsk(bool moveMode, const UStringVector &filePaths);
+ 
+   void CompressDropFiles(
+       const UStringVector &filePaths,
+@@ -971,6 +1006,21 @@ public:
+   void RefreshTitleAlways() { RefreshTitle(true);  }
+ 
+   UString GetItemsInfoString(const CRecordVector<UInt32> &indices);
++  void SetComboText(UString const& text);
++
++  CPanelFind _panelFind;
++  bool _findMode = false;
++  Debounce<void (*)(CPanel*)> _debounceOnPanelFindEditChange;
++  void EnterFindMode();
++  void ExitFindMode();
++  void FindNextItem(UString const& query, int skip);
++  void OnPanelFindEditChange();
++  void OnPanelFindEditChangeDebouncedHandler();
++  // CPanel::OnPanelFindEditChangeDebouncedHandler, 400);
++
++  // friend HRESULT CApp::InitializeMultiPanel();
++  friend class CApp;
++  friend class CPanelCallbackImp;
+ };
+ 
+ class CMyBuffer
+@@ -1013,4 +1063,13 @@ public:
+ 
+ extern CExitEventLauncher g_ExitEventLauncher;
+ 
++void StartApplicationDontWait(const UString &dir, const UString &path, HWND window);
++HRESULT StartApplication(
++  const UString &dir,
++  const UString &path,
++  const UString &operation,
++  const UString &parameter,
++  HWND window,
++  NWindows::CProcess &process,
++  int nShow = SW_SHOWNORMAL);
+ #endif
+diff --git a/CPP/7zip/UI/FileManager/PanelCopy.cpp b/CPP/7zip/UI/FileManager/PanelCopy.cpp
+index de3d764..cbfbd17 100644
+--- a/CPP/7zip/UI/FileManager/PanelCopy.cpp
++++ b/CPP/7zip/UI/FileManager/PanelCopy.cpp
+@@ -433,3 +433,120 @@ void CPanel::CopyFromNoAsk(bool moveMode, const UStringVector &filePaths)
+   disableNotify.Restore();
+   SetFocusToList();
+ }
++
++struct CPanelCopyFromThread : public CPanelCopyThread
++{
++  UString FolderPrefix;
++  UStringVector FileNames;
++  CRecordVector<const wchar_t *> FileNamePointers;
++  CProgressDialog ProgressDialog;
++  HRESULT Result;
++  bool MoveMode;
++
++};
++
++HRESULT CPanel::CopyFromFolder(bool moveMode, const UString &folderPrefix, const UStringVector &filePaths,
++    bool showErrorMessages, UStringVector *messages)
++{
++  if (IsHashFolder())
++  {
++    if (moveMode)
++      return E_NOTIMPL;
++  }
++  // CDisableNotify disableNotify(*this);
++
++  HRESULT res;
++  if (!_folderOperations)
++    res = E_NOINTERFACE;
++  else
++  {
++  CPanelCopyFromThread updater;
++
++  updater.MoveMode = moveMode;
++
++  updater.ExtractCallbackSpec = new CExtractCallbackImp;
++  updater.ExtractCallback = updater.ExtractCallbackSpec;
++  updater.ExtractCallbackSpec->ProgressDialog = &updater;
++
++
++  const UString title = LangString(IDS_COPYING);
++  const UString progressWindowTitle ("7-Zip"); // LangString(IDS_APP_TITLE);
++
++  updater.ProgressDialog.MainWindow = GetParent();
++  updater.ProgressDialog.MainTitle = progressWindowTitle;
++  updater.ProgressDialog.MainAddTitle = title + L' ';
++
++  {
++    if (!_parentFolders.IsEmpty())
++    {
++      // const CFolderLink &fl = _parentFolders.Back();
++      // updater.UpdateCallbackSpec->PasswordIsDefined = fl.UsePassword;
++      // updater.UpdateCallbackSpec->Password = fl.Password;
++    }
++  }
++
++  updater.FolderOperations = _folderOperations;
++  updater.FolderPrefix = folderPrefix;
++  updater.FileNames.ClearAndReserve(filePaths.Size());
++  unsigned i;
++  for (i = 0; i < filePaths.Size(); i++)
++    updater.FileNames.AddInReserved(filePaths[i]);
++  updater.FileNamePointers.ClearAndReserve(updater.FileNames.Size());
++  for (i = 0; i < updater.FileNames.Size(); i++)
++    updater.FileNamePointers.AddInReserved(updater.FileNames[i]);
++
++  {
++    NWindows::CThread thread;
++    const WRes wres = thread.Create(CThreadUpdate::MyThreadFunction, &updater);
++    if (wres != 0)
++      return HRESULT_FROM_WIN32(wres);
++    updater.ProgressDialog.Create(title, thread, GetParent());
++  }
++
++  if (messages)
++    *messages = updater.ProgressDialog.Sync.Messages;
++
++  res = updater.Result;
++  }
++
++  if (res == E_NOINTERFACE)
++  {
++    const UString errorMessage = LangString(IDS_OPERATION_IS_NOT_SUPPORTED);
++    if (showErrorMessages)
++      MessageBox_Error(errorMessage);
++    else if (messages)
++      messages->Add(errorMessage);
++    return E_ABORT;
++  }
++
++  RefreshTitleAlways();
++  return res;
++}
++
++// Not used yet.
++void CPanel::CopyFromFolderNoAsk(bool moveMode, const UStringVector &filePaths)
++{
++  CDisableTimerProcessing disableTimerProcessing(*this);
++
++  CSelectedState srcSelState;
++  SaveSelectedState(srcSelState);
++
++  CDisableNotify disableNotify(*this);
++
++  const HRESULT result = CopyFromFolder(moveMode, L"", filePaths, true, NULL);
++
++  if (result != S_OK)
++  {
++    disableNotify.Restore();
++    // For Password:
++    SetFocusToList();
++    if (result != E_ABORT)
++      MessageBox_Error_HRESULT(result);
++    return;
++  }
++
++  RefreshListCtrl(srcSelState);
++
++  disableNotify.Restore();
++  SetFocusToList();
++}
+diff --git a/CPP/7zip/UI/FileManager/PanelDrag.cpp b/CPP/7zip/UI/FileManager/PanelDrag.cpp
+index 040444c..75c24f4 100644
+--- a/CPP/7zip/UI/FileManager/PanelDrag.cpp
++++ b/CPP/7zip/UI/FileManager/PanelDrag.cpp
+@@ -1953,8 +1953,9 @@ void CDropTarget::PositionCursor(const POINTL &ptl)
+           {
+             m_Panel = panel;
+             m_IsAppTarget = false;
+-            if ((int)i == SrcPanelIndex)
+-              return; // we don't allow to drop to source panel
++
++            // if ((int)i == SrcPanelIndex)
++            //   return; // we don't allow to drop to source panel
+             break;
+           }
+         }
+@@ -2696,11 +2697,30 @@ Z7_COMWF_B CDropTarget::Drop(IDataObject *dataObject, DWORD keyState,
+ 
+         RemoveSelection();
+         // disableTimerProcessing.Restore();
+-        m_Panel->CompressDropFiles(m_SourcePaths, path,
+-            (cmd == NDragMenu::k_AddToArc),  // createNewArchive,
+-            moveMode, sourceFlags,
+-            target.Flags
+-            );
++        if (target.FolderType == k_FolderType_Fs)
++        {
++          CCopyToOptions options;
++          // if (cmd == NDragMenu::k_AddToArc) earlier resets cmdEffect to copy for some reason
++          // but this panel is not an archive.
++          options.moveMode = (GetEffect(keyState, pt, 7) == DROPEFFECT_MOVE);
++          options.folder = GetFolderPath(m_Panel->_folder);
++          options.showErrorMessages = true;
++          options.NeedRegistryZone = false;
++          options.ZoneIdMode = NExtract::NZoneIdMode::kNone;
++          m_Panel->CopyFsItems(
++            options,
++            m_SourcePaths,
++            NULL
++          );
++        }
++        else
++        {
++          m_Panel->CompressDropFiles(m_SourcePaths, path,
++              (cmd == NDragMenu::k_AddToArc),  // createNewArchive,
++              moveMode, sourceFlags,
++              target.Flags
++              );
++        }
+       }
+     }
+   } // end of if (cmd != NDragMenu::k_Cancel)
+diff --git a/CPP/7zip/UI/FileManager/PanelFind.cpp b/CPP/7zip/UI/FileManager/PanelFind.cpp
+new file mode 100644
+index 0000000..4fcb205
+--- /dev/null
++++ b/CPP/7zip/UI/FileManager/PanelFind.cpp
+@@ -0,0 +1,272 @@
++#include "StdAfx.h"
++#include <windowsx.h>
++#include "PanelFind.h"
++#include "Panel.h"
++#include "Debounce.h"
++#include "../../../Windows/Window.h"
++
++bool CPanelFind::Create(PCWSTR text, HINSTANCE hInstance, CPanel *panel, HWND hwndParent, UINT id)
++{
++  this->_panel = panel;
++  bool success = this->CreateEx(WS_EX_CLIENTEDGE, L"EDIT", text,
++    WS_CHILD | WS_BORDER | ES_LEFT | WS_CLIPCHILDREN | WS_CLIPSIBLINGS | ES_AUTOHSCROLL,
++    0, 0, 0, 32, hwndParent, (HMENU)(ULONGLONG)id, hInstance);
++  if (!success)
++  {
++    return success;
++  }
++
++  NONCLIENTMETRICS ncm;
++  ncm.cbSize = sizeof(ncm);
++
++  SystemParametersInfo(SPI_GETNONCLIENTMETRICS, ncm.cbSize, &ncm, 0);
++  HFONT hFont = CreateFontIndirect(&ncm.lfMessageFont);
++
++  SendMessage(*this, WM_SETFONT, (WPARAM)hFont, MAKELPARAM(true,0));
++  SetWindowProc();
++  return success;
++}
++
++static LRESULT APIENTRY PanelFindEditSubclassProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
++{
++  NWindows::CWindow window(hwnd);
++  CPanelFind *w = (CPanelFind *)(window.GetUserDataLongPtr());
++  if (w == NULL)
++    return 0;
++  return w->OnMessage(message, wParam, lParam);
++}
++
++LRESULT CPanelFind::OnMessage(UINT message, WPARAM wParam, LPARAM lParam)
++{
++  switch (message)
++  {
++    case WM_KEYDOWN:
++    {
++      bool alt = NWindows::IsKeyDown(VK_MENU);
++      bool ctrl = NWindows::IsKeyDown(VK_CONTROL);
++      bool shift = NWindows::IsKeyDown(VK_SHIFT);
++      switch (wParam)
++      {
++        case VK_RETURN:
++          if (ctrl && !alt && !shift)
++          {
++            if (_panel->_listView.GetSelectedCount() == 1)
++            {
++              _panel->ExitFindMode();
++              _panel->OnNotifyActivateItems();
++            }
++            return 0;
++          }
++          break;
++        case 'F':
++          if (ctrl)
++          {
++            int textLen = Edit_GetTextLength(*this) + 1;
++            UString text;
++            Edit_GetText(*this, text.GetBuf_SetEnd(textLen), textLen);
++            _panel->FindIgrep(text);
++            return 0;
++          }
++          break;
++      }
++      break;
++    }
++    case WM_CHAR:
++    {
++      switch (wParam)
++      {
++        case VK_ESCAPE:
++          _panel->ExitFindMode();
++          // MessageBoxA(*this, "Escape key pressed!", "Key Press", MB_OK);
++          // Return immediately to prevent audible bell.
++          return 0;
++        case VK_RETURN:
++        {
++          int textLen = Edit_GetTextLength(*this) + 1;
++          UString text;
++          Edit_GetText(*this, text.GetBuf_SetEnd(textLen), textLen);
++          _panel->FindNextItem(text, 1);
++          return 0;
++        }
++        case '\n':
++          // Prevent MessageBeep from ctrl enter.
++          return 0;
++        case 6:
++          // Prevent MessageBeep from ctrl f, which for some reasons triggers WM_CHAR with wParam == 6.
++          return 0;
++      }
++    }
++  }
++
++  #ifndef _UNICODE
++  if (g_IsNT)
++    return CallWindowProcW(_origWindowProc, *this, message, wParam, lParam);
++  else
++  #endif
++    return CallWindowProc(_origWindowProc, *this, message, wParam, lParam);
++}
++
++void CPanelFind::SetWindowProc()
++{
++  SetUserDataLongPtr((LONG_PTR)this);
++  #ifndef _UNICODE
++  if (g_IsNT)
++    _origWindowProc = (WNDPROC)SetLongPtrW(GWLP_WNDPROC, (LONG_PTR)PanelFindEditSubclassProc);
++  else
++  #endif
++    _origWindowProc = (WNDPROC)SetLongPtr(GWLP_WNDPROC, (LONG_PTR)PanelFindEditSubclassProc);
++}
++
++void CPanel::EnterFindMode()
++{
++  this->_findMode = true;
++  ShowWindow(this->_panelFind, TRUE);
++  ::SetFocus(this->_panelFind);
++  int length = Edit_GetTextLength(this->_panelFind);
++  Edit_SetSel(this->_panelFind, 0, length);
++
++  // Trigger resize.
++  RECT rect;
++  GetWindowRect(&rect);
++  ChangeWindowSize(RECT_SIZE_X(rect), RECT_SIZE_Y(rect));
++}
++
++void CPanel::ExitFindMode()
++{
++  this->_findMode = false;
++  ShowWindow(this->_panelFind, FALSE);
++  SetFocusToList();
++
++  // Trigger resize.
++  RECT rect;
++  GetWindowRect(&rect);
++  ChangeWindowSize(RECT_SIZE_X(rect), RECT_SIZE_Y(rect));
++}
++
++void CPanel::OnPanelFindEditChange()
++{
++  if (!this->_findMode)
++  {
++    return;
++  }
++  this->_debounceOnPanelFindEditChange(this);
++}
++
++void CPanel::OnPanelFindEditChangeDebouncedHandler()
++{
++  int textLen = Edit_GetTextLength(this->_panelFind) + 1;
++  UString text;
++  Edit_GetText(this->_panelFind, text.GetBuf_SetEnd(textLen), textLen);
++  FindNextItem(text, 0);
++}
++
++void CPanel::FindNextItem(UString const& query, int skip)
++{
++  // MessageBox(*this, (LPCWSTR)query.GetBuf(),  NULL, MB_OK);
++  Z7DbgPrintEx(L"Find", L"FindNextItem entry query %s  skip %d\n", (LPCWSTR)query.GetBuf(), skip);
++
++  UString lowerCaseQuery(query);
++  lowerCaseQuery.MakeLower_Ascii();
++
++  // The order is wrong, we want to search not by realIndex, with which _selectedStatusVector is indexed by
++  // But by the visible sorted index.
++  // for (unsigned i = 0; i < _selectedStatusVector.Size(); i++)
++  // {
++  //   if (_selectedStatusVector[i])
++  //   {
++  //     searchStart = i;
++  //     SelectAll(false);
++  //     break;
++  //   }
++  // }
++
++  // UString itemName;
++  // int found = -1;
++  // for (unsigned i = searchStart; i < _selectedStatusVector.Size(); i++)
++  // {
++  //   GetItemName(i, itemName);
++  //   itemName.MakeLower_Ascii();
++  //   if (itemName.Find(lowerCaseQuery) != -1)
++  //   {
++  //     found = i;
++  //     break;
++  //   }
++  // }
++
++  // if (found == -1)
++  // {
++  //   return;
++  // }
++
++  // _selectedStatusVector[found] = true;
++  int numItems = _listView.GetItemCount();
++  UString itemName;
++  int searchStart = -1;
++
++  for (int i = 0; i < numItems; i++)
++  {
++    const unsigned realIndex = GetRealItemIndex(i);
++    if (realIndex == kParentIndex)
++      continue;
++
++    if (_selectedStatusVector[realIndex])
++    {
++      Z7DbgPrintEx(L"Find", L"FindNextItem found selected at %d\n", i);
++
++      searchStart = (i + skip) % numItems;
++      break;
++    }
++  }
++
++  int found = -1;
++  if (searchStart == -1)
++  {
++    searchStart = 0;
++  }
++
++  GetItemName(GetRealItemIndex(searchStart), itemName);
++  itemName.MakeLower_Ascii();
++  if (itemName.Find(lowerCaseQuery) != -1)
++  {
++    found = searchStart;
++  }
++
++  if (found != searchStart || skip != 0)
++  {
++    SelectAll(false);
++  }
++
++  Z7DbgPrintEx(L"Find", L"FindNextItem setting searchStart to %d %s found %d\n", searchStart, (LPCWSTR)itemName.GetBuf(), found);
++
++  if (found == -1)
++  {
++    for (int i = (searchStart + 1) % numItems; i != searchStart; i = (i + 1) % numItems) {
++      const unsigned realIndex = GetRealItemIndex(i);
++      if (realIndex == kParentIndex)
++        continue;
++
++      GetItemName(realIndex, itemName);
++      itemName.MakeLower_Ascii();
++      Z7DbgPrintEx(L"Find", L"FindNextItem checking %d %s\n", i, itemName.GetBuf());
++      if (itemName.Find(lowerCaseQuery) != -1)
++      {
++        found = i;
++        break;
++      }
++    }
++  }
++
++  Z7DbgPrintEx(L"Find", L"FindNextItem found %d\n", found);
++
++  if (found != -1)
++  {
++    _listView.SetItemState_Selected(found);
++    _listView.EnsureVisible(found, false);
++    _listView.SetItemState_FocusedSelected(found);
++  }
++
++  if (found != searchStart)
++  {
++    _listView.RedrawAllItems();
++  }
++}
+\ No newline at end of file
+diff --git a/CPP/7zip/UI/FileManager/PanelFind.h b/CPP/7zip/UI/FileManager/PanelFind.h
+new file mode 100644
+index 0000000..053da7b
+--- /dev/null
++++ b/CPP/7zip/UI/FileManager/PanelFind.h
+@@ -0,0 +1,37 @@
++// Panel.h
++
++#ifndef ZIP7_INC_PANEL_FIND_H
++#define ZIP7_INC_PANEL_FIND_H
++
++#include "../../../Common/MyWindows.h"
++
++
++#if defined(__MINGW32__) || defined(__MINGW64__)
++#include <shlobj.h>
++#else
++#include <ShlObj.h>
++#endif
++
++#include "../../../Common/Common.h"
++// #include "Panel.h"
++// #include "App.h"
++#include "../../../Windows/Window.h"
++#include "../../../Windows/Control/Window2.h"
++
++class CPanel;
++
++class CPanelFind Z7_final: public NWindows::NControl::CWindow2
++{
++//   virtual bool OnCommand(unsigned code, unsigned itemID, LPARAM lParam, LRESULT &result) Z7_override;
++//   virtual bool OnCreate(CREATESTRUCT *createStruct) Z7_override;
++
++  WNDPROC _origWindowProc;
++  void SetWindowProc();
++
++public:
++  bool Create(PCWSTR text, HINSTANCE hInstance, CPanel *panel, HWND hwndParent, UINT id);
++  virtual LRESULT OnMessage(UINT message, WPARAM wParam, LPARAM lParam) Z7_override;
++  CPanel *_panel;
++};
++
++#endif
+diff --git a/CPP/7zip/UI/FileManager/PanelFolderChange.cpp b/CPP/7zip/UI/FileManager/PanelFolderChange.cpp
+index a13b88d..27c883a 100644
+--- a/CPP/7zip/UI/FileManager/PanelFolderChange.cpp
++++ b/CPP/7zip/UI/FileManager/PanelFolderChange.cpp
+@@ -23,6 +23,9 @@
+ #include "ViewSettings.h"
+ 
+ #include "resource.h"
++#include "Path.h"
++
++#include <shlwapi.h>
+ 
+ using namespace NWindows;
+ using namespace NFile;
+@@ -82,7 +85,17 @@ HRESULT CPanel::BindToPath(const UString &fullPath, const UString &arcFormat, CO
+ 
+   openRes.ArchiveIsOpened = false;
+   openRes.Encrypted = false;
+-  
++
++  if (_panelCallback != nullptr)
++  {
++    bool shouldReturn{};
++    _panelCallback->OnBind(shouldReturn);
++    if (shouldReturn)
++    {
++      return S_OK;
++    }
++  }
++
+   CDisableTimerProcessing disableTimerProcessing(*this);
+   CDisableNotify disableNotify(*this);
+ 
+@@ -340,6 +353,7 @@ void CPanel::SetBookmark(unsigned index)
+ void CPanel::OpenBookmark(unsigned index)
+ {
+   BindToPathAndRefresh(_appState->FastFolders.GetString(index));
++  _panelCallback->OnOpenFolder();
+ }
+ 
+ UString GetFolderPath(IFolderFolder *folder)
+@@ -379,9 +393,13 @@ static int GetRealIconIndex(CFSTR path, DWORD attributes)
+ void CPanel::LoadFullPathAndShow()
+ {
+   LoadFullPath();
+-  _appState->FolderHistory.AddString(_currentFolderPrefix);
++  // _panelCallback might not be initialized yet..
++  if (_panelCallback == NULL || !_panelCallback->IsMultiPanelMode())
++  {
++    _appState->FolderHistory.AddString(_currentFolderPrefix);
++  }
+ 
+-  _headerComboBox.SetText(_currentFolderPrefix);
++  SetComboText(_currentFolderPrefix);
+ 
+   #ifndef UNDER_CE
+ 
+@@ -427,8 +445,62 @@ void CPanel::LoadFullPathAndShow()
+ #ifndef UNDER_CE
+ LRESULT CPanel::OnNotifyComboBoxEnter(const UString &s)
+ {
+-  if (BindToPathAndRefresh(GetUnicodeString(s)) == S_OK)
++  auto path = ExpandEnvironmentStringsWrapper(std::wstring(s == L"~" ? L"%USERPROFILE%" : (const wchar_t *)s));
++  if (!path)
+   {
++    return FALSE;
++  }
++
++  if (BindToPathAndRefresh(GetUnicodeString(UString((*path).data()))) == S_OK)
++  {
++    bool shouldReturn;
++    _panelCallback->OnOpenFolder(shouldReturn, UString((*path).data()));
++    if (shouldReturn)
++    {
++      return TRUE;
++    }
++
++    PostMsg(kSetFocusToListView);
++    return TRUE;
++  }
++  return FALSE;
++}
++
++template<typename T, typename F>
++auto map_optional(std::optional<T>& opt, F func) {
++    if (opt.has_value()) {
++        return std::optional<std::invoke_result_t<F, T>>(func(opt.value()));
++    } else {
++        return std::optional<std::invoke_result_t<F, T>>();
++    }
++}
++
++LRESULT CPanel::OnNotifyComboBoxEnterShowInDirectory(const UString &s)
++{
++  auto pathStdStr = ExpandEnvironmentStringsWrapper(std::wstring(s == L"~" ? L"%USERPROFILE%" : (const wchar_t *)s));
++  auto path = map_optional(pathStdStr, [](std::wstring s) { return UString(s.data()); });
++  if (!path)
++  {
++    return FALSE;
++  }
++
++  auto dir = path->GetDirectory();
++  if (!PathIsDirectory(dir))
++  {
++    dir = dir.GetDirectory();
++  }
++  auto name = path->GetFileName();
++  name.TrimRight();
++
++  if (BindToPathAndRefresh(GetUnicodeString(dir)) == S_OK)
++  {
++    bool shouldReturn;
++    _panelCallback->OnOpenFolder(shouldReturn, *path);
++    if (shouldReturn)
++    {
++      return TRUE;
++    }
++
+     PostMsg(kSetFocusToListView);
+     return TRUE;
+   }
+@@ -439,7 +511,7 @@ bool CPanel::OnNotifyComboBoxEndEdit(PNMCBEENDEDITW info, LRESULT &result)
+ {
+   if (info->iWhy == CBENF_ESCAPE)
+   {
+-    _headerComboBox.SetText(_currentFolderPrefix);
++    SetComboText(_currentFolderPrefix);
+     PostMsg(kSetFocusToListView);
+     result = FALSE;
+     return true;
+@@ -458,7 +530,7 @@ bool CPanel::OnNotifyComboBoxEndEdit(PNMCBEENDEDITW info, LRESULT &result)
+     // When we use Edit control and press Enter.
+     UString s;
+     _headerComboBox.GetText(s);
+-    result = OnNotifyComboBoxEnter(s);
++    result = OnNotifyComboBoxEnterShowInDirectory(s);
+     return true;
+   }
+   return false;
+@@ -470,7 +542,7 @@ bool CPanel::OnNotifyComboBoxEndEdit(PNMCBEENDEDIT info, LRESULT &result)
+ {
+   if (info->iWhy == CBENF_ESCAPE)
+   {
+-    _headerComboBox.SetText(_currentFolderPrefix);
++    SetComboText(_currentFolderPrefix);
+     PostMsg(kSetFocusToListView);
+     result = FALSE;
+     return true;
+@@ -554,7 +626,7 @@ bool CPanel::OnComboBoxCommand(UINT code, LPARAM /* param */, LRESULT &result)
+         if (info.Find(us2fs(sumPass)))
+           attrib = info.Attrib;
+         AddComboBoxItem(
+-            name.IsEmpty() ? L"\\" : name,
++            name.IsEmpty() ? L"\\" : (const wchar_t *)name,
+             GetRealIconIndex(us2fs(sumPass), attrib),
+             (int)i, // iIndent
+             false); // addToList
+@@ -598,7 +670,7 @@ bool CPanel::OnComboBoxCommand(UINT code, LPARAM /* param */, LRESULT &result)
+       {
+         UString pass = ComboBoxPaths[index];
+         _headerComboBox.SetCurSel(-1);
+-        // _headerComboBox.SetText(pass); // it's fix for seclecting by mouse.
++        // SetComboText(pass); // it's fix for seclecting by mouse.
+         if (BindToPathAndRefresh(pass) == S_OK)
+         {
+           PostMsg(kSetFocusToListView);
+@@ -678,7 +750,10 @@ void CPanel::FoldersHistory()
+       selectString = listViewDialog.Strings[listViewDialog.FocusedItemIndex];
+   }
+   if (listViewDialog.FocusedItemIndex >= 0)
++  {
+     BindToPathAndRefresh(selectString);
++    _panelCallback->OnOpenFolder();
++  }
+ }
+ 
+ 
+@@ -784,6 +859,8 @@ void CPanel::OpenParentFolder()
+   // ::SetCurrentDirectory(::_currentFolderPrefix);
+   RefreshListCtrl(state);
+   // _listView.EnsureVisible(_listView.GetFocusedItem(), false);
++
++  _panelCallback->OnOpenParentFolder();
+ }
+ 
+ 
+@@ -868,6 +945,8 @@ void CPanel::OpenFolder(unsigned index)
+   // 17.02: fixed : now we don't select first item
+   // _listView.SetItemState_Selected(_listView.GetFocusedItem());
+   _listView.EnsureVisible(_listView.GetFocusedItem(), false);
++
++  _panelCallback->OnOpenFolder();
+ }
+ 
+ void CPanel::OpenAltStreams()
+@@ -911,3 +990,16 @@ void CPanel::OpenAltStreams()
+   BindToPathAndRefresh(path);
+   #endif
+ }
++
++void CPanel::SetComboText(UString const& text)
++{
++  auto newText = _panelCallback->OnSetComboText(text);
++  if (newText.Len() > 0)
++  {
++    _headerComboBox.SetText(newText);
++  }
++  else
++  {
++    _headerComboBox.SetText(text);
++  }
++}
+\ No newline at end of file
+diff --git a/CPP/7zip/UI/FileManager/PanelItemOpen.cpp b/CPP/7zip/UI/FileManager/PanelItemOpen.cpp
+index bd65aef..72ac104 100644
+--- a/CPP/7zip/UI/FileManager/PanelItemOpen.cpp
++++ b/CPP/7zip/UI/FileManager/PanelItemOpen.cpp
+@@ -11,7 +11,6 @@
+ #include "../../../Common/AutoPtr.h"
+ #include "../../../Common/StringConvert.h"
+ 
+-#include "../../../Windows/ProcessUtils.h"
+ #include "../../../Windows/FileName.h"
+ #include "../../../Windows/PropVariant.h"
+ #include "../../../Windows/PropVariantConv.h"
+@@ -906,12 +905,109 @@ static HRESULT StartApplication(const UString &dir, const UString &path, HWND wi
+   return S_OK;
+ }
+ 
+-static void StartApplicationDontWait(const UString &dir, const UString &path, HWND window)
++void StartApplicationDontWait(const UString &dir, const UString &path, HWND window)
+ {
+   CProcess process;
+   StartApplication(dir, path, window, process);
+ }
+ 
++// Overloading to not modify existing StartApplication behavior.
++HRESULT StartApplication(
++  const UString &dir,
++  const UString &path,
++  const UString &operation,
++  const UString &parameter,
++  HWND parentWindow,
++  NWindows::CProcess &process,
++  int nShow)
++{
++  UString path2 = path;
++
++  #ifdef _WIN32
++  // {
++  //   int dot = path2.ReverseFind_Dot();
++  //   int separ = path2.ReverseFind_PathSepar();
++  //   if (dot < 0 || dot < separ)
++  //     path2.Add_Dot();
++  // }
++  #endif
++
++  UINT32 result;
++
++  #ifndef _UNICODE
++  if (g_IsNT)
++  {
++    SHELLEXECUTEINFOW execInfo;
++    execInfo.cbSize = sizeof(execInfo);
++    execInfo.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_FLAG_DDEWAIT;
++    execInfo.hwnd = NULL;
++    execInfo.lpVerb = NULL;
++    execInfo.lpFile = path2;
++    execInfo.lpParameters = NULL;
++    execInfo.lpDirectory = dir.IsEmpty() ? NULL : (LPCWSTR)dir;
++    execInfo.nShow = SW_SHOWNORMAL;
++    execInfo.hProcess = NULL;
++    const
++    Func_ShellExecuteExW
++       f_ShellExecuteExW = Z7_GET_PROC_ADDRESS(
++    Func_ShellExecuteExW, ::GetModuleHandleW(L"shell32.dll"),
++        "ShellExecuteExW");
++    if (!f_ShellExecuteExW)
++      return 0;
++    f_ShellExecuteExW(&execInfo);
++    result = (UINT32)(UINT_PTR)execInfo.hInstApp;
++    process.Attach(execInfo.hProcess);
++  }
++  else
++  #endif
++  {
++    SHELLEXECUTEINFO execInfo;
++    execInfo.cbSize = sizeof(execInfo);
++    execInfo.fMask = SEE_MASK_NOCLOSEPROCESS
++      #ifndef UNDER_CE
++      | SEE_MASK_FLAG_DDEWAIT
++      #endif
++      ;
++    execInfo.hwnd = NULL;
++    execInfo.lpVerb = operation;
++    const CSysString sysPath (GetSystemString(path2));
++    const CSysString sysDir (GetSystemString(dir));
++    execInfo.lpFile = sysPath;
++    execInfo.lpParameters = parameter;
++    execInfo.lpDirectory =
++      #ifdef UNDER_CE
++        NULL
++      #else
++        sysDir.IsEmpty() ? NULL : (LPCTSTR)sysDir
++      #endif
++      ;
++    execInfo.nShow = nShow;
++    execInfo.hProcess = NULL;
++    ::ShellExecuteEx(&execInfo);
++    result = (UINT32)(UINT_PTR)execInfo.hInstApp;
++    process.Attach(execInfo.hProcess);
++  }
++
++
++  DEBUG_PRINT_NUM("-- ShellExecuteEx -- execInfo.hInstApp = ", result)
++
++  if (result <= 32)
++  {
++    switch (result)
++    {
++      case SE_ERR_NOASSOC:
++        ::MessageBoxW(parentWindow,
++          NError::MyFormatMessage(::GetLastError()),
++          // L"There is no application associated with the given file name extension",
++          L"7-Zip", MB_OK | MB_ICONSTOP);
++    }
++
++    return E_FAIL; // fixed in 15.13. Can we use it for any Windows version?
++  }
++
++  return S_OK;
++}
++
+ void CPanel::EditItem(unsigned index, bool useEditor)
+ {
+   if (!_parentFolders.IsEmpty())
+diff --git a/CPP/7zip/UI/FileManager/PanelItems.cpp b/CPP/7zip/UI/FileManager/PanelItems.cpp
+index 0cb33d8..6d9f005 100644
+--- a/CPP/7zip/UI/FileManager/PanelItems.cpp
++++ b/CPP/7zip/UI/FileManager/PanelItems.cpp
+@@ -8,6 +8,8 @@
+ #include "../../../Windows/Menu.h"
+ #include "../../../Windows/PropVariant.h"
+ #include "../../../Windows/PropVariantConv.h"
++#include "../../../Windows/ProcessUtils.h"
++#include "../../../Windows/Clipboard.h"
+ 
+ #include "../../PropID.h"
+ 
+@@ -19,6 +21,10 @@
+ #include "Panel.h"
+ #include "PropertyName.h"
+ #include "RootFolder.h"
++#include "ExternalTools.h"
++#include "App.h"
++
++#include <shlwapi.h>
+ 
+ using namespace NWindows;
+ 
+@@ -333,6 +339,20 @@ void CPanel::AddColumn(const CPropColumn &prop)
+   _listView.InsertColumn(index, &column);
+ }
+ 
++void CPanel::UpdateColumn(const unsigned index, const CPropColumn &prop)
++{
++  LV_COLUMNW column;
++  column.mask = LVCF_FMT | LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM | LVCF_ORDER;
++  column.cx = (int)prop.Width;
++  column.fmt = GetColumnAlign(prop.ID, prop.Type);
++  column.iOrder = (int)index; // must be <= _listView.ItemCount
++  column.iSubItem = (int)index; // must be <= _listView.ItemCount
++  column.pszText = const_cast<wchar_t *>((const wchar_t *)prop.Name);
++
++  _listView.SetColumn(index, &column);
++}
++
++
+ 
+ HRESULT CPanel::RefreshListCtrl()
+ {
+@@ -465,6 +485,16 @@ extern UInt32 g_NumMessages;
+ 
+ HRESULT CPanel::RefreshListCtrl(const CSelectedState &state)
+ {
++  if (_panelCallback != nullptr)
++  {
++    bool shouldReturn = false;
++    _panelCallback->OnRefreshList(shouldReturn);
++    if (shouldReturn)
++    {
++      return S_OK;
++    }
++  }
++
+   m_DropHighlighted_SelectionIndex = -1;
+   m_DropHighlighted_SubFolderName.Empty();
+ 
+@@ -1052,6 +1082,55 @@ void CPanel::OpenSelectedItems(bool tryInternal)
+     else
+       OpenItem(index, (tryInternal && indices.Size() == 1), true);
+   }
++
++  if (indices.Size() == 0)
++  {
++    OpenInSelectedItem(L"", L"explore");
++  }
++}
++
++void CPanel::OpenSelectedItem(UString const& command, UString const& operation, int nShow)
++{
++  UString cwd = GetFsPath();
++  UString path = cwd;
++  CRecordVector<UInt32> indices;
++  Get_ItemIndices_Operated(indices);
++  if (indices.Size() > 0)
++  {
++    path = GetItemFullPath(indices[0]).Ptr();
++  }
++  path.InsertAtFront(L'\"');
++  path += L"\"";
++
++  NWindows::CProcess process;
++  StartApplication(cwd, command, operation, path, NULL, process, nShow);
++}
++
++void CPanel::OpenInSelectedItem(UString const& command, UString const& operation)
++{
++  UString cwd = GetFsPath();
++  UString path = cwd;
++  CRecordVector<UInt32> indices;
++  Get_ItemIndices_Operated(indices);
++  if (indices.Size() > 0)
++  {
++    path = GetItemFullPath(indices[0]).Ptr();
++  }
++
++  NWindows::CProcess process;
++  StartApplication(path, command, operation, L"", NULL, process);
++}
++
++void CPanel::CopyItemPath()
++{
++  UString path = GetFsPath();
++  CRecordVector<UInt32> indices;
++  Get_ItemIndices_Operated(indices);
++  if (indices.Size() > 0)
++  {
++    path = GetItemFullPath(indices[0]).Ptr();
++  }
++  ClipboardSetText(NULL, path);
+ }
+ 
+ UString CPanel::GetItemName(unsigned itemIndex) const
+@@ -1389,3 +1468,35 @@ void CPanel::OnTimer()
+     return;
+   OnReload(true); // onTimer
+ }
++
++void CPanel::FindFzf()
++{
++  auto cwd = GetFsPath();
++  auto that = this;
++  StartFzf(cwd, [that, cwd](UString path)
++    {
++      SetForegroundWindow(g_HWND);
++      path.Insert(0, cwd.Ptr());
++      // Actually don't even need the SendMessage(..., kOpenPath, ...)
++      if (IsGUIThread(TRUE))
++      {
++        that->OnNotifyComboBoxEnterShowInDirectory(path);
++      }
++      else
++      {
++        // SendMessage(g_HWND, kOpenPath, (WPARAM)&path, NULL);
++      }
++    }
++  );
++}
++
++void CPanel::FindIgrep(UString text)
++{
++  auto cwd = GetFsPath();
++  // auto that = this;
++  auto findProc = NWindows::CProcess();
++  findProc._overlapWindow = TRUE;
++  UString cmd = UString(L"ig \"") + text + L"\"";
++  findProc.Create(L"conhost", cmd.GetBuf(), cwd, NULL);
++  // findProc.Wait();
++}
+\ No newline at end of file
+diff --git a/CPP/7zip/UI/FileManager/PanelKey.cpp b/CPP/7zip/UI/FileManager/PanelKey.cpp
+index a4ea489..7edaa23 100644
+--- a/CPP/7zip/UI/FileManager/PanelKey.cpp
++++ b/CPP/7zip/UI/FileManager/PanelKey.cpp
+@@ -7,6 +7,7 @@
+ 
+ #include "../../PropID.h"
+ #include "App.h"
++#include "../../../Windows/ProcessUtils.h"
+ 
+ using namespace NWindows;
+ 
+@@ -79,6 +80,10 @@ bool CPanel::OnKeyDown(LPNMLVKEYDOWN keyDownInfo, LRESULT &result)
+   {
+     g_App.SwitchOnOffOnePanel();
+   }
++  else if ((keyDownInfo->wVKey == VK_F9) && !alt && ctrl && !shift)
++  {
++    g_App.SwitchOnOffMultiPanel();
++  }
+ 
+   if (keyDownInfo->wVKey >= VK_F3 && keyDownInfo->wVKey <= VK_F12 && ctrl)
+   {
+@@ -297,7 +302,8 @@ bool CPanel::OnKeyDown(LPNMLVKEYDOWN keyDownInfo, LRESULT &result)
+     case 'V':
+       if (ctrl)
+       {
+-        EditPaste();
++        // EditPaste();
++        EditPasteClipboard();
+         return true;
+       }
+       return false;
+@@ -323,6 +329,15 @@ bool CPanel::OnKeyDown(LPNMLVKEYDOWN keyDownInfo, LRESULT &result)
+         return true;
+       }
+       return false;
++    case 'L':
++      {
++        //MessageBox(0, g_App.LastFocusedPanel == 0? L"hi" : L"BYE", L"HI", 0);
++        if (ctrl)
++        {
++          _panelCallback->SetFocusToPathNoDropDown();
++          return true;
++        }
++      }
+     case 'Z':
+       if (ctrl)
+       {
+@@ -352,6 +367,12 @@ bool CPanel::OnKeyDown(LPNMLVKEYDOWN keyDownInfo, LRESULT &result)
+         FoldersHistory();
+         return true;
+       }
++    case 'F':
++      if (ctrl)
++      {
++        FindFzf();
++        return true;
++      }
+   }
+   return false;
+ }
+diff --git a/CPP/7zip/UI/FileManager/PanelListNotify.cpp b/CPP/7zip/UI/FileManager/PanelListNotify.cpp
+index 2fb0e87..757d0b5 100644
+--- a/CPP/7zip/UI/FileManager/PanelListNotify.cpp
++++ b/CPP/7zip/UI/FileManager/PanelListNotify.cpp
+@@ -563,6 +563,7 @@ void CPanel::OnItemChanged(NMLISTVIEW *item)
+   // Don't change this code. It works only with such check
+   if (oldSelected != newSelected)
+     _selectedStatusVector[index] = newSelected;
++  _panelCallback->OnSelectedItemChanged();
+ }
+ 
+ extern bool g_LVN_ITEMACTIVATE_Support;
+@@ -706,7 +707,7 @@ bool CPanel::OnNotifyList(LPNMHDR header, LRESULT &result)
+ 
+     case NM_CUSTOMDRAW:
+     {
+-      if (_mySelectMode || (_markDeletedItems && _thereAreDeletedItems))
++      if (_mySelectMode || (_markDeletedItems && _thereAreDeletedItems) || _findMode)
+         return OnCustomDraw((LPNMLVCUSTOMDRAW)header, result);
+       break;
+     }
+@@ -722,6 +723,11 @@ bool CPanel::OnNotifyList(LPNMHDR header, LRESULT &result)
+       Post_Refresh_StatusBar();
+       break;
+     }
++    // How does this help??
++    case NM_KILLFOCUS:
++    {
++      return true;
++    }
+     // case LVN_BEGINRDRAG:
+   }
+   return false;
+@@ -729,57 +735,69 @@ bool CPanel::OnNotifyList(LPNMHDR header, LRESULT &result)
+ 
+ bool CPanel::OnCustomDraw(LPNMLVCUSTOMDRAW lplvcd, LRESULT &result)
+ {
++  // https://learn.microsoft.com/en-us/windows/win32/controls/about-custom-draw#responding-to-the-prepaint-notification
+   switch (lplvcd->nmcd.dwDrawStage)
+   {
+   case CDDS_PREPAINT :
+     result = CDRF_NOTIFYITEMDRAW;
+     return true;
+-    
+   case CDDS_ITEMPREPAINT:
+-    /*
+-    SelectObject(lplvcd->nmcd.hdc,
+-    GetFontForItem(lplvcd->nmcd.dwItemSpec,
+-    lplvcd->nmcd.lItemlParam) );
+-    lplvcd->clrText = GetColorForItem(lplvcd->nmcd.dwItemSpec,
+-    lplvcd->nmcd.lItemlParam);
+-    lplvcd->clrTextBk = GetBkColorForItem(lplvcd->nmcd.dwItemSpec,
+-    lplvcd->nmcd.lItemlParam);
+-    */
+-    const unsigned realIndex = (unsigned)lplvcd->nmcd.lItemlParam;
+-    lplvcd->clrTextBk = _listView.GetBkColor();
+-    if (_mySelectMode)
+     {
+-      if (realIndex != kParentIndex && _selectedStatusVector[realIndex])
+-       lplvcd->clrTextBk = RGB(255, 192, 192);
+-    }
++      /*
++      SelectObject(lplvcd->nmcd.hdc,
++      GetFontForItem(lplvcd->nmcd.dwItemSpec,
++      lplvcd->nmcd.lItemlParam) );
++      lplvcd->clrText = GetColorForItem(lplvcd->nmcd.dwItemSpec,
++      lplvcd->nmcd.lItemlParam);
++      lplvcd->clrTextBk = GetBkColorForItem(lplvcd->nmcd.dwItemSpec,
++      lplvcd->nmcd.lItemlParam);
++      */
++      const unsigned realIndex = (unsigned)lplvcd->nmcd.lItemlParam;
++      // lplvcd->clrTextBk = _listView.GetBkColor();
++      if (_mySelectMode)
++      {
++        if (realIndex != kParentIndex && _selectedStatusVector[realIndex])
++          lplvcd->clrTextBk = RGB(255, 192, 192);
++      }
+ 
+-    if (_markDeletedItems && _thereAreDeletedItems)
+-    {
+-      if (IsItem_Deleted(realIndex))
+-        lplvcd->clrText = RGB(255, 0, 0);
+-    }
+-    // lplvcd->clrText = RGB(0, 0, 0);
+-    // result = CDRF_NEWFONT;
+-    result = CDRF_NOTIFYITEMDRAW;
+-    return true;
+-    
+-    // return false;
+-    // return true;
+-    /*
+-    case CDDS_SUBITEM | CDDS_ITEMPREPAINT:
+-    if (lplvcd->iSubItem == 0)
+-    {
+-    // lplvcd->clrText = RGB(255, 0, 0);
+-    lplvcd->clrTextBk = RGB(192, 192, 192);
+-    }
+-    else
+-    {
+-    lplvcd->clrText = RGB(0, 0, 0);
+-    lplvcd->clrTextBk = RGB(255, 255, 255);
+-    }
+-    return true;
+-    */
++      // I don't think _markDeletedItems is being used yet?
++      _markDeletedItems = false;
++      if (_markDeletedItems && _thereAreDeletedItems)
++      {
++        if (IsItem_Deleted(realIndex))
++          lplvcd->clrText = RGB(255, 0, 0);
++      }
++
++      if (_findMode && realIndex != kParentIndex && _selectedStatusVector[realIndex])
++      {
++        // lplvcd->iStateId = CDIS_CHECKED | CDIS_SELECTED;
++        // lplvcd->iIconEffect = ILD_MASK;
++        // lplvcd->clrFace = RGB(0, 0x78, 0xD7);
++        lplvcd->clrText = RGB(0xFF, 0xFF, 0xFF);
++        lplvcd->clrTextBk = RGB(0, 0x78, 0xD7);
++      }
++      // lplvcd->clrText = RGB(0, 0, 0);
++      result = CDRF_NEWFONT;
++      // result = CDRF_NOTIFYITEMDRAW;
++      return true;
+ 
++      // return false;
++      // return true;
++      /*
++      case CDDS_SUBITEM | CDDS_ITEMPREPAINT:
++      if (lplvcd->iSubItem == 0)
++      {
++      // lplvcd->clrText = RGB(255, 0, 0);
++      lplvcd->clrTextBk = RGB(192, 192, 192);
++      }
++      else
++      {
++      lplvcd->clrText = RGB(0, 0, 0);
++      lplvcd->clrTextBk = RGB(255, 255, 255);
++      }
++      return true;
++      */
++    }
+         /* At this point, you can change the background colors for the item
+         and any subitems and return CDRF_NEWFONT. If the list-view control
+         is in report mode, you can simply return CDRF_NOTIFYSUBITEMREDRAW
+diff --git a/CPP/7zip/UI/FileManager/PanelMenu.cpp b/CPP/7zip/UI/FileManager/PanelMenu.cpp
+index f0afe15..0eb684c 100644
+--- a/CPP/7zip/UI/FileManager/PanelMenu.cpp
++++ b/CPP/7zip/UI/FileManager/PanelMenu.cpp
+@@ -447,6 +447,20 @@ void CPanel::Properties()
+ void CPanel::EditCut()
+ {
+   // InvokeSystemCommand("cut");
++  UString s;
++  CRecordVector<UInt32> indices;
++  std::vector<std::wstring> files;
++  Get_ItemIndices_Selected(indices);
++  FOR_VECTOR (i, indices)
++  {
++    if (i != 0)
++      s += "\xD\n";
++    s += GetItemName(indices[i]);
++  // MessageBox(0, GetItemFullPath(indices[i]).Ptr(),GetItemFullPath(indices[i]).Ptr(),0);
++    files.push_back(GetItemFullPath(indices[i]).Ptr());
++  }
++  // ClipboardSetText(_mainWindow, s);
++  ClipboardSetFiles(_mainWindow, files, DROPEFFECT_MOVE);
+ }
+ 
+ void CPanel::EditCopy()
+@@ -462,14 +476,18 @@ void CPanel::EditCopy()
+   */
+   UString s;
+   CRecordVector<UInt32> indices;
++  std::vector<std::wstring> files;
+   Get_ItemIndices_Selected(indices);
+   FOR_VECTOR (i, indices)
+   {
+     if (i != 0)
+       s += "\xD\n";
+     s += GetItemName(indices[i]);
++  // MessageBox(0, GetItemFullPath(indices[i]).Ptr(),GetItemFullPath(indices[i]).Ptr(),0);
++    files.push_back(GetItemFullPath(indices[i]).Ptr());
+   }
+-  ClipboardSetText(_mainWindow, s);
++  // ClipboardSetText(_mainWindow, s);
++  ClipboardSetFiles(_mainWindow, files, DROPEFFECT_COPY);
+ }
+ 
+ void CPanel::EditPaste()
+@@ -488,10 +506,36 @@ void CPanel::EditPaste()
+   MessageBoxW(0, s, L"", 0);
+   */
+ 
+-  // InvokeSystemCommand("paste");
++  InvokeSystemCommand("paste");
+ }
+ 
+-
++void CPanel::EditPasteClipboard()
++{
++  UStringVector files;
++  // std::vector<std::wstring> files;
++
++  DWORD effect{};
++  ClipboardGetFiles(_mainWindow, files, effect);
++
++  // if (files.size() == 0)
++  //   return;
++
++  // for ( auto const& f : files)
++  // {
++  //   filesVec.Add(UString(f.c_str()));
++  // }
++  // CopyFromFolderNoAsk(false, filesVec);
++  CCopyToOptions options;
++  options.moveMode = (bool)(effect & DROPEFFECT_MOVE);
++  options.folder = GetFolderPath(_folder);
++  options.showErrorMessages = true;
++  options.NeedRegistryZone = false;
++  options.ZoneIdMode = NExtract::NZoneIdMode::kNone;
++  CopyFsItems(options,
++    files,
++    NULL // UStringVector *messages
++    );
++}
+ 
+ struct CFolderPidls
+ {
+diff --git a/CPP/7zip/UI/FileManager/Path.cpp b/CPP/7zip/UI/FileManager/Path.cpp
+new file mode 100644
+index 0000000..347bda3
+--- /dev/null
++++ b/CPP/7zip/UI/FileManager/Path.cpp
+@@ -0,0 +1,29 @@
++#include "StdAfx.h"
++#include <Shlwapi.h>
++#include "Path.h"
++
++std::optional<std::wstring> ExpandEnvironmentStringsWrapper(const std::wstring &sourceString)
++{
++	auto length = ExpandEnvironmentStrings(sourceString.c_str(), nullptr, 0);
++
++	if (length == 0)
++	{
++		return std::nullopt;
++	}
++
++	std::wstring expandedString;
++	expandedString.resize(length);
++
++	length = ExpandEnvironmentStrings(sourceString.c_str(), expandedString.data(), length);
++
++	if (length == 0)
++	{
++		return std::nullopt;
++	}
++
++	// length includes the terminating NULL character, which shouldn't be included in the actual
++	// string.
++	expandedString.resize(length - 1);
++
++	return expandedString;
++}
+diff --git a/CPP/7zip/UI/FileManager/Path.h b/CPP/7zip/UI/FileManager/Path.h
+new file mode 100644
+index 0000000..fe7b940
+--- /dev/null
++++ b/CPP/7zip/UI/FileManager/Path.h
+@@ -0,0 +1,5 @@
++#pragma once
++#include <optional>
++#include <string>
++
++std::optional<std::wstring> ExpandEnvironmentStringsWrapper(const std::wstring &sourceString);
+\ No newline at end of file
+diff --git a/CPP/7zip/UI/FileManager/RegistryUtils.cpp b/CPP/7zip/UI/FileManager/RegistryUtils.cpp
+index 7e61998..9c02bb2 100644
+--- a/CPP/7zip/UI/FileManager/RegistryUtils.cpp
++++ b/CPP/7zip/UI/FileManager/RegistryUtils.cpp
+@@ -40,6 +40,8 @@ static LPCTSTR const kLargePages = TEXT("LargePages");
+ static LPCTSTR const kFlatViewName = TEXT("FlatViewArc");
+ // static LPCTSTR const kShowDeletedFiles = TEXT("ShowDeleted");
+ 
++static LPCTSTR const kPanelMode = TEXT("PanelMode");
++
+ static void SaveCuString(LPCTSTR keyPath, LPCWSTR valuePath, LPCWSTR value)
+ {
+   CKey key;
+@@ -80,6 +82,13 @@ static void SaveOption(LPCTSTR value, bool enabled)
+   key.SetValue(value, enabled);
+ }
+ 
++static void SaveOption(LPCTSTR value, UInt32 data)
++{
++  CKey key;
++  key.Create(HKEY_CURRENT_USER, kCU_FMPath);
++  key.SetValue(value, data);
++}
++
+ static bool Read7ZipOption(LPCTSTR value, bool defaultValue)
+ {
+   CKey key;
+@@ -99,6 +108,15 @@ static void ReadOption(CKey &key, LPCTSTR value, bool &dest)
+     dest = enabled;
+ }
+ 
++[[maybe_unused]]
++static void ReadOption(CKey &key, LPCTSTR value, UInt32 &dest)
++{
++  UInt32 data = false;
++  if (key.QueryValue(value, data) == ERROR_SUCCESS)
++    dest = data;
++}
++
++
+ /*
+ static void SaveLmOption(LPCTSTR value, bool enabled)
+ {
+@@ -141,8 +159,9 @@ void CFmSettings::Load()
+      to select group of files. We need to implement additional
+      way to select files in any column as in Explorer.
+      Then we can enable (FullRow == true) default mode. */
+-  // FullRow = true;
+-  FullRow = false;
++  FullRow = true;
++  // We default to true to prevent flickering in find mode when we draw the custom background for find result.
++  // FullRow = false;
+   ShowGrid = false;
+   SingleClick = false;
+   AlternativeSelection = false;
+@@ -190,6 +209,16 @@ bool ReadFlatView(UInt32 panelIndex)
+   return enabled;
+ }
+ 
++void SavePanelMode(UInt32 mode) { SaveOption(kPanelMode, mode); }
++UInt32 ReadPanelMode()
++{
++  bool data = false;
++  CKey key;
++  if (key.Open(HKEY_CURRENT_USER, kCU_FMPath, KEY_READ) == ERROR_SUCCESS)
++    ReadOption(key, kPanelMode, data);
++  return data;
++}
++
+ /*
+ void Save_ShowDeleted(bool enable) { SaveOption(kShowDeletedFiles, enable); }
+ bool Read_ShowDeleted() { return ReadOption(kShowDeletedFiles, false); }
+diff --git a/CPP/7zip/UI/FileManager/RegistryUtils.h b/CPP/7zip/UI/FileManager/RegistryUtils.h
+index 8b4cdf0..9180786 100644
+--- a/CPP/7zip/UI/FileManager/RegistryUtils.h
++++ b/CPP/7zip/UI/FileManager/RegistryUtils.h
+@@ -41,6 +41,8 @@ void SaveLockMemoryEnable(bool enable);
+ 
+ void SaveFlatView(UInt32 panelIndex, bool enable);
+ bool ReadFlatView(UInt32 panelIndex);
++void SavePanelMode(UInt32 mode);
++UInt32 ReadPanelMode();
+ 
+ /*
+ void Save_ShowDeleted(bool enable);
+diff --git a/CPP/7zip/UI/FileManager/StdAfx.h b/CPP/7zip/UI/FileManager/StdAfx.h
+index 789cc6e..98ec10f 100644
+--- a/CPP/7zip/UI/FileManager/StdAfx.h
++++ b/CPP/7zip/UI/FileManager/StdAfx.h
+@@ -12,8 +12,8 @@
+ Z7_DIAGNOSCTIC_IGNORE_BEGIN_RESERVED_MACRO_IDENTIFIER
+ #ifndef _WIN32_WINNT
+ // #define _WIN32_WINNT 0x0400
+-#define _WIN32_WINNT 0x0500
+-// #define _WIN32_WINNT 0x0600
++// #define _WIN32_WINNT 0x0500
++#define _WIN32_WINNT 0x0600
+ // #define _WIN32_WINNT 0x0A00
+ #endif
+ #ifndef WINVER
+diff --git a/CPP/7zip/UI/FileManager/makefile b/CPP/7zip/UI/FileManager/makefile
+index df08c98..22557f4 100644
+--- a/CPP/7zip/UI/FileManager/makefile
++++ b/CPP/7zip/UI/FileManager/makefile
+@@ -2,6 +2,8 @@ PROG = 7zFM.exe
+ CFLAGS = $(CFLAGS) \
+   -DZ7_EXTERNAL_CODECS \
+ 
++CXXFLAGS = $(CXXFLAGS)
++
+ !include "FM.mak"
+ 
+ COMMON_OBJS = \
+@@ -16,6 +18,7 @@ COMMON_OBJS = \
+   $O\StringToInt.obj \
+   $O\UTFConvert.obj \
+   $O\Wildcard.obj \
++  $O\Debug.obj
+ 
+ WIN_OBJS = $(WIN_OBJS) \
+   $O\Clipboard.obj \
+diff --git a/CPP/7zip/UI/FileManager/resource.h b/CPP/7zip/UI/FileManager/resource.h
+index 9d605c6..f3ed81c 100644
+--- a/CPP/7zip/UI/FileManager/resource.h
++++ b/CPP/7zip/UI/FileManager/resource.h
+@@ -54,6 +54,8 @@
+ // #define IDM_EXIT                 557
+ #define IDM_LINK                 558
+ #define IDM_ALT_STREAMS          559
++#define IDM_FIND_FZF            560
++#define IDM_FIND_IGREP          561
+ 
+ #define IDM_VER_EDIT             580
+ #define IDM_VER_COMMIT           581
+@@ -63,6 +65,11 @@
+ #define IDM_OPEN_INSIDE_ONE      590
+ #define IDM_OPEN_INSIDE_PARSER   591
+ 
++#define IDM_OPEN_VSCODE          592
++#define IDM_OPEN_TERMINAL        593
++#define IDM_OPEN_EXPLORER        594
++#define IDM_COPY_PATH            595
++
+ #define IDM_SELECT_ALL           600
+ #define IDM_DESELECT_ALL         601
+ #define IDM_INVERT_SELECTION     602
+diff --git a/CPP/7zip/UI/FileManager/resource.rc b/CPP/7zip/UI/FileManager/resource.rc
+index 002265a..2ec232b 100644
+--- a/CPP/7zip/UI/FileManager/resource.rc
++++ b/CPP/7zip/UI/FileManager/resource.rc
+@@ -36,9 +36,15 @@ BEGIN
+   BEGIN
+     MENUITEM "&Open\tEnter",                IDM_OPEN
+     MENUITEM "Open &Inside\tCtrl+PgDn",     IDM_OPEN_INSIDE
++    MENUITEM "Open VS Code\tCtrl+Enter",    IDM_OPEN_VSCODE
++    MENUITEM "Open Terminal\tAlt+Shift+Enter", IDM_OPEN_TERMINAL
++    MENUITEM "Open Explorer\tShift+Enter",  IDM_OPEN_EXPLORER
++    MENUITEM "Copy Path\tAlt+Shift+C",      IDM_COPY_PATH
+     MENUITEM "Open Inside *",               IDM_OPEN_INSIDE_ONE
+     MENUITEM "Open Inside #",               IDM_OPEN_INSIDE_PARSER
+     MENUITEM "Open O&utside\tShift+Enter",  IDM_OPEN_OUTSIDE
++    MENUITEM "Find (fzf)\tCtrl+F",          IDM_FIND_FZF
++    MENUITEM "Find (igrep)\tCtrl+Shift+F",  IDM_FIND_IGREP
+     MENUITEM "&View\tF3",                   IDM_FILE_VIEW
+     MENUITEM "&Edit\tF4",                   IDM_FILE_EDIT
+     MY_MENUITEM_SEPARATOR
+diff --git a/CPP/Build.mak b/CPP/Build.mak
+index 393fa2c..f757606 100644
+--- a/CPP/Build.mak
++++ b/CPP/Build.mak
+@@ -1,4 +1,7 @@
+ LIBS = $(LIBS) oleaut32.lib ole32.lib
++LFLAGS = $(LFLAGS) /debug
++CFLAGS = $(CFLAGS) /Zi
++CXXFLAGS = $(CXXFLAGS) /Zi
+ 
+ !IFNDEF MY_NO_UNICODE
+ CFLAGS = $(CFLAGS) -DUNICODE -D_UNICODE
+@@ -62,7 +65,7 @@ CFLAGS_WARN_LEVEL = -W4
+ CFLAGS_WARN_LEVEL = -Wall
+ !ENDIF
+ 
+-CFLAGS = $(CFLAGS) -nologo -c -Fo$O/ $(CFLAGS_WARN_LEVEL) -WX -EHsc -Gy -GR- -GF
++CFLAGS = $(CFLAGS) -nologo -c -Fo$O/ $(CFLAGS_WARN_LEVEL) -EHsc -Gy -GR- -GF
+ 
+ !IF "$(CC)" == "clang-cl"
+ 
+@@ -224,6 +227,6 @@ predef: empty.c
+ predef2: A.cpp
+ 	$(COMPL)   -EP -Zc:preprocessor -PD
+ predef3: A.cpp
+-	$(COMPL)   -E -dM 
++	$(COMPL)   -E -dM
+ predef4: A.cpp
+ 	$(COMPL_O2)   -E
+diff --git a/CPP/Common/Common.h b/CPP/Common/Common.h
+index 0c77ab4..ff71e45 100644
+--- a/CPP/Common/Common.h
++++ b/CPP/Common/Common.h
+@@ -311,3 +311,4 @@ _Pragma("GCC diagnostic pop")
+ 
+ // for precompiler:
+ #include "MyWindows.h"
++#include "Debug.h"
+\ No newline at end of file
+diff --git a/CPP/Common/Debug.cpp b/CPP/Common/Debug.cpp
+new file mode 100644
+index 0000000..305d210
+--- /dev/null
++++ b/CPP/Common/Debug.cpp
+@@ -0,0 +1,162 @@
++#include <StdAfx.h>
++#include <cstdarg>
++#include <cstdio>
++#include <set>
++#include <string>
++
++std::set<std::wstring> g_debugTags;
++
++void __cdecl Z7DbgPrintA(const char *format, ...)
++{
++  char    buf[4096], *p = buf;
++  va_list args;
++  int     n;
++
++  va_start(args, format);
++  n = _vsnprintf_s(p, ARRAYSIZE(buf), sizeof buf, format, args);
++  // n = _vsnprintf_s(p, ARRAYSIZE(buf), sizeof buf - 3, format, args); // buf-3 is room for CR/LF/NUL
++  va_end(args);
++
++  // p += (n < 0) ? sizeof buf - 3 : n;
++
++  // while ( p > buf  &&  isspace(p[-1]) )
++  //         *--p = '\0';
++
++  // *p++ = '\r';
++  // *p++ = '\n';
++  // *p   = '\0';
++
++  OutputDebugStringA(buf);
++}
++
++void __cdecl Z7DbgPrintW(const wchar_t *format, ...)
++{
++  wchar_t    buf[4096], *p = buf;
++  va_list args;
++  int     n;
++
++  va_start(args, format);
++  n = _vsnwprintf_s(p, ARRAYSIZE(buf), sizeof buf, format, args);
++  // n = _vsnprintf_s(p, ARRAYSIZE(buf), sizeof buf - 3, format, args); // buf-3 is room for CR/LF/NUL
++  va_end(args);
++
++  // p += (n < 0) ? sizeof buf - 3 : n;
++
++  // while ( p > buf  &&  isspace(p[-1]) )
++  //         *--p = '\0';
++
++  // *p++ = '\r';
++  // *p++ = '\n';
++  // *p   = '\0';
++
++  OutputDebugStringW(buf);
++  // There's no terminal
++  //   wprintf(L"%s", buf);
++}
++
++void Z7DbgEnableTag(const wchar_t *tag)
++{
++  g_debugTags.insert(tag);
++}
++
++VOID
++DbgDumpHex(PBYTE pbData, SIZE_T cbData)
++{
++    ULONG i;
++    SIZE_T count;
++    CHAR digits[]="0123456789abcdef";
++    CHAR pbLine[256];
++    ULONG cbLine, cbHeader = 0;
++    ULONG_PTR address;
++
++    if(pbData == NULL && cbData != 0)
++    {
++        // strcat_s(pbLine, RTL_NUMBER_OF(pbLine), "<null> buffer!!!\n");
++        fprintf(stderr, "<null> buffer!!!\n");
++        return;
++    }
++
++    for(; cbData ; cbData -= count, pbData += count)
++    {
++        count = (cbData > 16) ? 16:cbData;
++
++        cbLine = cbHeader;
++
++        address = (ULONG_PTR)pbData;
++
++#if UINTPTR_MAX == 0xFFFFFFFFFFFFFFFFu
++        // 64 bit addresses.
++        pbLine[cbLine++] = digits[(address >> 0x3c) & 0x0f];
++        pbLine[cbLine++] = digits[(address >> 0x38) & 0x0f];
++        pbLine[cbLine++] = digits[(address >> 0x34) & 0x0f];
++        pbLine[cbLine++] = digits[(address >> 0x30) & 0x0f];
++        pbLine[cbLine++] = digits[(address >> 0x2c) & 0x0f];
++        pbLine[cbLine++] = digits[(address >> 0x28) & 0x0f];
++        pbLine[cbLine++] = digits[(address >> 0x24) & 0x0f];
++        pbLine[cbLine++] = digits[(address >> 0x20) & 0x0f];
++#endif
++        pbLine[cbLine++] = digits[(address >> 0x1c) & 0x0f];
++        pbLine[cbLine++] = digits[(address >> 0x18) & 0x0f];
++        pbLine[cbLine++] = digits[(address >> 0x14) & 0x0f];
++        pbLine[cbLine++] = digits[(address >> 0x10) & 0x0f];
++        pbLine[cbLine++] = digits[(address >> 0x0c) & 0x0f];
++        pbLine[cbLine++] = digits[(address >> 0x08) & 0x0f];
++        pbLine[cbLine++] = digits[(address >> 0x04) & 0x0f];
++        pbLine[cbLine++] = digits[(address        ) & 0x0f];
++        pbLine[cbLine++] = ' ';
++        pbLine[cbLine++] = ' ';
++
++        for(i = 0; i < count; i++)
++        {
++            pbLine[cbLine++] = digits[pbData[i]>>4];
++            pbLine[cbLine++] = digits[pbData[i]&0x0f];
++            if(i == 7)
++            {
++                pbLine[cbLine++] = ':';
++            }
++            else
++            {
++                pbLine[cbLine++] = ' ';
++            }
++        }
++
++        for(; i < 16; i++)
++        {
++            pbLine[cbLine++] = ' ';
++            pbLine[cbLine++] = ' ';
++            pbLine[cbLine++] = ' ';
++        }
++
++        pbLine[cbLine++] = ' ';
++
++        for(i = 0; i < count; i++)
++        {
++            if(pbData[i] < 32 || pbData[i] > 126)
++            {
++                pbLine[cbLine++] = '.';
++            }
++            else
++            {
++                pbLine[cbLine++] = pbData[i];
++            }
++        }
++
++        pbLine[cbLine++] = 0;
++
++        Z7DbgPrintA("%s\n", pbLine);
++    }
++}
++
++void DbgDumpRange(PVOID begin, PVOID end, PCSTR format, ...)
++{
++  Z7DbgPrintA("[CProcess::Create] ");
++  va_list args;
++
++  va_start(args, format);
++  Z7DbgPrintA(format, args);
++  va_end(args);
++
++  SIZE_T size = (SIZE_T)end - (SIZE_T)begin;
++  Z7DbgPrintA(" len(%lu): 0x%p - 0x%p\n", size, begin, end);
++  DbgDumpHex((PBYTE)begin, size);
++}
+\ No newline at end of file
+diff --git a/CPP/Common/Debug.h b/CPP/Common/Debug.h
+new file mode 100644
+index 0000000..678757e
+--- /dev/null
++++ b/CPP/Common/Debug.h
+@@ -0,0 +1,68 @@
++#ifndef ZIP7_INC_DEBUG_H
++#define ZIP7_INC_DEBUG_H
++#include <type_traits>
++#include <set>
++#include <string>
++#include "MyWindows.h"
++
++extern std::set<std::wstring> g_debugTags;
++
++VOID
++DbgDumpHex(PBYTE pbData, SIZE_T cbData);
++void DbgDumpRange(PVOID begin, PVOID end, PCSTR format, ...);
++
++void __cdecl Z7DbgPrintA(const char *format, ...);
++void __cdecl Z7DbgPrintW(const wchar_t *format, ...);
++void __cdecl Z7DbgPrintEx(const wchar_t *tag, const wchar_t *format, ...);
++void Z7DbgEnableTag(const wchar_t *tag);
++
++// template <const wchar_t*... Types>
++// void Z7DbgEnableTags(const wchar_t* arg, Types... rest)
++// {
++//   Z7DbgEnableTag(arg);
++//   if constexpr (sizeof...(rest) > 0)
++//   {
++//       Z7DbgEnableTags(rest...);
++//   }
++// }
++
++template <typename T, typename... Args>
++constexpr bool AllAreSame() {
++  return (std::is_same_v<T, Args> && ...);
++}
++
++template <typename... Types>
++std::enable_if_t<AllAreSame<const wchar_t*, Types...>(), void>
++Z7DbgEnableTags(const wchar_t* arg, Types... rest)
++{
++  Z7DbgEnableTag(arg);
++  if constexpr (sizeof...(rest) > 0)
++  {
++    Z7DbgEnableTags(rest...);
++  }
++}
++
++template<typename... Args>
++void __cdecl Z7DbgPrintEx(const wchar_t *tag, const wchar_t *format, Args... args)
++{
++  if (g_debugTags.find(tag) == g_debugTags.end())
++  {
++    return;
++  }
++
++  Z7DbgPrintW(L"[%s] ", tag);
++  Z7DbgPrintW(format, args...);
++}
++
++// This works but we want to restrict to const wchar_t* rest
++// template <class... Types>
++// void Z7DbgEnableTags(const wchar_t* arg, Types... rest)
++// {
++//   Z7DbgEnableTag(arg);
++//   if constexpr (sizeof...(rest) > 0)
++//   {
++//       Z7DbgEnableTags(rest...);
++//   }
++// }
++
++#endif
+\ No newline at end of file
+diff --git a/CPP/Common/MyCom.h b/CPP/Common/MyCom.h
+index 65c4330..076f6ae 100644
+--- a/CPP/Common/MyCom.h
++++ b/CPP/Common/MyCom.h
+@@ -19,6 +19,7 @@ public:
+   operator T*() const {  return (T*)_p;  }
+   // T& operator*() const {  return *_p; }
+   T** operator&() { return &_p; }
++  T* get() { return _p; }
+   T* operator->() const { return _p; }
+   T* operator=(T* p)
+   {
+diff --git a/CPP/Common/MyString.cpp b/CPP/Common/MyString.cpp
+index 51c1c3b..331bbc5 100644
+--- a/CPP/Common/MyString.cpp
++++ b/CPP/Common/MyString.cpp
+@@ -1426,7 +1426,7 @@ void UString::TrimLeft() throw()
+   for (;; p++)
+   {
+     wchar_t c = *p;
+-    if (c != ' ' && c != '\n' && c != '\t')
++    if (c != ' ' && c != '\n' && c != '\t' && c != '\r')
+       break;
+   }
+   unsigned pos = (unsigned)(p - _chars);
+@@ -1444,7 +1444,24 @@ void UString::TrimRight() throw()
+   for (i = _len; i != 0; i--)
+   {
+     wchar_t c = p[(size_t)i - 1];
+-    if (c != ' ' && c != '\n' && c != '\t')
++    if (c != ' ' && c != '\n' && c != '\t' && c != '\r')
++      break;
++  }
++  if (i != _len)
++  {
++    _chars[i] = 0;
++    _len = i;
++  }
++}
++
++void UString::TrimPathSepar() throw()
++{
++  const wchar_t *p = _chars;
++  unsigned i;
++  for (i = _len; i != 0; i--)
++  {
++    wchar_t c = p[(size_t)i - 1];
++    if (c != '\\' && c != '/')
+       break;
+   }
+   if (i != _len)
+diff --git a/CPP/Common/MyString.h b/CPP/Common/MyString.h
+index e5ce18a..78b15fd 100644
+--- a/CPP/Common/MyString.h
++++ b/CPP/Common/MyString.h
+@@ -14,7 +14,9 @@
+ #include "MyWindows.h"
+ #include "MyTypes.h"
+ #include "MyVector.h"
++#include <pathcch.h>
+ 
++// #pragma comment(lib, "pathcch.lib")
+ 
+ /* if (DEBUG_FSTRING_INHERITS_ASTRING is defined), then
+      FString inherits from AString, so we can find bugs related to FString at compile time.
+@@ -625,6 +627,7 @@ public:
+   void ReplaceOneCharAtPos(unsigned pos, wchar_t c) { _chars[pos] = c; }
+ 
+   wchar_t *GetBuf() { return _chars; }
++  const wchar_t *GetBuf() const { return _chars; }
+ 
+   /*
+   wchar_t *GetBuf_GetMaxAvail(unsigned &availBufLen)
+@@ -741,6 +744,7 @@ public:
+ 
+   void TrimLeft() throw();
+   void TrimRight() throw();
++  void TrimPathSepar() throw();
+   void Trim()
+   {
+     TrimRight();
+@@ -779,6 +783,36 @@ public:
+       memset(_chars, 0, (_limit + 1) * sizeof(*_chars));
+       _len = 0;
+     }
++
++  }
++
++  UString GetFileName() const
++  {
++    int slashPos = this->ReverseFind_PathSepar();
++    if (slashPos >= 0 && (unsigned int)slashPos == this->Len() - 1)
++    {
++      slashPos = this->Left(slashPos).ReverseFind_PathSepar();
++    }
++
++    if (slashPos >= 0)
++    {
++      UString filename = UString(*this);
++      filename.DeleteFrontal((unsigned)(slashPos + 1));
++      if (filename[filename.Len() - 1] == WCHAR_PATH_SEPARATOR)
++      {
++        filename.DeleteBack();
++      }
++
++      return filename;
++    }
++    return L"";
++  }
++
++  UString GetDirectory() const
++  {
++    auto copy = UString(*this);
++    PathCchRemoveFileSpec(copy._chars, copy._len);
++    return copy;
+   }
+ };
+ 
+diff --git a/CPP/Common/MyVector.h b/CPP/Common/MyVector.h
+index 9ee7105..6e8d911 100644
+--- a/CPP/Common/MyVector.h
++++ b/CPP/Common/MyVector.h
+@@ -6,6 +6,8 @@
+ #include <string.h>
+ 
+ #include "Common.h"
++#include <type_traits>
++#include <iterator>
+ 
+ const unsigned k_VectorSizeMax = ((unsigned)1 << 31) - 1;
+ 
+@@ -62,7 +64,18 @@ public:
+       memcpy(_items, v._items, (size_t)size * sizeof(T));
+     }
+   }
+-  
++
++  template <class _Iter, std::enable_if_t<std::_Is_iterator_v<_Iter>, int> = 0>
++  CRecordVector(_Iter start, _Iter end): _items(NULL), _size(0), _capacity(0)
++  {
++    CRecordVector();
++    // Reserve(1);
++    while (start != end)
++    {
++      Add(*start++);
++    }
++  }
++
+   unsigned Size() const { return _size; }
+   bool IsEmpty() const { return _size == 0; }
+   
+@@ -445,6 +458,16 @@ public:
+     }
+     while (size > 1);
+   }
++
++  T* begin() const
++  {
++    return _items;
++  }
++
++  T* end() const
++  {
++    return _items + _size;
++  }
+ };
+ 
+ typedef CRecordVector<int> CIntVector;
+@@ -472,6 +495,16 @@ public:
+     for (unsigned i = 0; i < size; i++)
+       AddInReserved(v[i]);
+   }
++
++  template <class _Iter, std::enable_if_t<std::_Is_iterator_v<_Iter>, int> = 0>
++  CObjectVector(_Iter start, _Iter end)
++  {
++    while (start != end)
++    {
++      Add(*start++);
++    }
++  }
++
+   CObjectVector& operator=(const CObjectVector &v)
+   {
+     if (&v == this)
+@@ -703,6 +736,16 @@ public:
+     { return (*(*((const T *const *)a1))).Compare(*(*((const T *const *)a2))); }
+ 
+   void Sort() { _v.Sort(CompareObjectItems, NULL); }
++
++  T* begin() const
++  {
++    return (T *)_v.begin();
++  }
++
++  T* end() const
++  {
++    return (T *)_v.end();
++  }
+ };
+ 
+ #define FOR_VECTOR(_i_, _v_) for (unsigned _i_ = 0; _i_ < (_v_).Size(); _i_++)
+diff --git a/CPP/Windows/Clipboard.cpp b/CPP/Windows/Clipboard.cpp
+index bc7e201..cfa2e86 100644
+--- a/CPP/Windows/Clipboard.cpp
++++ b/CPP/Windows/Clipboard.cpp
+@@ -12,9 +12,388 @@
+ #include "Defs.h"
+ #include "MemoryGlobal.h"
+ #include "Shell.h"
+-
++#include "../Common/MyCom.h"
++#include "com.h"
++#include <cassert>
+ namespace NWindows {
+ 
++class EnumFormatEtc : public IEnumFORMATETC
++{
++public:
++  HRESULT __stdcall QueryInterface(REFIID iid, void** ppvObject);
++  ULONG __stdcall AddRef();
++  ULONG __stdcall Release();
++
++  HRESULT __stdcall Next(ULONG celt, FORMATETC* rgelt, ULONG* pceltFetched);
++  HRESULT __stdcall Skip(ULONG celt);
++  HRESULT __stdcall Reset();
++  HRESULT __stdcall Clone(IEnumFORMATETC** ppEnumFormatEtc);
++
++  EnumFormatEtc(UInt32 numFormats, FORMATETC* pFormatEtc);
++  virtual ~EnumFormatEtc();
++
++private:
++  int refCount;
++  UInt32 index;
++  UInt32 count;
++  FORMATETC* fmtetc;
++};
++
++HRESULT __stdcall EnumFormatEtc::QueryInterface(REFIID iid, void** ppvObject)
++{
++  if (iid == IID_IEnumFORMATETC || iid == IID_IUnknown)
++  {
++    AddRef();
++    *ppvObject = this;
++    return S_OK;
++  }
++  else
++  {
++    *ppvObject = NULL;
++    return E_NOINTERFACE;
++  }
++}
++ULONG __stdcall EnumFormatEtc::AddRef()
++{
++  return InterlockedIncrement((LONG*) &refCount);
++}
++ULONG __stdcall EnumFormatEtc::Release()
++{
++  int countSave = InterlockedDecrement((LONG*) &refCount);
++  if (countSave == 0)
++    delete this;
++  return countSave;
++}
++
++HRESULT __stdcall EnumFormatEtc::Next(ULONG celt, FORMATETC* rgelt, ULONG* pceltFetched)
++{
++  if (celt == 0 || rgelt == NULL)
++    return E_INVALIDARG;
++  UInt32 copied = 0;
++  while (index < count && copied < celt)
++  {
++    rgelt[copied] = fmtetc[index];
++    if (rgelt[copied].ptd)
++    {
++      rgelt[copied].ptd = (DVTARGETDEVICE*) CoTaskMemAlloc(sizeof(DVTARGETDEVICE));
++      *rgelt[copied].ptd = *fmtetc[index].ptd;
++    }
++    index++;
++    copied++;
++  }
++  if (pceltFetched)
++    *pceltFetched = copied;
++  return (copied == celt ? S_OK : S_FALSE);
++}
++HRESULT __stdcall EnumFormatEtc::Skip(ULONG celt)
++{
++  index += celt;
++  return (index <= count ? S_OK : S_FALSE);
++}
++HRESULT __stdcall EnumFormatEtc::Reset()
++{
++  index = 0;
++  return S_OK;
++}
++HRESULT __stdcall EnumFormatEtc::Clone(IEnumFORMATETC** ppEnumFormatEtc)
++{
++  EnumFormatEtc* clone = new EnumFormatEtc(count, fmtetc);
++  clone->index = index;
++  *ppEnumFormatEtc = clone;
++  return S_OK;
++}
++
++EnumFormatEtc::EnumFormatEtc(UInt32 numFormats, FORMATETC* pFormatEtc)
++{
++  refCount = 1;
++  index = 0;
++  count = numFormats;
++  if (count)
++  {
++    fmtetc = new FORMATETC[count];
++    for (UInt32 i = 0; i < count; i++)
++    {
++      fmtetc[i] = pFormatEtc[i];
++      if (fmtetc[i].ptd)
++      {
++        fmtetc[i].ptd = (DVTARGETDEVICE*) CoTaskMemAlloc(sizeof(DVTARGETDEVICE));
++        *fmtetc[i].ptd = *pFormatEtc[i].ptd;
++      }
++    }
++  }
++  else
++    fmtetc = NULL;
++}
++EnumFormatEtc::~EnumFormatEtc()
++{
++  for (UInt32 i = 0; i < count; i++)
++    if (fmtetc[i].ptd)
++      CoTaskMemFree(fmtetc[i].ptd);
++  delete[] fmtetc;
++}
++
++class DataObject : public IDataObject
++{
++public:
++  HRESULT __stdcall QueryInterface(REFIID iid, void** ppvObject);
++  ULONG __stdcall AddRef();
++  ULONG __stdcall Release();
++
++  HRESULT __stdcall GetData(FORMATETC* pFormatEtc, STGMEDIUM* pMedium);
++  HRESULT __stdcall GetDataHere(FORMATETC* pFormatEtc, STGMEDIUM* pMedium);
++  HRESULT __stdcall QueryGetData(FORMATETC* pFormatEtc);
++  HRESULT __stdcall GetCanonicalFormatEtc(FORMATETC* pFormatEtc, FORMATETC* pFormatEtcOut);
++  HRESULT __stdcall SetData(FORMATETC* pFormatEtc, STGMEDIUM* pMedium, BOOL fRelease);
++  HRESULT __stdcall EnumFormatEtc(DWORD dwDirection, IEnumFORMATETC** ppEnumFormatEtc);
++  HRESULT __stdcall DAdvise(FORMATETC* pFormatEtc, DWORD advf, IAdviseSink* pAdvSink, DWORD* pdwConnection);
++  HRESULT __stdcall DUnadvise(DWORD dwConnection);
++  HRESULT __stdcall EnumDAdvise(IEnumSTATDATA** ppEnumAdvise);
++
++  DataObject(CLIPFORMAT format, HGLOBAL data);
++  DataObject() : refCount(1) {}
++  virtual ~DataObject();
++
++private:
++  int refCount;
++  std::vector<FORMATETC> fmtetcs;
++  std::vector<STGMEDIUM> stgmeds;
++};
++
++HRESULT __stdcall DataObject::QueryInterface(REFIID iid, void** ppvObject)
++{
++  if (iid == IID_IDataObject || iid == IID_IUnknown)
++  {
++    AddRef();
++    *ppvObject = this;
++    return S_OK;
++  }
++  else
++  {
++    *ppvObject = NULL;
++    return E_NOINTERFACE;
++  }
++}
++ULONG __stdcall DataObject::AddRef()
++{
++  return InterlockedIncrement((LONG*) &refCount);
++}
++ULONG __stdcall DataObject::Release()
++{
++  int count = InterlockedDecrement((LONG*) &refCount);
++  if (count == 0)
++    delete this;
++  return count;
++}
++
++HRESULT __stdcall DataObject::GetData(FORMATETC* pFormatEtc, STGMEDIUM* pMedium)
++{
++  for (size_t i = 0; i < fmtetcs.size(); ++i)
++  {
++    if (fmtetcs[i].cfFormat != pFormatEtc->cfFormat || fmtetcs[i].dwAspect != pFormatEtc->dwAspect ||
++        (fmtetcs[i].tymed & pFormatEtc->tymed) == 0)
++      continue;
++    if (fmtetcs[i].tymed != TYMED_HGLOBAL)
++      continue;
++
++    pMedium->tymed = fmtetcs[i].tymed;
++    pMedium->pUnkForRelease = NULL;
++
++    SIZE_T len = GlobalSize(stgmeds[i].hGlobal);
++    void* source = GlobalLock(stgmeds[i].hGlobal);
++    pMedium->hGlobal = GlobalAlloc(GMEM_FIXED, len);
++    memcpy((void*) pMedium->hGlobal, source, len);
++    GlobalUnlock(stgmeds[i].hGlobal);
++    return S_OK;
++  }
++
++  return DV_E_FORMATETC;
++}
++HRESULT __stdcall DataObject::GetDataHere(FORMATETC* /*pFormatEtc*/, STGMEDIUM* /*pMedium*/)
++{
++  return DV_E_FORMATETC;
++}
++HRESULT __stdcall DataObject::QueryGetData(FORMATETC* pFormatEtc)
++{
++  for (auto const& fmtetc : fmtetcs)
++  {
++    if (fmtetc.cfFormat == pFormatEtc->cfFormat || fmtetc.dwAspect == pFormatEtc->dwAspect ||
++          (fmtetc.tymed & pFormatEtc->tymed) != 0)
++        return S_OK;
++  }
++  return DV_E_FORMATETC;
++}
++HRESULT __stdcall DataObject::GetCanonicalFormatEtc(FORMATETC* /*pFormatEtc*/, FORMATETC* pFormatEtcOut)
++{
++  pFormatEtcOut->ptd = NULL;
++  return E_NOTIMPL;
++}
++HRESULT __stdcall DataObject::SetData(FORMATETC* pFormatEtc, STGMEDIUM* pMedium, BOOL fRelease)
++{
++  assert(fRelease == TRUE); //  return E_NOTIMPL;
++  // https://en.cppreference.com/w/cpp/language/aggregate_initialization#Designated_initializers
++  fmtetcs.emplace_back(FORMATETC{
++    .cfFormat = pFormatEtc->cfFormat,
++    .ptd = NULL,
++    .dwAspect = DVASPECT_CONTENT,
++    .lindex = -1,
++    .tymed = TYMED_HGLOBAL,
++  });
++
++  stgmeds.emplace_back(STGMEDIUM{
++    .tymed = TYMED_HGLOBAL,
++    .hGlobal = pMedium->hGlobal,
++    .pUnkForRelease = NULL,
++  });
++  return S_OK;
++}
++HRESULT __stdcall DataObject::EnumFormatEtc(DWORD dwDirection, IEnumFORMATETC** ppEnumFormatEtc)
++{
++  if (dwDirection == DATADIR_GET && fmtetcs.size() > 0)
++  {
++    *ppEnumFormatEtc = new NWindows::EnumFormatEtc(1, &fmtetcs[0]);
++    return S_OK;
++  }
++  else
++    return E_NOTIMPL;
++}
++HRESULT __stdcall DataObject::DAdvise(FORMATETC* /*pFormatEtc*/, DWORD /*advf*/, IAdviseSink* /*pAdvSink*/,
++                                      DWORD* /*pdwConnection*/)
++{
++  return OLE_E_ADVISENOTSUPPORTED;
++}
++HRESULT __stdcall DataObject::DUnadvise(DWORD /*dwConnection*/)
++{
++  return OLE_E_ADVISENOTSUPPORTED;
++}
++HRESULT __stdcall DataObject::EnumDAdvise(IEnumSTATDATA** /*ppEnumAdvise*/)
++{
++  return OLE_E_ADVISENOTSUPPORTED;
++}
++
++DataObject::DataObject(CLIPFORMAT format, HGLOBAL data)
++{
++  refCount = 1;
++  fmtetcs.resize(1);
++  fmtetcs[0].cfFormat = format;
++  fmtetcs[0].ptd = NULL;
++  fmtetcs[0].dwAspect = DVASPECT_CONTENT;
++  fmtetcs[0].lindex = -1;
++  fmtetcs[0].tymed = TYMED_HGLOBAL;
++  stgmeds.resize(1);
++  stgmeds[0].tymed = TYMED_HGLOBAL;
++  stgmeds[0].hGlobal = data;
++  stgmeds[0].pUnkForRelease = NULL;
++}
++DataObject::~DataObject()
++{
++  for (auto & medium : stgmeds)
++  {
++    if (medium.hGlobal != nullptr)
++      GlobalFree(medium.hGlobal);
++  }
++}
++
++void ClipboardSetFiles(HWND owner, const std::vector<std::wstring>& filePaths, DWORD effect)
++{
++  UNREFERENCED_PARAMETER(owner);
++
++  NCOM::CStgMedium medium;
++  CMyComPtr<IDataObject> clipboardObject;
++
++  HRESULT hr = S_OK;
++  // hr = OleGetClipboard(&clipboardObject);
++
++  // if (FAILED(hr))
++  // {
++  //   return;
++  // }
++
++  // SHCreateDataObject(NULL, 0, NULL, NULL, IID_IDataObject, (void **)&clipboardObject);
++
++
++  DROPFILES *dropFiles = nullptr;
++  PDWORD pdwEffect = NULL;
++  wchar_t *fileBuffer = nullptr;
++  wchar_t *fileBufferPos = nullptr;
++
++  // Allocate memory for the DROPFILES structure
++  size_t fileBufferSize = 0;
++  for (const auto &filePath : filePaths)
++  {
++    fileBufferSize += filePath.length() + 1;
++  }
++  // For the second null terminator.
++  fileBufferSize += 1;
++
++  medium.hGlobal = GlobalAlloc(GMEM_MOVEABLE | GHND | GMEM_SHARE, sizeof(DROPFILES) + fileBufferSize * sizeof(wchar_t));
++  if (medium.hGlobal == nullptr)
++  {
++    goto cleanup;
++  }
++
++  dropFiles = static_cast<DROPFILES *>(GlobalLock(medium.hGlobal));
++  if (dropFiles == nullptr)
++  {
++    goto cleanup;
++  }
++
++  dropFiles->pFiles = sizeof(DROPFILES);
++  dropFiles->pt.x = 0;
++  dropFiles->pt.y = 0;
++  dropFiles->fNC = FALSE;
++  dropFiles->fWide = TRUE;
++
++  fileBuffer = reinterpret_cast<wchar_t *>(dropFiles + 1);
++  fileBufferPos = fileBuffer;
++  for (const auto &filePath : filePaths)
++  {
++    wcsncpy_s(fileBufferPos, fileBufferSize - (fileBufferPos - fileBuffer),
++              filePath.c_str(), filePath.length());
++    fileBufferPos += filePath.length() + 1;
++  }
++  // __debugbreak();
++  fileBufferPos[0] = '\0';
++  GlobalUnlock(medium.hGlobal);
++
++  clipboardObject = new DataObject(CF_HDROP, medium.hGlobal);
++  // NShell::DataObject_SetData_HGLOBAL(clipboardObject.get(), CF_HDROP, medium);
++
++  medium.hGlobal = NULL;
++  dropFiles = nullptr;
++
++
++  medium.hGlobal = GlobalAlloc(GMEM_MOVEABLE, sizeof(DWORD));
++  if (medium.hGlobal == nullptr)
++  {
++    goto cleanup;
++  }
++
++  pdwEffect = (DWORD *)GlobalLock(medium.hGlobal);
++  if (pdwEffect == nullptr)
++  {
++    return;
++  }
++  *pdwEffect = effect;
++  GlobalUnlock(medium.hGlobal);
++  pdwEffect = NULL;
++
++  hr = NShell::DataObject_SetData_HGLOBAL(clipboardObject.get(), (CLIPFORMAT)
++      RegisterClipboardFormat(CFSTR_PREFERREDDROPEFFECT), medium);
++  if (FAILED(hr))
++  {
++    return;
++  }
++
++  medium.hGlobal = NULL;
++
++  OleSetClipboard(clipboardObject.get());
++cleanup:
++  if (medium.hGlobal != NULL)
++  {
++    GlobalFree(medium.hGlobal);
++  }
++}
++
+ bool CClipboard::Open(HWND wndNewOwner) throw()
+ {
+   m_Open = BOOLToBool(::OpenClipboard(wndNewOwner));
+@@ -126,5 +505,184 @@ bool ClipboardSetText(HWND owner, const UString &s)
+   #endif
+   return res;
+ }
+- 
++
++void ClipboardSetFiles2(HWND owner, const std::vector<std::wstring>& filePaths, DWORD effect)
++{
++  (VOID)owner;
++  (VOID)effect;
++
++  // from #include <ShlObj.h>
++  DROPFILES *dropFiles = nullptr;
++  HGLOBAL hGlobal = NULL;
++  wchar_t *fileBuffer = nullptr;
++  wchar_t *fileBufferPos = nullptr;
++
++  // Open the clipboard
++  if (!OpenClipboard(nullptr))
++  {
++    return;
++  }
++  // Clear the clipboard
++  EmptyClipboard();
++
++  // Allocate memory for the DROPFILES structure
++  size_t fileBufferSize = 0;
++  for (const auto &filePath : filePaths)
++  {
++    fileBufferSize += filePath.length() + 1;
++  }
++  // For the second null terminator.
++  fileBufferSize += 1;
++
++  hGlobal = GlobalAlloc(GMEM_MOVEABLE | GHND | GMEM_SHARE, sizeof(DROPFILES) + fileBufferSize * sizeof(wchar_t));
++  if (hGlobal == nullptr)
++  {
++    goto cleanup;
++  }
++
++  dropFiles = static_cast<DROPFILES *>(GlobalLock(hGlobal));
++  if (dropFiles == nullptr)
++  {
++    goto cleanup;
++  }
++
++  dropFiles->pFiles = sizeof(DROPFILES);
++  dropFiles->pt.x = 0;
++  dropFiles->pt.y = 0;
++  dropFiles->fNC = FALSE;
++  dropFiles->fWide = TRUE;
++
++  fileBuffer = reinterpret_cast<wchar_t *>(dropFiles + 1);
++  fileBufferPos = fileBuffer;
++  for (const auto &filePath : filePaths)
++  {
++    int ret = wcsncpy_s(fileBufferPos, fileBufferSize - (fileBufferPos - fileBuffer),
++              filePath.c_str(), filePath.length());
++    if (ret != 0)
++    {
++      MessageBox(0, L"HI", L"HI", 0);
++    }
++    fileBufferPos += filePath.length() + 1;
++  }
++  // __debugbreak();
++  fileBufferPos[0] = '\0';
++  GlobalUnlock(hGlobal);
++
++  SetClipboardData(CF_HDROP, hGlobal);
++  hGlobal = NULL;
++  dropFiles = nullptr;
++
++cleanup:
++  if (hGlobal != NULL)
++  {
++    GlobalFree(hGlobal);
++  }
++  CloseClipboard();
++}
++
++
++void SetFORMATETC(FORMATETC *pftc, CLIPFORMAT cfFormat, DVTARGETDEVICE *ptd, DWORD dwAspect, LONG lindex, DWORD tymed)
++{
++  pftc->cfFormat = cfFormat;
++  pftc->tymed = tymed;
++  pftc->lindex = lindex;
++  pftc->dwAspect = dwAspect;
++  pftc->ptd = ptd;
++}
++
++void ClipboardGetFiles(HWND /*owner*/, UStringVector& filePaths, DWORD& effect)
++{
++  NCOM::CStgMedium medium;
++  CMyComPtr<IDataObject> clipboardObject;
++
++  HRESULT hr = OleGetClipboard(&clipboardObject);
++
++  if (FAILED(hr))
++  {
++    return;
++  }
++
++  hr = NShell::DataObject_GetData_HDROP_or_IDLIST_Names(clipboardObject.get(), filePaths);
++  if (FAILED(hr))
++  {
++    return;
++  }
++
++  hr = NShell::DataObject_GetData_HGLOBAL(clipboardObject.get(), (CLIPFORMAT)
++      RegisterClipboardFormat(CFSTR_PREFERREDDROPEFFECT), medium);
++  if (FAILED(hr))
++  {
++    return;
++  }
++
++  PDWORD pdwEffect = (DWORD *) GlobalLock(medium.hGlobal);
++  if (pdwEffect == nullptr)
++  {
++    return;
++  }
++
++  if (*pdwEffect != DROPEFFECT_NONE)
++  {
++    effect = *pdwEffect;
++  }
++  GlobalUnlock(medium.hGlobal);
+ }
++
++void ClipboardGetFiles2(HWND owner, std::vector<std::wstring>& filePaths)
++{
++  HANDLE hDrop = NULL;
++  HDROP hDropInfo = nullptr;
++  UINT numFiles = 0;
++
++  if (!OpenClipboard(owner))
++  {
++    return;
++  }
++
++  if (IsClipboardFormatAvailable(CF_HDROP))
++  {
++    goto cleanup;
++  }
++
++  hDrop = GetClipboardData(CF_HDROP);
++  if (hDrop == nullptr)
++  {
++    goto cleanup;
++  }
++
++  hDropInfo = static_cast<HDROP>(GlobalLock(hDrop));
++  if (hDropInfo == nullptr)
++  {
++    goto cleanup;
++  }
++
++  numFiles = DragQueryFileW(hDropInfo, 0xFFFFFFFF, nullptr, 0);
++
++  // Loop through the files and retrieve their names
++  for (UINT i = 0; i < numFiles; ++i)
++  {
++    UINT size = DragQueryFileW(hDropInfo, i, nullptr, 0);
++    std::wstring fileName(size + 1, L'\0');
++    DragQueryFileW(hDropInfo, i, &fileName[0], size + 1);
++    filePaths.push_back(fileName);
++  }
++
++  // Unlock the handle
++  GlobalUnlock(hDrop);
++  hDrop = nullptr;
++
++cleanup:
++  if (hDropInfo != nullptr)
++  {
++    GlobalUnlock(hDrop);
++  }
++
++  if (hDrop != NULL)
++  {
++    GlobalFree(hDrop);
++  }
++
++  CloseClipboard();
++}
++
++}
+\ No newline at end of file
+diff --git a/CPP/Windows/Clipboard.h b/CPP/Windows/Clipboard.h
+index 3b4f2fe..2592873 100644
+--- a/CPP/Windows/Clipboard.h
++++ b/CPP/Windows/Clipboard.h
+@@ -4,6 +4,8 @@
+ #define ZIP7_INC_CLIPBOARD_H
+ 
+ #include "../Common/MyString.h"
++#include <vector>
++#include <string>
+ 
+ namespace NWindows {
+ 
+@@ -22,6 +24,9 @@ bool ClipboardIsFormatAvailableHDROP();
+ // bool ClipboardGetFileNames(UStringVector &names);
+ // bool ClipboardGetTextString(AString &s);
+ bool ClipboardSetText(HWND owner, const UString &s);
++void ClipboardSetFiles(HWND owner, const std::vector<std::wstring>& filePaths, DWORD effect);
++// void ClipboardGetFiles(HWND owner, std::vector<std::wstring>& filePaths, DWORD& effect);
++void ClipboardGetFiles(HWND owner, UStringVector& filePaths, DWORD& effect);
+ 
+ }
+ 
+diff --git a/CPP/Windows/Control/ListView.h b/CPP/Windows/Control/ListView.h
+index 11a33a0..4a0c7c9 100644
+--- a/CPP/Windows/Control/ListView.h
++++ b/CPP/Windows/Control/ListView.h
+@@ -31,6 +31,7 @@ public:
+   bool DeleteColumn(unsigned columnIndex) { return BOOLToBool(ListView_DeleteColumn(_window, columnIndex)); }
+ 
+   int InsertColumn(unsigned columnIndex, const LVCOLUMN *columnInfo) { return ListView_InsertColumn(_window, columnIndex, columnInfo); }
++  int SetColumn(unsigned columnIndex, const LVCOLUMN *columnInfo) { return ListView_SetColumn(_window, columnIndex, columnInfo); }
+   int InsertColumn(unsigned columnIndex, LPCTSTR text, int width);
+   bool SetColumnOrderArray(unsigned count, const int *columns)
+     { return BOOLToBool(ListView_SetColumnOrderArray(_window, count, (int *)(void *)columns)); }
+@@ -92,6 +93,7 @@ public:
+   void SetItemState_Selected(int index, bool select) { SetItemState(index, select ? LVIS_SELECTED : 0, LVIS_SELECTED); }
+   void SetItemState_Selected(int index) { SetItemState(index, LVIS_SELECTED, LVIS_SELECTED); }
+   void SelectAll() { SetItemState_Selected(-1); }
++  void DeselectAll() { SetItemState_Selected(-1, 0); }
+   void SetItemState_FocusedSelected(int index) { SetItemState(index, LVIS_FOCUSED | LVIS_SELECTED, LVIS_FOCUSED | LVIS_SELECTED); }
+   UINT GetItemState(int index, UINT mask) const { return ListView_GetItemState(_window, index, mask); }
+   bool IsItemSelected(int index) const { return GetItemState(index, LVIS_SELECTED) == LVIS_SELECTED; }
+diff --git a/CPP/Windows/ProcessUtils.cpp b/CPP/Windows/ProcessUtils.cpp
+index 607b4bb..e94d663 100644
+--- a/CPP/Windows/ProcessUtils.cpp
++++ b/CPP/Windows/ProcessUtils.cpp
+@@ -3,15 +3,152 @@
+ #include "StdAfx.h"
+ 
+ #include "../Common/StringConvert.h"
++#include "Thread.h"
+ 
+ #include "ProcessUtils.h"
++#include <shlwapi.h>
++#include <cstdio>
+ 
+ #ifndef _UNICODE
+ extern bool g_IsNT;
+ #endif
+ 
++#include "../7zip/UI/FileManager/App.h"
++
+ namespace NWindows {
+ 
++static volatile long PipeSerialNumber;
++
++
++UString MyGetNextPipeName()
++{
++  CHAR PipeNameBuffer[ MAX_PATH ];
++  snprintf( PipeNameBuffer, MAX_PATH,
++           "\\\\.\\Pipe\\7zFMPipe.%08lx.%08lx",
++           GetCurrentProcessId(),
++           PipeSerialNumber + 1
++         );
++  return UString(PipeNameBuffer);
++}
++
++BOOL
++APIENTRY
++MyCreatePipeEx(
++    OUT LPHANDLE lpReadPipe,
++    OUT LPHANDLE lpWritePipe,
++    IN LPSECURITY_ATTRIBUTES lpPipeAttributes,
++    IN DWORD nSize,
++    DWORD dwReadMode,
++    DWORD dwWriteMode
++    )
++/*++
++Routine Description:
++    The CreatePipeEx API is used to create an anonymous pipe I/O device.
++    Unlike CreatePipe FILE_FLAG_OVERLAPPED may be specified for one or
++    both handles.
++    Two handles to the device are created.  One handle is opened for
++    reading and the other is opened for writing.  These handles may be
++    used in subsequent calls to ReadFile and WriteFile to transmit data
++    through the pipe.
++Arguments:
++    lpReadPipe - Returns a handle to the read side of the pipe.  Data
++        may be read from the pipe by specifying this handle value in a
++        subsequent call to ReadFile.
++    lpWritePipe - Returns a handle to the write side of the pipe.  Data
++        may be written to the pipe by specifying this handle value in a
++        subsequent call to WriteFile.
++    lpPipeAttributes - An optional parameter that may be used to specify
++        the attributes of the new pipe.  If the parameter is not
++        specified, then the pipe is created without a security
++        descriptor, and the resulting handles are not inherited on
++        process creation.  Otherwise, the optional security attributes
++        are used on the pipe, and the inherit handles flag effects both
++        pipe handles.
++    nSize - Supplies the requested buffer size for the pipe.  This is
++        only a suggestion and is used by the operating system to
++        calculate an appropriate buffering mechanism.  A value of zero
++        indicates that the system is to choose the default buffering
++        scheme.
++Return Value:
++    TRUE - The operation was successful.
++    FALSE/NULL - The operation failed. Extended error status is available
++        using GetLastError.
++--*/
++{
++  HANDLE ReadPipeHandle = NULL, WritePipeHandle = NULL;
++  DWORD dwError;
++  CHAR PipeNameBuffer[ MAX_PATH ];
++
++  //
++  // Only one valid OpenMode flag - FILE_FLAG_OVERLAPPED
++  //
++
++  if ((dwReadMode | dwWriteMode) & (~FILE_FLAG_OVERLAPPED)) {
++    SetLastError(ERROR_INVALID_PARAMETER);
++    return FALSE;
++  }
++
++  //
++  //  Set the default timeout to 120 seconds
++  //
++
++  if (nSize == 0) {
++    nSize = 4096;
++  }
++
++  snprintf( PipeNameBuffer, 256,
++           "\\\\.\\pipe\\7zFMPipe.%08lx.%08lx",
++           GetCurrentProcessId(),
++           InterlockedIncrement(&PipeSerialNumber)
++         );
++
++  // For PIPE_ACCESS_INBOUND, the writer must open with GENERIC_WRITE
++  // or [System.IO.Pipes.PipeDirection]::Out.
++  // If you create with PIPE_ACCESS_DUPLEX then
++  // you can open with GENERIC_ALL or [System.IO.Pipes.PipeDirection]::InOut.
++  ReadPipeHandle = CreateNamedPipeA(
++          PipeNameBuffer,             // pipe name
++          PIPE_ACCESS_INBOUND | dwReadMode,       // read/write access
++          PIPE_TYPE_MESSAGE |       // message type pipe
++          PIPE_READMODE_MESSAGE |   // message-read mode
++          PIPE_WAIT,                // blocking mode
++          PIPE_UNLIMITED_INSTANCES, // max. instances
++          nSize,                  // output buffer size
++          nSize,                  // input buffer size
++          0,                        // client time-out
++          NULL);                    // default security attribute
++
++  if (! ReadPipeHandle) {
++    return FALSE;
++  }
++
++  *lpReadPipe = ReadPipeHandle;
++
++  if (lpWritePipe != NULL)
++  {
++    WritePipeHandle = CreateFileA(
++                        PipeNameBuffer,
++                        GENERIC_WRITE,
++                        FILE_SHARE_WRITE | FILE_SHARE_READ,
++                        lpPipeAttributes,
++                        OPEN_EXISTING,
++                        FILE_ATTRIBUTE_NORMAL | dwWriteMode,
++                        NULL                       // Template file
++                      );
++
++    if (INVALID_HANDLE_VALUE == WritePipeHandle) {
++      dwError = GetLastError();
++      CloseHandle( ReadPipeHandle );
++      SetLastError(dwError);
++      return FALSE;
++    }
++    *lpWritePipe = WritePipeHandle;
++  }
++
++  return( TRUE );
++}
++
++
+ #ifndef UNDER_CE
+ static UString GetQuotedString(const UString &s)
+ {
+@@ -22,7 +159,7 @@ static UString GetQuotedString(const UString &s)
+ }
+ #endif
+ 
+-WRes CProcess::Create(LPCWSTR imageName, const UString &params, LPCWSTR curDir)
++WRes CProcess::Create(LPCWSTR imageName, const UString &params, LPCWSTR curDir, LPVOID additionalEnvVar)
+ {
+   /*
+   OutputDebugStringW(L"CProcess::Create");
+@@ -74,22 +211,110 @@ WRes CProcess::Create(LPCWSTR imageName, const UString &params, LPCWSTR curDir)
+   else
+   #endif
+   {
+-    STARTUPINFOW si;
++    // Need to allow inheritance for child process to access pipe.
++    SECURITY_ATTRIBUTES sa {
++      sizeof(SECURITY_ATTRIBUTES), NULL, TRUE
++    };
++
++    CRecordVector<WCHAR> env;
++    STARTUPINFOW si{};
+     si.cb = sizeof(si);
+-    si.lpReserved = NULL;
+-    si.lpDesktop = NULL;
+-    si.lpTitle = NULL;
+-    si.dwFlags = 0;
+-    si.cbReserved2 = 0;
+-    si.lpReserved2 = NULL;
+-    
++
++    if (_readOutput)
++    {
++      // if (!CreatePipe(&_hStdoutRead, &_hStdoutWrite, &sa, 0))
++      // {
++      //   return (WRes)-1;
++      // }
++
++      // NOTE: uncomment this and use previous if you want to use WaitAndRunOverlapped, but it has issues.
++      if (!MyCreatePipeEx(
++          &_hStdoutRead, _createPipeOnly == TRUE ? NULL : &_hStdoutWrite, &sa, 0,
++          0, 0)
++      )
++      {
++        return (WRes)-1;
++      }
++      if (!_createPipeOnly)
++      {
++        si.hStdOutput = _hStdoutWrite;
++        si.hStdError = _hStdoutWrite;
++        si.dwFlags |= STARTF_USESTDHANDLES;
++      }
++    }
++
++    if (_overlapWindow)
++    {
++      RECT rc;
++      g_App._window.GetWindowRect(&rc);
++      si.dwX = rc.left;
++      si.dwY = rc.top;
++
++      // size doesn't work for some reason
++      si.dwXSize = rc.right - rc.left;
++      si.dwYSize = rc.bottom - rc.top;
++      si.dwFlags |= STARTF_USEPOSITION | STARTF_USESIZE;
++    }
++
++    if (!PathIsDirectory(curDir))
++    {
++      curDir = NULL;
++    }
++
++    if (additionalEnvVar != NULL)
++    {
++      PWCHAR envBlock = GetEnvironmentStrings();
++      PWCHAR envBlockEnd = envBlock;
++
++      // Could probably just SetEnvironmentVariable instead.
++      while (*envBlockEnd != 0)
++      {
++        envBlockEnd += wcslen(envBlockEnd) + 1;
++      }
++
++      PWCHAR additionalEnvVarEnd = (PWCHAR)additionalEnvVar;
++      while (*additionalEnvVarEnd != 0)
++      {
++        additionalEnvVarEnd += wcslen(additionalEnvVarEnd) + 1;
++      }
++
++      env = CRecordVector<WCHAR>(envBlock, envBlockEnd);
++
++      // DbgDumpRange(env.begin(), env.end(), "env after adding envBlock");
++      // DbgDumpRange(additionalEnvVar, additionalEnvVarEnd, "additionalEnvVar");
++      env += CRecordVector<WCHAR>((PWCHAR)additionalEnvVar, additionalEnvVarEnd);
++      // DbgDumpRange(env.begin(), env.end(), "env after adding temp");
++      env.Add(0);
++    }
++
+     result = CreateProcessW(imageName, params2.Ptr_non_const(),
+-        NULL, NULL, FALSE, 0, NULL, curDir, &si, &pi);
++        NULL, NULL, _readOutput && !_createPipeOnly, CREATE_UNICODE_ENVIRONMENT,
++        additionalEnvVar != NULL ? (LPVOID)env.begin() : NULL,
++        curDir, &si, &pi);
++
++    // Child process will have this handle, we don't need it. When child process
++    // exits they will close their instance of this handle and our _hStdoutRead
++    // will be signalled.
++    if (_hStdoutWrite != NULL)
++    {
++      CloseHandle(_hStdoutWrite);
++      _hStdoutWrite = NULL;
++    }
++
++    if (result == 0)
++    {
++      DbgDumpRange(env.begin(), env.end(), "CreateProcessW failed with GLE %x, dumping env", GetLastError());
++    }
+   }
+-  if (result == 0)
+-    return ::GetLastError();
++
+   ::CloseHandle(pi.hThread);
+   _handle = pi.hProcess;
++
++  if (result == 0)
++  {
++    MessageBoxW(g_HWND, L"CreateProcessW failed", L"Failed with error", MB_ICONERROR | MB_OK);
++    return ::GetLastError();
++  }
+   return 0;
+ }
+ 
+@@ -99,4 +324,230 @@ WRes MyCreateProcess(LPCWSTR imageName, const UString &params)
+   return process.Create(imageName, params, NULL);
+ }
+ 
++UString CProcess::WaitRead()
++{
++  DWORD dwRead;
++  CHAR chBuf[4096];
++  BOOL bSuccess = FALSE;
++
++  for (;;)
++  {
++    bSuccess = ReadFile(_hStdoutRead, chBuf, sizeof(chBuf), &dwRead, NULL);
++    if (dwRead != 0)
++    {
++      _readBuffer += CByteVector((unsigned char *)chBuf, (unsigned char *)chBuf + dwRead);
++    }
++
++    if (!bSuccess || dwRead == 0)
++      break;
++  }
++
++  _readBuffer.Add(0);
++
++  UString result{};
++  MultiByteToUnicodeString2(result, AString((char *)_readBuffer.begin()), CP_UTF8);
++  return result;
++}
++
++// Must be constructed with new since it deletes itself.
++struct CThreadProcessWaitSync
++{
++  CHAR chBuf[4096];
++  DWORD dwRead{};
++  HANDLE _hFile{}; // non owning
++  CByteVector _readBuffer;
++  std::function<void(UString)> _fn;
++  CProcess *owner{};
++
++  CThreadProcessWaitSync() {}
++  virtual ~CThreadProcessWaitSync()
++  {
++    if (owner)
++    {
++      delete owner;
++      owner = nullptr;
++    }
++  }
++
++  HRESULT Initialize(HANDLE hFile, std::function<void(UString)> const& fn)
++  {
++    _fn = fn;
++    _hFile = hFile;
++    return S_OK;
++  }
++  void Process()
++  {
++    BOOL bSuccess = FALSE;
++
++    if (owner != nullptr && owner->_createPipeOnly)
++    {
++      BOOL fConnected = ConnectNamedPipe(_hFile, NULL) ?
++          TRUE : (GetLastError() == ERROR_PIPE_CONNECTED);
++      if (!fConnected)
++      {
++        Z7DbgPrintA("ConnectNamedPipe failed\n");
++        return;
++      }
++    }
++
++    for (;;)
++    {
++      bSuccess = ReadFile(_hFile, chBuf, sizeof(chBuf), &dwRead, NULL);
++      if (dwRead != 0)
++      {
++        _readBuffer += CByteVector((unsigned char *)chBuf, (unsigned char *)chBuf + dwRead);
++      }
++
++      if (!bSuccess || dwRead == 0)
++        break;
++    }
++
++    _readBuffer.Add(0);
++    DbgDumpRange(_readBuffer.begin(), _readBuffer.end(), "_readBuffer");
++    UString resultString{};
++    MultiByteToUnicodeString2(resultString, AString((char *)_readBuffer.begin()), CP_UTF8);
++    _fn(resultString);
++  }
++
++  static THREAD_FUNC_DECL MyThreadFunction(void *param)
++  {
++    try
++    {
++      ((CThreadProcessWaitSync *)param)->Process();
++      delete static_cast<CThreadProcessWaitSync *>(param);
++    }
++    catch (...)
++    {
++      std::exception_ptr p = std::current_exception();
++    }
++    return 0;
++  }
++};
++
++
++// To call this, always allocate CProcess with new.
++// If this function succeeds with return value 0, then this object will delete itself.
++// Otherwise caller must delete.
++WRes CProcess::WaitAndRun(std::function<void(UString)> const& fn)
++{
++  auto waiter = new CThreadProcessWaitSync();
++  HRESULT result = waiter->Initialize(_hStdoutRead, fn);
++
++  if (FAILED(result))
++  {
++    delete waiter;
++    return (WRes)-1;
++  }
++
++  NWindows::CThread thread;
++  waiter->owner = this;
++  const WRes wres = thread.Create(CThreadProcessWaitSync::MyThreadFunction, waiter);
++  return wres;
++}
++
++
++// Must be constructed with new since it deletes itself.
++struct CThreadProcessWaitOverlapped
++{
++  OVERLAPPED overlapped{};
++  CHAR chBuf[4096];
++  DWORD dwRead{};
++  HANDLE _hFile{}; // non owning
++  CByteVector _readBuffer;
++  std::function<void(UString)> _fn;
++  CProcess *owner{};
++
++  CThreadProcessWaitOverlapped(OVERLAPPED overlapped) : overlapped(overlapped) {}
++  CThreadProcessWaitOverlapped() {}
++  virtual ~CThreadProcessWaitOverlapped()
++  {
++    if (overlapped.hEvent != NULL)
++    {
++      CloseHandle(overlapped.hEvent);
++      overlapped.hEvent = NULL;
++    }
++
++    if (owner)
++    {
++      delete owner;
++      owner = nullptr;
++    }
++  }
++
++  HRESULT Initialize(HANDLE hFile, std::function<void(UString)> const& fn)
++  {
++    memset(&overlapped, 0, sizeof(overlapped));
++    overlapped.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
++    _fn = fn;
++    _hFile = hFile;
++
++    // _readBuffer = CByteVector{};
++
++    if (overlapped.hEvent == NULL)
++    {
++      return E_FAIL;
++    }
++    return S_OK;
++  }
++  void Process()
++  {
++    try
++    {
++      BOOL bSuccess = FALSE;
++      bSuccess = GetOverlappedResult(_hFile,
++                              &overlapped,
++                              &dwRead,
++                              TRUE) ;
++      if (bSuccess && dwRead != 0)
++      {
++        // _readBuffer.Reserve(1);
++        _readBuffer += CByteVector((unsigned char *)chBuf, (unsigned char *)chBuf + dwRead);
++      }
++
++      _readBuffer.Add(0);
++
++      UString resultString{};
++      MultiByteToUnicodeString2(resultString, AString((char *)_readBuffer.begin()), CP_UTF8);
++      _fn(resultString);
++    }
++    catch(...) { }
++  }
++
++  static THREAD_FUNC_DECL MyThreadFunction(void *param)
++  {
++    ((CThreadProcessWaitOverlapped *)param)->Process();
++    delete static_cast<CThreadProcessWaitOverlapped *>(param);
++    return 0;
++  }
++};
++
++// To call this, always allocate CProcess with new.
++// If this function succeeds with return value 0, then this object will delete itself.
++// Otherwise caller must delete.
++WRes CProcess::WaitAndRunOverlapped(std::function<void(UString)> const& fn)
++{
++  auto waiter = new CThreadProcessWaitOverlapped();
++  HRESULT result = waiter->Initialize(_hStdoutRead, fn);
++
++  if (FAILED(result))
++  {
++    delete waiter;
++    return (WRes)-1;
++  }
++
++  BOOL bSuccess = ReadFile(_hStdoutRead, waiter->chBuf, sizeof(waiter->chBuf), &waiter->dwRead, &waiter->overlapped);
++  if (!bSuccess && GetLastError() == ERROR_IO_PENDING)
++  {
++    NWindows::CThread thread;
++    waiter->owner = this;
++    const WRes wres = thread.Create(CThreadProcessWaitOverlapped::MyThreadFunction, waiter);
++    return wres;
++  }
++  else
++  {
++    // Could happen but not for fzf.
++    delete waiter;
++    return (WRes)-1;
++  }
++}
+ }
+diff --git a/CPP/Windows/ProcessUtils.h b/CPP/Windows/ProcessUtils.h
+index b1fce3a..7df3158 100644
+--- a/CPP/Windows/ProcessUtils.h
++++ b/CPP/Windows/ProcessUtils.h
+@@ -4,6 +4,11 @@
+ #define ZIP7_INC_WINDOWS_PROCESS_UTILS_H
+ 
+ #include "../Common/MyWindows.h"
++#include "../Common/MyVector.h"
++#include "../Common/MyString.h"
++#include "../Common/StringConvert.h"
++
++#include <functional>
+ 
+ #ifndef Z7_OLD_WIN_SDK
+ 
+@@ -44,9 +49,43 @@ typedef PROCESS_MEMORY_COUNTERS *PPROCESS_MEMORY_COUNTERS;
+ 
+ namespace NWindows {
+ 
++
++BOOL
++APIENTRY
++MyCreatePipeEx(
++    OUT LPHANDLE lpReadPipe,
++    OUT LPHANDLE lpWritePipe,
++    IN LPSECURITY_ATTRIBUTES lpPipeAttributes,
++    IN DWORD nSize,
++    DWORD dwReadMode,
++    DWORD dwWriteMode
++    );
++
+ class CProcess: public CHandle
+ {
+ public:
++  HANDLE _hStdoutRead, _hStdoutWrite;
++  CByteVector _readBuffer;
++  BOOL _overlapWindow{};
++  BOOL _readOutput{};
++  BOOL _createPipeOnly{};
++
++  CProcess() : _hStdoutRead(NULL), _hStdoutWrite(NULL) {}
++  virtual ~CProcess()
++  {
++    if (_hStdoutRead != NULL)
++    {
++      CloseHandle(_hStdoutRead);
++      _hStdoutRead = NULL;
++    }
++
++    if (_hStdoutWrite != NULL)
++    {
++      CloseHandle(_hStdoutWrite);
++      _hStdoutWrite = NULL;
++    }
++  }
++
+   bool Open(DWORD desiredAccess, bool inheritHandle, DWORD processId)
+   {
+     _handle = ::OpenProcess(desiredAccess, inheritHandle, processId);
+@@ -126,11 +165,20 @@ public:
+ 
+   #endif
+ 
+-  WRes Create(LPCWSTR imageName, const UString &params, LPCWSTR curDir);
++  WRes Create(LPCWSTR imageName, const UString &params, LPCWSTR curDir, LPVOID additionalEnvVar = NULL);
++
++  DWORD Wait()
++  {
++    DWORD result = ::WaitForSingleObject(_handle, INFINITE);
++    return result;
++  }
+ 
+-  DWORD Wait() { return ::WaitForSingleObject(_handle, INFINITE); }
++  UString WaitRead();
++  WRes WaitAndRun(std::function<void(UString)> const& fn);
++  WRes WaitAndRunOverlapped(std::function<void(UString)> const& fn);
+ };
+ 
++UString MyGetNextPipeName();
+ WRes MyCreateProcess(LPCWSTR imageName, const UString &params);
+ 
+ }
+diff --git a/CPP/Windows/Shell.cpp b/CPP/Windows/Shell.cpp
+index b2a3489..c7e7ce7 100644
+--- a/CPP/Windows/Shell.cpp
++++ b/CPP/Windows/Shell.cpp
+@@ -5,7 +5,6 @@
+ #include "../Common/MyCom.h"
+ #include "../Common/StringConvert.h"
+ 
+-#include "COM.h"
+ #include "FileName.h"
+ #include "MemoryGlobal.h"
+ #include "Shell.h"
+@@ -170,7 +169,7 @@ static HRESULT ReadAnsiStrings(const char *p, size_t size, UStringVector &names)
+ 
+ #define INIT_FORMATETC_HGLOBAL(type) { (type), NULL, DVASPECT_CONTENT, -1, TYMED_HGLOBAL }
+ 
+-static HRESULT DataObject_GetData_HGLOBAL(IDataObject *dataObject, CLIPFORMAT cf, NCOM::CStgMedium &medium)
++HRESULT DataObject_GetData_HGLOBAL(IDataObject *dataObject, CLIPFORMAT cf, NCOM::CStgMedium &medium)
+ {
+   FORMATETC etc = INIT_FORMATETC_HGLOBAL(cf);
+   RINOK(dataObject->GetData(&etc, &medium))
+@@ -179,6 +178,13 @@ static HRESULT DataObject_GetData_HGLOBAL(IDataObject *dataObject, CLIPFORMAT cf
+   return S_OK;
+ }
+ 
++HRESULT DataObject_SetData_HGLOBAL(IDataObject *dataObject, CLIPFORMAT cf, NCOM::CStgMedium &medium)
++{
++  FORMATETC etc = INIT_FORMATETC_HGLOBAL(cf);
++  RINOK(dataObject->SetData(&etc, &medium, TRUE));
++  return S_OK;
++}
++
+ static HRESULT DataObject_GetData_HDROP_Names(IDataObject *dataObject, UStringVector &names)
+ {
+   names.Clear();
+diff --git a/CPP/Windows/Shell.h b/CPP/Windows/Shell.h
+index b4cdb30..7d51473 100644
+--- a/CPP/Windows/Shell.h
++++ b/CPP/Windows/Shell.h
+@@ -5,6 +5,7 @@
+ 
+ #include "../Common/Common.h"
+ #include "../Common/MyWindows.h"
++// https://learn.microsoft.com/en-gb/windows/win32/winprog/using-the-windows-headers?redirectedfrom=MSDN
+ #if defined(__MINGW32__) || defined(__MINGW64__)
+ #include <shlobj.h>
+ #else
+@@ -14,6 +15,7 @@
+ #include "../Common/MyString.h"
+ 
+ #include "Defs.h"
++#include "com.h"
+ 
+ namespace NWindows {
+ namespace NShell {
+@@ -113,7 +115,8 @@ struct CFileAttribs
+ /* read pathnames from HDROP or SHELLIDLIST.
+    The parser can return E_INVALIDARG, if there is some unexpected data in dataObject */
+ HRESULT DataObject_GetData_HDROP_or_IDLIST_Names(IDataObject *dataObject, UStringVector &names);
+-
++HRESULT DataObject_GetData_HGLOBAL(IDataObject *dataObject, CLIPFORMAT cf, NCOM::CStgMedium &medium);
++HRESULT DataObject_SetData_HGLOBAL(IDataObject *dataObject, CLIPFORMAT cf, NCOM::CStgMedium &medium);
+ HRESULT DataObject_GetData_FILE_ATTRS(IDataObject *dataObject, CFileAttribs &attribs);
+ 
+ bool GetPathFromIDList(LPCITEMIDLIST itemIDList, CSysString &path);
+-- 
+2.49.0.windows.1
+

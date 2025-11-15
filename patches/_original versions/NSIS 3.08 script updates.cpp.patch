@@ -1,0 +1,215 @@
+--- /old/CPP/7zip/Archive/Nsis/NsisIn.cpp	Sun Oct 17 20:10:04 2021
++++ /new/CPP/7zip/Archive/Nsis/NsisIn.cpp	Sun Oct 17 21:40:10 2021
+@@ -51,2 +51,4 @@
+ 
++#define IsNsis3OrHigher() ( NsisType == k_NsisType_Nsis3 )
++#define IsNsis3d0b3OrHigher() 0 // TODO
+ 
+@@ -136,3 +138,4 @@
+   EW_GETFUNCTIONADDR,
+-  
++
++  EW_GETOSINFO = EW_INSTTYPESET + 1, // 3.06+
+   EW_LOCKWINDOW,        // LockWindow
+@@ -157,3 +160,4 @@
+ 
+-
++#define GETOSINFO_KNOWNFOLDER 0
++#define GETOSINFO_READMEMORY 1
+ 
+@@ -231,3 +235,3 @@
+   { 4 }, // InstTypeSetText, InstTypeGetText, SetCurInstType, GetCurInstType
+-  { 6 }, // "GetLabelAddr" },
++  { 6 }, // "GetLabelAddr", GetKnownFolderPath, ReadMemory },
+   { 2 }, // "GetFunctionAddress" },
+@@ -327,2 +331,27 @@
+ 
++const char * GetCommandName(UInt32 commandid, UInt32 params[])
++{
++  switch(commandid)
++  {
++  case EW_INTCMP:
++    if (params[5] & 0x8000) return "Int64Cmp"; // 3.03+
++    break;
++  case EW_INTFMT:
++    if (params[3]) return "Int64Fmt"; // 3.03+
++    break;
++  //case EW_SHELLEXEC:
++  //  if (params[4] & SEE_MASK_NOCLOSEPROCESS) return "ExecShellWait"; 3.02+
++  //  break;
++  case EW_GETOSINFO: // 3.06+
++    if (IsNsis3OrHigher())
++      switch(params[3])
++      {
++      case GETOSINFO_KNOWNFOLDER: return "GetKnownFolderPath";
++      case GETOSINFO_READMEMORY: return "ReadMemory";
++      }
++    break;
++  }
++  return k_CommandNames[commandid];
++}
++
+ #endif
+@@ -1717,3 +1746,5 @@
+ 
+-static const unsigned k_CtlColors_Size = 24;
++static const unsigned k_CtlColors32_Size = 24;
++static const unsigned k_CtlColors64_Size = 28;
++#define GetCtlColors_Size() ( Is64Bit ? k_CtlColors64_Size : k_CtlColors32_Size )
+ 
+@@ -1727,14 +1758,25 @@
+   Int32 flags;
++  UInt32 bkb_hi32;
+ 
+-  void Parse(const Byte *p);
++  void Parse(const Byte *p, bool sixtyfour);
+ };
+ 
+-void CNsis_CtlColors::Parse(const Byte *p)
++void CNsis_CtlColors::Parse(const Byte *p, bool sixtyfour)
+ {
++  UInt32 ofs = sixtyfour ? 4 : 0;
+   text = Get32(p);
+   bkc = Get32(p + 4);
+-  lbStyle = Get32(p + 8);
+-  bkb = Get32(p + 12);
+-  bkmode = (Int32)Get32(p + 16);
+-  flags = (Int32)Get32(p + 20);
++  if (sixtyfour)
++  {
++    bkb = Get32(p + 8);
++    bkb_hi32 = Get32(p + 12);
++    lbStyle = Get32(p + 16);
++  }
++  else
++  {
++    lbStyle = Get32(p + 8);
++    bkb = Get32(p + 12);
++  }
++  bkmode = (Int32)Get32(p + 16 + ofs);
++  flags = (Int32)Get32(p + 20 + ofs);
+ }
+@@ -2429,4 +2471,4 @@
+     unsigned i;
+-    if (id == EW_GETLABELADDR ||
+-        id == EW_GETFUNCTIONADDR)
++    if ((id == EW_GETLABELADDR ||
++        id == EW_GETFUNCTIONADDR) && !IsNsis3OrHigher())
+     {
+@@ -3316,3 +3358,3 @@
+       numSkipParams = k_Commands[commandId].NumParams;
+-      const char *sz = k_CommandNames[commandId];
++      const char *sz = GetCommandName(commandId, params);
+       if (sz)
+@@ -3371,3 +3413,3 @@
+         AddParam(params[0]);
+-        if (params[2] != 0)
++        if (params[2] != 0) // 2.51+ & 3.0b3+
+         {
+@@ -4019,3 +4061,3 @@
+       {
+-        if (params[5] != 0)
++        if (IsNsis3OrHigher() ? (params[5] & 1) : (params[5] != 0))
+           s += 'U';
+@@ -4031,3 +4073,3 @@
+         AddParam_Var(params[0]);
+-        const char * const kOps = "+-*/|&^!|&%<>"; // NSIS 2.01+
++        const char * const kOps = "+-*/|&^!|&%<>>"; // NSIS 2.01+
+                         // "+-*/|&^!|&%";   // NSIS 2.0b4+
+@@ -4035,3 +4077,3 @@
+         UInt32 opIndex = params[3];
+-        char c = (opIndex < 13) ? kOps[opIndex] : '?';
++        char c = (opIndex < 14) ? kOps[opIndex] : '?';
+         char c2 = (opIndex < 8 || opIndex == 10) ? (char)0 : c;
+@@ -4045,2 +4087,4 @@
+         {
++          if (opIndex == 13) // 3.03+ ">>>"
++            s += (c2 = c);
+           if (c2 != 0)
+@@ -4174,3 +4218,3 @@
+            || _size - bhCtlColors.Offset < offset
+-           || _size - bhCtlColors.Offset - offset < k_CtlColors_Size)
++           || _size - bhCtlColors.Offset - offset < GetCtlColors_Size())
+         {
+@@ -4182,3 +4226,3 @@
+         CNsis_CtlColors colors;
+-        colors.Parse(p2);
++        colors.Parse(p2, Is64Bit);
+ 
+@@ -4216,3 +4260,3 @@
+ 
+-      case EW_SETBRANDINGIMAGE:
++      case EW_SETBRANDINGIMAGE: // TODO: EW_LOADANDSETIMAGE 3.05+
+       {
+@@ -4314,2 +4358,4 @@
+       {
++        if (params[3] == 2)
++          s += " /ProductVersion "; // 3.08+
+         AddParam(params[2]);
+@@ -4355,3 +4401,3 @@
+       {
+-        unsigned numParams;
++        unsigned numParams, v3_0b3 = IsNsis3d0b3OrHigher();
+         for (numParams = 6; numParams > 2; numParams--)
+@@ -4361,2 +4407,3 @@
+         UInt32 spec = params[4];
++        UInt32 sw_s = v3_0b3 ? 12 : 8, sw_m = v3_0b3 ? 0x7000 : 0x7F;
+         if (spec & 0x8000) // NSIS 3.0b0
+@@ -4368,3 +4415,3 @@
+ 
+-        UInt32 icon = (spec & 0xFF);
++        UInt32 icon = (spec & (v3_0b3 ? 0xFFF : 0xFF));
+         Space();
+@@ -4375,5 +4422,5 @@
+ 
+-        if ((spec >> 8) == 0 && numParams < 6)
++        if ((spec >> sw_s) == 0 && numParams < 6)
+           break;
+-        UInt32 sw = (spec >> 8) & 0x7F;
++        UInt32 sw = (spec >> sw_s) & sw_m;
+         Space();
+@@ -4486,3 +4533,3 @@
+           if (params[4] & 2)
+-            s += " /ifempty";
++            s += " /ifempty"; // TODO: /ifnosubkeys, /ifnovalues
+         }
+@@ -4509,2 +4556,4 @@
+           s2 = "ExpandStr";
++        if (params[4] == 3 && params[5] == 7)
++          s2 = "MultiStr"; // 3.02+
+         if (s2)
+@@ -4629,2 +4678,3 @@
+           s += "Byte";
++        if (params[2] == 0 && params[3]) s += " /BOM "; // 3.0b3+
+         AddParam_Var(params[0]);
+@@ -4757,2 +4807,20 @@
+       }
++
++      case EW_GETOSINFO:
++      {
++        switch(params[3])
++        {
++        case GETOSINFO_KNOWNFOLDER:
++          AddParam_Var(params[1]);
++          AddParam(params[2]);
++          break;
++        case GETOSINFO_READMEMORY:
++          AddParam_Var(params[1]);
++          AddParam(params[2]);
++          AddParam(params[4]);
++          //if (params[2] == "0") AddCommentAndString("GetWinVer");
++          break;
++        }
++        break;
++      }
+       
+@@ -5113,4 +5181,8 @@
+   AddLF();
+-  if (IsUnicode)
++  if (Is64Bit)
++    AddStringLF("Target AMD64-Unicode"); // TODO: Read PE machine type and use the correct CPU type
++  else if (IsUnicode)
+     AddStringLF("Unicode true");
++  else if (IsNsis3OrHigher())
++    AddStringLF("Unicode false"); // Unicode is the default in 3.07+
+ 

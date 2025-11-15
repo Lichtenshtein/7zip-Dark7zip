@@ -1,0 +1,2476 @@
+From f9d1f116174903bb449a18b72aa633fc8c961813 Mon Sep 17 00:00:00 2001
+From: ozone10 <positronix10@gmail.com>
+Date: Fri, 25 Apr 2025 08:23:15 +0200
+Subject: [PATCH] Tweaks
+
+---
+ DarkMode/DarkModeSubclass.cpp | 1852 +++++++++++++++++----------------
+ DarkMode/DarkModeSubclass.h   |    3 +-
+ 2 files changed, 957 insertions(+), 898 deletions(-)
+
+diff --git a/DarkMode/DarkModeSubclass.cpp b/DarkMode/DarkModeSubclass.cpp
+index 1f5d26713..7e964a7c0 100644
+--- a/DarkMode/DarkModeSubclass.cpp
++++ b/DarkMode/DarkModeSubclass.cpp
+@@ -155,6 +155,26 @@ static bool setClrFromIni(std::wstring sectionName, std::wstring keyName, std::w
+ 
+ namespace DarkMode
+ {
++	enum class SubclassID : UINT_PTR
++	{
++		button          = 42,
++		groupbox        = 1,
++		upDown          = 2,
++		tabPaint        = 3,
++		tabUpDown       = 4,
++		customBorder    = 5,
++		combobox        = 6,
++		comboboxEx      = 7,
++		listView        = 8,
++		header          = 9,
++		statusBar       = 10,
++		progress        = 11,
++		ctlColor        = 12,
++		staticText      = 13,
++		notify          = 14,
++		menuBar         = 15,
++		settingChange   = 16
++	};
+ 	struct Brushes
+ 	{
+ 		HBRUSH background = nullptr;
+@@ -1229,7 +1249,7 @@ namespace DarkMode
+ 		}
+ 	}
+ 
+-	constexpr UINT_PTR g_buttonSubclassID = 42;
++	constexpr auto g_buttonSubclassID = static_cast<UINT_PTR>(DarkMode::SubclassID::button);
+ 
+ 	static LRESULT CALLBACK ButtonSubclass(
+ 		HWND hWnd,
+@@ -1431,7 +1451,7 @@ namespace DarkMode
+ 		::SelectObject(hdc, hOldFont);
+ 	}
+ 
+-	constexpr UINT_PTR g_groupboxSubclassID = 42;
++	constexpr UINT_PTR g_groupboxSubclassID = static_cast<UINT_PTR>(DarkMode::SubclassID::groupbox);
+ 
+ 	static LRESULT CALLBACK GroupboxSubclass(
+ 		HWND hWnd,
+@@ -1517,139 +1537,176 @@ namespace DarkMode
+ 		}
+ 	}
+ 
+-	static void paintTab(HWND hWnd, HDC hdc, RECT& rc)
++	struct UpDownData
+ 	{
+-		::FillRect(hdc, &rc, DarkMode::getDlgBackgroundBrush());
++		ThemeData _themeData{};
++		BufferData _bufferData{};
+ 
+-		auto holdPen = static_cast<HPEN>(::SelectObject(hdc, DarkMode::getEdgePen()));
++		RECT _rcClient{};
++		RECT _rcPrev{};
++		RECT _rcNext{};
++		bool _isHorizontal = false;
++		bool _wasHotNext = false;
+ 
+-		auto holdClip = ::CreateRectRgn(0, 0, 0, 0);
+-		if (1 != GetClipRgn(hdc, holdClip))
+-		{
+-			::DeleteObject(holdClip);
+-			holdClip = nullptr;
+-		}
++		UpDownData()
++			: _themeData(VSCLASS_BUTTON)
++		{}
+ 
+-		auto hFont = reinterpret_cast<HFONT>(::SendMessage(hWnd, WM_GETFONT, 0, 0));
+-		auto hOldFont = ::SelectObject(hdc, hFont);
++		UpDownData(HWND hWnd)
++			: _themeData(VSCLASS_BUTTON)
++		{
++			const auto nStyle = ::GetWindowLongPtr(hWnd, GWL_STYLE);
++			_isHorizontal = ((nStyle & UDS_HORZ) == UDS_HORZ);
+ 
+-		POINT ptCursor{};
+-		::GetCursorPos(&ptCursor);
+-		::ScreenToClient(hWnd, &ptCursor);
++			updateRect(hWnd);
++		}
+ 
+-		int nTabs = TabCtrl_GetItemCount(hWnd);
++		~UpDownData() = default;
+ 
+-		int nSelTab = TabCtrl_GetCurSel(hWnd);
+-		for (int i = 0; i < nTabs; ++i)
++		void updateRectUpDown()
+ 		{
+-			RECT rcItem{};
+-			TabCtrl_GetItemRect(hWnd, i, &rcItem);
+-			RECT rcFrame{ rcItem };
+-
+-			RECT rcIntersect{};
+-			if (::IntersectRect(&rcIntersect, &rc, &rcItem))
++			if (_isHorizontal)
+ 			{
+-				const bool bHot = ::PtInRect(&rcItem, ptCursor);
+-				const bool isSelectedTab = (i == nSelTab);
++				RECT rcArrowLeft{
++					_rcClient.left, _rcClient.top,
++					_rcClient.right - ((_rcClient.right - _rcClient.left) / 2), _rcClient.bottom
++				};
+ 
+-				HRGN hClip = ::CreateRectRgnIndirect(&rcItem);
++				RECT rcArrowRight{
++					rcArrowLeft.right, _rcClient.top,
++					_rcClient.right, _rcClient.bottom
++				};
+ 
+-				::SelectClipRgn(hdc, hClip);
++				_rcPrev = rcArrowLeft;
++				_rcNext = rcArrowRight;
++			}
++			else
++			{
++				const LONG offset = 2;
+ 
+-				::SetTextColor(hdc, (bHot || isSelectedTab ) ? DarkMode::getTextColor() : DarkMode::getDarkerTextColor());
++				RECT rcArrowTop{
++					_rcClient.left + offset, _rcClient.top,
++					_rcClient.right, _rcClient.bottom - ((_rcClient.bottom - _rcClient.top) / 2)
++				};
+ 
+-				::InflateRect(&rcItem, -1, -1);
+-				rcItem.right += 1;
++				RECT rcArrowBottom{
++					_rcClient.left + offset, rcArrowTop.bottom,
++					_rcClient.right, _rcClient.bottom
++				};
+ 
+-				// for consistency getBackgroundBrush() 
+-				// would be better, than getCtrlBackgroundBrush(),
+-				// however default getBackgroundBrush() has same color
+-				// as getDlgBackgroundBrush()
+-				::FillRect(hdc, &rcItem, isSelectedTab ? DarkMode::getDlgBackgroundBrush() : bHot ? DarkMode::getHotBackgroundBrush() : DarkMode::getCtrlBackgroundBrush());
++				_rcPrev = rcArrowTop;
++				_rcNext = rcArrowBottom;
++			}
++		}
+ 
+-				::SetBkMode(hdc, TRANSPARENT);
++		void updateRect(HWND hWnd)
++		{
++			::GetClientRect(hWnd, &_rcClient);
++			updateRectUpDown();
++		}
+ 
+-				wchar_t label[MAX_PATH]{};
+-				TCITEM tci{};
+-				tci.mask = TCIF_TEXT | TCIF_IMAGE;
+-				tci.pszText = label;
+-				tci.cchTextMax = MAX_PATH - 1;
++		bool updateRect(RECT rcClientNew)
++		{
++			if (::EqualRect(&_rcClient, &rcClientNew) == FALSE)
++			{
++				_rcClient = rcClientNew;
++				updateRectUpDown();
++				return true;
++			}
++			return false;
++		}
++	};
+ 
+-				::SendMessage(hWnd, TCM_GETITEM, i, reinterpret_cast<LPARAM>(&tci));
++	static void paintUpDown(HWND hWnd, HDC hdc, UpDownData& upDownData)
++	{
++		auto& themeData = upDownData._themeData;
++		const auto& hTheme = themeData._hTheme;
+ 
+-				RECT rcText{ rcItem };
+-				if (isSelectedTab)
+-				{
+-					::OffsetRect(&rcText, 0, -1);
+-					::InflateRect(&rcFrame, 0, 1);
+-				}
++		const bool isDisabled = ::IsWindowEnabled(hWnd) == FALSE;
++		const bool hasTheme = themeData.ensureTheme(hWnd) && upDownData._isHorizontal;
++		
++		::FillRect(hdc, &upDownData._rcClient, DarkMode::getDlgBackgroundBrush());
++		::SetBkMode(hdc, TRANSPARENT);
+ 
+-				if (i != nTabs - 1)
+-				{
+-					rcFrame.right += 1;
+-				}
++		POINT ptCursor{};
++		::GetCursorPos(&ptCursor);
++		::ScreenToClient(hWnd, &ptCursor);
+ 
+-				if (tci.iImage != -1)
+-				{
+-					int cx = 0;
+-					int cy = 0;
+-					auto hImagelist = TabCtrl_GetImageList(hWnd);
+-					int offset = 2;
+-					::ImageList_GetIconSize(hImagelist, &cx, &cy);
+-					::ImageList_Draw(hImagelist, tci.iImage, hdc, rcText.left + offset, rcText.top + ((rcText.bottom - rcText.top) - cy) / 2, ILD_NORMAL);
+-					rcText.left += cx;
+-				}
++		const bool isHotPrev = ::PtInRect(&upDownData._rcPrev, ptCursor);
++		const bool isHotNext = ::PtInRect(&upDownData._rcNext, ptCursor);
+ 
+-				::FrameRect(hdc, &rcFrame, DarkMode::getEdgeBrush());
++		upDownData._wasHotNext = isHotNext;
+ 
+-				::DrawText(hdc, label, -1, &rcText, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
++		if (hasTheme)
++		{
++			auto stateID = isDisabled ? PBS_DISABLED : PBS_NORMAL;
++			::DrawThemeBackground(hTheme, hdc, BP_PUSHBUTTON, isHotPrev ? PBS_HOT : stateID, &upDownData._rcPrev, nullptr);
++			::DrawThemeBackground(hTheme, hdc, BP_PUSHBUTTON, isHotNext ? PBS_HOT : stateID, &upDownData._rcNext, nullptr);
++		}
++		else
++		{
++			HBRUSH hBrush = isDisabled ? DarkMode::getDlgBackgroundBrush() : DarkMode::getCtrlBackgroundBrush();
++			::FillRect(hdc, &upDownData._rcPrev, isHotPrev ? DarkMode::getHotBackgroundBrush() : hBrush);
++			::FillRect(hdc, &upDownData._rcNext, isHotNext ? DarkMode::getHotBackgroundBrush() : hBrush);
++		}
+ 
+-				::DeleteObject(hClip);
++		constexpr auto arrowTextFlags = DT_NOPREFIX | DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOCLIP;
++		COLORREF clrText = isDisabled ? DarkMode::getDisabledTextColor() : DarkMode::getDarkerTextColor();
+ 
+-				::SelectClipRgn(hdc, holdClip);
+-			}
+-		}
++		::SetTextColor(hdc, isHotPrev ? DarkMode::getTextColor() : clrText);
++		::DrawText(hdc, upDownData._isHorizontal ? L"<" : L"˄", -1, &upDownData._rcPrev, arrowTextFlags);
+ 
+-		::SelectObject(hdc, hOldFont);
++		::SetTextColor(hdc, isHotNext ? DarkMode::getTextColor() : clrText);
++		::DrawText(hdc, upDownData._isHorizontal ? L">" : L"˅", -1, &upDownData._rcNext, arrowTextFlags);
+ 
+-		::SelectClipRgn(hdc, holdClip);
+-		if (holdClip)
++		if (!hasTheme)
+ 		{
+-			::DeleteObject(holdClip);
+-			holdClip = nullptr;
++			HPEN hPen = isDisabled ? DarkMode::getDisabledEdgePen() : DarkMode::getEdgePen();
++			DarkMode::paintRoundFrameRect(hdc, upDownData._rcPrev, hPen);
++			DarkMode::paintRoundFrameRect(hdc, upDownData._rcNext, hPen);
+ 		}
+-
+-		::SelectObject(hdc, holdPen);
+ 	}
+ 
+-	constexpr UINT_PTR g_tabSubclassID = 42;
++	constexpr UINT_PTR g_upDownSubclassID = static_cast<UINT_PTR>(DarkMode::SubclassID::upDown);
+ 
+-	static LRESULT CALLBACK TabSubclass(
++	static LRESULT CALLBACK UpDownSubclass(
+ 		HWND hWnd,
+ 		UINT uMsg,
+ 		WPARAM wParam,
+ 		LPARAM lParam,
+ 		UINT_PTR uIdSubclass,
+-		DWORD_PTR /*dwRefData*/
++		DWORD_PTR dwRefData
+ 	)
+ 	{
++		auto pUpDownData = reinterpret_cast<UpDownData*>(dwRefData);
++		auto& themeData = pUpDownData->_themeData;
++		auto& bufferData = pUpDownData->_bufferData;
++		auto& hMemDC = bufferData._hMemDC;
++
+ 		switch (uMsg)
+ 		{
+ 			case WM_NCDESTROY:
+ 			{
+-				::RemoveWindowSubclass(hWnd, TabSubclass, uIdSubclass);
++				::RemoveWindowSubclass(hWnd, UpDownSubclass, uIdSubclass);
++				delete pUpDownData;
+ 				break;
+ 			}
+ 
+ 			case WM_ERASEBKGND:
+ 			{
+-				if (DarkMode::isEnabled())
++				if (DarkMode::isEnabled() && themeData.ensureTheme(hWnd))
+ 				{
++					auto hdc = reinterpret_cast<HDC>(wParam);
++					if (hdc != hMemDC)
++					{
++						return FALSE;
++					}
+ 					return TRUE;
+ 				}
+ 				break;
+ 			}
+ 
++			case WM_PRINTCLIENT:
+ 			case WM_PAINT:
+ 			{
+ 				if (!DarkMode::isEnabled())
+@@ -1657,196 +1714,86 @@ namespace DarkMode
+ 					break;
+ 				}
+ 
+-				const auto nStyle = ::GetWindowLongPtr(hWnd, GWL_STYLE);
+-				if ((nStyle & TCS_BUTTONS) || (nStyle & TCS_VERTICAL))
++				PAINTSTRUCT ps{};
++				auto hdc = ::BeginPaint(hWnd, &ps);
++				if (!pUpDownData->_isHorizontal)
+ 				{
+-					break;
++					::OffsetRect(&ps.rcPaint, 2, 0);
+ 				}
+ 
+-				PAINTSTRUCT ps{};
+-				auto hdc = ::BeginPaint(hWnd, &ps);
+-				
+-				DarkMode::paintTab(hWnd, hdc, ps.rcPaint);
++				if (ps.rcPaint.right <= ps.rcPaint.left || ps.rcPaint.bottom <= ps.rcPaint.top)
++				{
++					::EndPaint(hWnd, &ps);
++					return 0;
++				}
++
++				RECT rcClient{};
++				::GetClientRect(hWnd, &rcClient);
++				pUpDownData->updateRect(rcClient);
++				if (!pUpDownData->_isHorizontal)
++				{
++					::OffsetRect(&rcClient, 2, 0);
++				}
++
++				if (bufferData.ensureBuffer(hdc, rcClient))
++				{
++					int savedState = ::SaveDC(hMemDC);
++					::IntersectClipRect(
++						hMemDC,
++						ps.rcPaint.left, ps.rcPaint.top, ps.rcPaint.right, ps.rcPaint.bottom
++					);
++
++					DarkMode::paintUpDown(hWnd, hMemDC, *pUpDownData);
++
++					::RestoreDC(hMemDC, savedState);
++
++					::BitBlt(
++						hdc,
++						ps.rcPaint.left, ps.rcPaint.top,
++						ps.rcPaint.right - ps.rcPaint.left,
++						ps.rcPaint.bottom - ps.rcPaint.top,
++						hMemDC,
++						ps.rcPaint.left, ps.rcPaint.top,
++						SRCCOPY
++					);
++				}
+ 
+ 				::EndPaint(hWnd, &ps);
+ 				return 0;
+ 			}
+ 
+-			case WM_PARENTNOTIFY:
++			case WM_DPICHANGED:
+ 			{
+-				switch (LOWORD(wParam))
+-				{
+-					case WM_CREATE:
+-					{
+-						auto hwndUpdown = reinterpret_cast<HWND>(lParam);
+-						if (DarkMode::subclassTabUpDownControl(hwndUpdown))
+-						{
+-							return 0;
+-						}
+-						break;
+-					}
+-				}
++				themeData.closeTheme();
++				pUpDownData->updateRect(hWnd);
+ 				return 0;
+ 			}
+-		}
+-		return ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
+-	}
+-
+-	void subclassTabControl(HWND hWnd)
+-	{
+-		if (::GetWindowSubclass(hWnd, TabSubclass, g_tabSubclassID, nullptr) == FALSE)
+-		{
+-			::SetWindowSubclass(hWnd, TabSubclass, g_tabSubclassID, 0);
+-		}
+-	}
+ 
+-	void subclassTabControl(HWND hWnd, DarkModeParams p)
+-	{
+-		if (p._subclass)
+-		{
+-			subclassTabControl(hWnd);
+-		}
+-	}
+-
+-	struct BorderMetricsData
+-	{
+-		UINT _dpi = USER_DEFAULT_SCREEN_DPI;
+-		LONG _xEdge = ::GetSystemMetrics(SM_CXEDGE);
+-		LONG _yEdge = ::GetSystemMetrics(SM_CYEDGE);
+-		LONG _xScroll = ::GetSystemMetrics(SM_CXVSCROLL);
+-		LONG _yScroll = ::GetSystemMetrics(SM_CYVSCROLL);
+-		bool _isHot = false;
+-	};
+-
+-	constexpr UINT_PTR g_customBorderSubclassID = 42;
+-
+-	static LRESULT CALLBACK CustomBorderSubclass(
+-		HWND hWnd,
+-		UINT uMsg,
+-		WPARAM wParam,
+-		LPARAM lParam,
+-		UINT_PTR uIdSubclass,
+-		DWORD_PTR dwRefData
+-	)
+-	{
+-		auto pBorderMetricsData = reinterpret_cast<BorderMetricsData*>(dwRefData);
+-
+-		switch (uMsg)
+-		{
+-			case WM_NCDESTROY:
++			case WM_THEMECHANGED:
+ 			{
+-				::RemoveWindowSubclass(hWnd, CustomBorderSubclass, uIdSubclass);
+-				delete pBorderMetricsData;
++				themeData.closeTheme();
+ 				break;
+ 			}
+ 
+-			case WM_NCPAINT:
++			case WM_MOUSEMOVE:
+ 			{
+ 				if (!DarkMode::isEnabled())
+ 				{
+ 					break;
+ 				}
+ 
+-				::DefSubclassProc(hWnd, uMsg, wParam, lParam);
+-
+-				HDC hdc = ::GetWindowDC(hWnd);
+-				RECT rcClient{};
+-				::GetClientRect(hWnd, &rcClient);
+-				rcClient.right += (2 * pBorderMetricsData->_xEdge);
+-
+-				const auto nStyle = ::GetWindowLongPtr(hWnd, GWL_STYLE);
+-				const bool hasVerScrollbar = (nStyle & WS_VSCROLL) == WS_VSCROLL;
+-				if (hasVerScrollbar)
+-				{
+-					rcClient.right += pBorderMetricsData->_xScroll;
+-				}
+-
+-				rcClient.bottom += (2 * pBorderMetricsData->_yEdge);
+-
+-				const bool hasHorScrollbar = (nStyle & WS_HSCROLL) == WS_HSCROLL;
+-				if (hasHorScrollbar)
+-				{
+-					rcClient.bottom += pBorderMetricsData->_yScroll;
+-				}
+-
+-				HPEN hPen = ::CreatePen(PS_SOLID, 1, (::IsWindowEnabled(hWnd) == TRUE) ? DarkMode::getBackgroundColor() : DarkMode::getDlgBackgroundColor());
+-				RECT rcInner = rcClient;
+-				::InflateRect(&rcInner, -1, -1);
+-				DarkMode::paintRoundFrameRect(hdc, rcInner, hPen);
+-				::DeleteObject(hPen);
+-
+ 				POINT ptCursor{};
+ 				::GetCursorPos(&ptCursor);
+ 				::ScreenToClient(hWnd, &ptCursor);
+ 
+-				const bool isHot = ::PtInRect(&rcClient, ptCursor);
+-				const bool hasFocus = ::GetFocus() == hWnd;
+-
+-				HPEN hEnabledPen = ((pBorderMetricsData->_isHot && isHot) || hasFocus ? DarkMode::getHotEdgePen() : DarkMode::getEdgePen());
+-
+-				DarkMode::paintRoundFrameRect(hdc, rcClient, (::IsWindowEnabled(hWnd) == TRUE) ? hEnabledPen : DarkMode::getDisabledEdgePen());
+-
+-				::ReleaseDC(hWnd, hdc);
+-
+-				return 0;
+-			}
+-
+-			case WM_NCCALCSIZE:
+-			{
+-				if (!DarkMode::isEnabled())
+-				{
+-					break;
+-				}
+-
+-				auto lpRect = reinterpret_cast<LPRECT>(lParam);
+-				::InflateRect(lpRect, -(pBorderMetricsData->_xEdge), -(pBorderMetricsData->_yEdge));
+-
+-				const auto nStyle = ::GetWindowLongPtr(hWnd, GWL_STYLE);
+-				const bool hasVerScrollbar = (nStyle & WS_VSCROLL) == WS_VSCROLL;
+-				if (hasVerScrollbar)
+-				{
+-					lpRect->right -= pBorderMetricsData->_xScroll;
+-				}
+-
+-				const bool hasHorScrollbar = (nStyle & WS_HSCROLL) == WS_HSCROLL;
+-				if (hasHorScrollbar)
+-				{
+-					lpRect->bottom -= pBorderMetricsData->_yScroll;
+-				}
+-
+-				return 0;
+-			}
+-
+-			case WM_DPICHANGED:
+-			{
+-				::SetWindowPos(hWnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+-				return 0;
+-			}
+-
+-			case WM_MOUSEMOVE:
+-			{
+-				if (!DarkMode::isEnabled())
+-				{
+-					break;
+-				}
++				const bool isHotPrev = ::PtInRect(&pUpDownData->_rcPrev, ptCursor);
+ 
+-				if (::GetFocus() == hWnd)
++				if ((isHotPrev && pUpDownData->_wasHotNext))
+ 				{
+-					break;
++					pUpDownData->_wasHotNext = false;
++					::RedrawWindow(hWnd, &pUpDownData->_rcNext, nullptr, RDW_INVALIDATE);
+ 				}
+ 
+-				TRACKMOUSEEVENT tme{};
+-				tme.cbSize = sizeof(TRACKMOUSEEVENT);
+-				tme.dwFlags = TME_LEAVE;
+-				tme.hwndTrack = hWnd;
+-				tme.dwHoverTime = HOVER_DEFAULT;
+-				::TrackMouseEvent(&tme);
+-
+-				if (!pBorderMetricsData->_isHot)
+-				{
+-					pBorderMetricsData->_isHot = true;
+-					::SetWindowPos(hWnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+-				}
+ 				break;
+ 			}
+ 
+@@ -1857,219 +1804,172 @@ namespace DarkMode
+ 					break;
+ 				}
+ 
+-				if (pBorderMetricsData->_isHot)
+-				{
+-					pBorderMetricsData->_isHot = false;
+-					::SetWindowPos(hWnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+-				}
++				pUpDownData->_wasHotNext = false;
++				::RedrawWindow(hWnd, nullptr, nullptr, RDW_INVALIDATE);
+ 
+-				TRACKMOUSEEVENT tme{};
+-				tme.cbSize = sizeof(TRACKMOUSEEVENT);
+-				tme.dwFlags = TME_LEAVE | TME_CANCEL;
+-				tme.hwndTrack = hWnd;
+-				tme.dwHoverTime = HOVER_DEFAULT;
+-				::TrackMouseEvent(&tme);
+ 				break;
+ 			}
+ 		}
+ 		return ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
+ 	}
+ 
+-	static void subclassCustomBorderForListBoxAndEditControls(HWND hWnd)
++	static void subclassAndThemeUpDownControl(HWND hWnd, DarkModeParams p)
+ 	{
+-		if (::GetWindowSubclass(hWnd, CustomBorderSubclass, g_customBorderSubclassID, nullptr) == FALSE)
++		if (p._subclass && ::GetWindowSubclass(hWnd, UpDownSubclass, g_upDownSubclassID, nullptr) == FALSE)
+ 		{
+-			auto pBorderMetricsData = reinterpret_cast<DWORD_PTR>(new BorderMetricsData());
+-			::SetWindowSubclass(hWnd, CustomBorderSubclass, g_customBorderSubclassID, pBorderMetricsData);
++			auto pUpDownData = reinterpret_cast<DWORD_PTR>(new UpDownData(hWnd));
++			::SetWindowSubclass(hWnd, UpDownSubclass, g_upDownSubclassID, pUpDownData);
++		}
++
++		if (p._theme)
++		{
++			::SetWindowTheme(hWnd, p._themeClassName, nullptr);
+ 		}
+ 	}
+ 
+-	struct ComboboxData
++	bool subclassUpDownControl(HWND hWnd)
+ 	{
+-		ThemeData _themeData{};
+-		BufferData _bufferData{};
+-
+-		LONG_PTR _cbStyle = CBS_SIMPLE;
+-
+-		ComboboxData()
+-			: _themeData(VSCLASS_COMBOBOX)
+-		{}
+-
+-		ComboboxData(LONG_PTR cbStyle)
+-			: _themeData(VSCLASS_COMBOBOX)
+-			, _cbStyle(cbStyle)
+-		{}
+-
+-		~ComboboxData() = default;
+-	};
++		if (::GetWindowSubclass(hWnd, UpDownSubclass, g_upDownSubclassID, nullptr) == FALSE)
++		{
++			if (cmpWndClassName(hWnd, UPDOWN_CLASS))
++			{
++				auto pUpDownData = reinterpret_cast<DWORD_PTR>(new UpDownData(hWnd));
++				::SetWindowSubclass(hWnd, UpDownSubclass, g_upDownSubclassID, pUpDownData);
++				DarkMode::setDarkExplorerTheme(hWnd);
++				return true;
++			}
++		}
++		return false;
++	}
+ 
+-	static void paintCombobox(HWND hWnd, HDC hdc, ComboboxData& comboboxData)
++	static void paintTab(HWND hWnd, HDC hdc, RECT& rc)
+ 	{
+-		auto& themeData = comboboxData._themeData;
+-		const auto& hTheme = themeData._hTheme;
++		::FillRect(hdc, &rc, DarkMode::getDlgBackgroundBrush());
+ 
+-		const bool hasTheme = themeData.ensureTheme(hWnd);
++		auto holdPen = static_cast<HPEN>(::SelectObject(hdc, DarkMode::getEdgePen()));
+ 
+-		COMBOBOXINFO cbi{};
+-		cbi.cbSize = sizeof(COMBOBOXINFO);
+-		::GetComboBoxInfo(hWnd, &cbi);
++		auto holdClip = ::CreateRectRgn(0, 0, 0, 0);
++		if (1 != GetClipRgn(hdc, holdClip))
++		{
++			::DeleteObject(holdClip);
++			holdClip = nullptr;
++		}
+ 
+-		RECT rcClient{};
+-		::GetClientRect(hWnd, &rcClient);
++		auto hFont = reinterpret_cast<HFONT>(::SendMessage(hWnd, WM_GETFONT, 0, 0));
++		auto hOldFont = ::SelectObject(hdc, hFont);
+ 
+ 		POINT ptCursor{};
+ 		::GetCursorPos(&ptCursor);
+ 		::ScreenToClient(hWnd, &ptCursor);
+ 
+-		const bool isDisabled = ::IsWindowEnabled(hWnd) == FALSE;
+-		const bool isHot = ::PtInRect(&rcClient, ptCursor) == TRUE && !isDisabled;
+-		
+-		bool hasFocus = false;
++		int nTabs = TabCtrl_GetItemCount(hWnd);
+ 
+-		::SelectObject(hdc, reinterpret_cast<HFONT>(::SendMessage(hWnd, WM_GETFONT, 0, 0)));
+-		::SetBkMode(hdc, TRANSPARENT); // for non-theme DrawText
++		int nSelTab = TabCtrl_GetCurSel(hWnd);
++		for (int i = 0; i < nTabs; ++i)
++		{
++			RECT rcItem{};
++			TabCtrl_GetItemRect(hWnd, i, &rcItem);
++			RECT rcFrame{ rcItem };
+ 
+-		RECT rcArrow{ cbi.rcButton };
+-		rcArrow.left -= 1;
++			RECT rcIntersect{};
++			if (::IntersectRect(&rcIntersect, &rc, &rcItem))
++			{
++				const bool bHot = ::PtInRect(&rcItem, ptCursor);
++				const bool isSelectedTab = (i == nSelTab);
+ 
+-		HBRUSH hSelectedBrush = isDisabled ? DarkMode::getDlgBackgroundBrush() : (isHot ? DarkMode::getHotBackgroundBrush() : DarkMode::getCtrlBackgroundBrush());
++				HRGN hClip = ::CreateRectRgnIndirect(&rcItem);
+ 
+-		// CBS_DROPDOWN text is handled by parent by WM_CTLCOLOREDIT
+-		if (comboboxData._cbStyle == CBS_DROPDOWNLIST)
+-		{
+-			// erase background on item change
+-			::FillRect(hdc, &rcClient, hSelectedBrush);
++				::SelectClipRgn(hdc, hClip);
+ 
+-			auto index = static_cast<int>(::SendMessage(hWnd, CB_GETCURSEL, 0, 0));
+-			if (index != CB_ERR)
+-			{
+-				auto bufferLen = static_cast<size_t>(::SendMessage(hWnd, CB_GETLBTEXTLEN, index, 0));
+-				wchar_t* buffer = new wchar_t[(bufferLen + 1)];
+-				::SendMessage(hWnd, CB_GETLBTEXT, index, reinterpret_cast<LPARAM>(buffer));
++				::SetTextColor(hdc, (bHot || isSelectedTab ) ? DarkMode::getTextColor() : DarkMode::getDarkerTextColor());
+ 
+-				RECT rcText{ cbi.rcItem };
+-				::InflateRect(&rcText, -2, 0);
++				::InflateRect(&rcItem, -1, -1);
++				rcItem.right += 1;
+ 
+-				constexpr DWORD dtFlags = DT_NOPREFIX | DT_LEFT | DT_VCENTER | DT_SINGLELINE;
+-				if (hasTheme)
++				// for consistency getBackgroundBrush() 
++				// would be better, than getCtrlBackgroundBrush(),
++				// however default getBackgroundBrush() has same color
++				// as getDlgBackgroundBrush()
++				::FillRect(hdc, &rcItem, isSelectedTab ? DarkMode::getDlgBackgroundBrush() : bHot ? DarkMode::getHotBackgroundBrush() : DarkMode::getCtrlBackgroundBrush());
++
++				::SetBkMode(hdc, TRANSPARENT);
++
++				wchar_t label[MAX_PATH]{};
++				TCITEM tci{};
++				tci.mask = TCIF_TEXT | TCIF_IMAGE;
++				tci.pszText = label;
++				tci.cchTextMax = MAX_PATH - 1;
++
++				::SendMessage(hWnd, TCM_GETITEM, i, reinterpret_cast<LPARAM>(&tci));
++
++				RECT rcText{ rcItem };
++				if (isSelectedTab)
+ 				{
+-					DTTOPTS dtto{};
+-					dtto.dwSize = sizeof(DTTOPTS);
+-					dtto.dwFlags = DTT_TEXTCOLOR;
+-					dtto.crText = isDisabled ? DarkMode::getDisabledTextColor() : DarkMode::getTextColor();
++					::OffsetRect(&rcText, 0, -1);
++					::InflateRect(&rcFrame, 0, 1);
++				}
+ 
+-#ifdef __GNUC__
+-					constexpr int CP_DROPDOWNITEM = 9; // for some reason mingw use only enum up to 8
+-#endif
+-					::DrawThemeTextEx(hTheme, hdc, CP_DROPDOWNITEM, isDisabled ? CBXSR_DISABLED : CBXSR_NORMAL, buffer, -1, dtFlags, &rcText, &dtto);
++				if (i != nTabs - 1)
++				{
++					rcFrame.right += 1;
+ 				}
+-				else
++
++				if (tci.iImage != -1)
+ 				{
+-					::SetTextColor(hdc, isDisabled ? DarkMode::getDisabledTextColor() : DarkMode::getTextColor());
+-					::DrawText(hdc, buffer, -1, &rcText, dtFlags);
++					int cx = 0;
++					int cy = 0;
++					auto hImagelist = TabCtrl_GetImageList(hWnd);
++					int offset = 2;
++					::ImageList_GetIconSize(hImagelist, &cx, &cy);
++					::ImageList_Draw(hImagelist, tci.iImage, hdc, rcText.left + offset, rcText.top + ((rcText.bottom - rcText.top) - cy) / 2, ILD_NORMAL);
++					rcText.left += cx;
+ 				}
+-				delete[] buffer;
+-			}
+ 
+-			hasFocus = ::GetFocus() == hWnd;
+-			if (!isDisabled && hasFocus && ::SendMessage(hWnd, CB_GETDROPPEDSTATE, 0, 0) == FALSE)
+-			{
+-				::DrawFocusRect(hdc, &cbi.rcItem);
+-			}
+-		}
+-		else if (comboboxData._cbStyle == CBS_DROPDOWN && cbi.hwndItem != nullptr)
+-		{
+-			hasFocus = ::GetFocus() == cbi.hwndItem;
++				::FrameRect(hdc, &rcFrame, DarkMode::getEdgeBrush());
+ 
+-			::FillRect(hdc, &rcArrow, hSelectedBrush);
+-		}
++				::DrawText(hdc, label, -1, &rcText, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+ 
+-		const auto hSelectedPen = isDisabled ? DarkMode::getDisabledEdgePen() : ((isHot || hasFocus) ? DarkMode::getHotEdgePen() : DarkMode::getEdgePen());
+-		auto holdPen = static_cast<HPEN>(::SelectObject(hdc, hSelectedPen));
++				::DeleteObject(hClip);
+ 
+-		if (comboboxData._cbStyle != CBS_SIMPLE)
+-		{
+-			if (hasTheme)
+-			{
+-				RECT rcThemedArrow { rcArrow.left, rcArrow.top - 1, rcArrow.right, rcArrow.bottom - 1 };
+-				::DrawThemeBackground(hTheme, hdc, CP_DROPDOWNBUTTONRIGHT, isDisabled ? CBXSR_DISABLED : CBXSR_NORMAL, &rcThemedArrow, nullptr);
+-			}
+-			else
+-			{
+-				const auto clrText = isDisabled ? DarkMode::getDisabledTextColor() : (isHot ? DarkMode::getTextColor() : DarkMode::getDarkerTextColor());
+-				::SetTextColor(hdc, clrText);
+-				wchar_t arrow[] = L"˅";
+-				::DrawText(hdc, arrow, -1, &rcArrow, DT_NOPREFIX | DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOCLIP);
++				::SelectClipRgn(hdc, holdClip);
+ 			}
+ 		}
+ 
+-		if (comboboxData._cbStyle == CBS_DROPDOWNLIST)
+-		{
+-			::ExcludeClipRect(hdc, rcClient.left + 1, rcClient.top + 1, rcClient.right - 1, rcClient.bottom - 1);
+-		}
+-		else if (comboboxData._cbStyle == CBS_DROPDOWN)
+-		{
+-			POINT edge[] = {
+-				{rcArrow.left - 1, rcArrow.top},
+-				{rcArrow.left - 1, rcArrow.bottom}
+-			};
+-
+-			::Polyline(hdc, edge, _countof(edge));
+-
+-			::ExcludeClipRect(hdc, cbi.rcItem.left, cbi.rcItem.top, cbi.rcItem.right, cbi.rcItem.bottom);
+-			::ExcludeClipRect(hdc, rcArrow.left - 1, rcArrow.top, rcArrow.right, rcArrow.bottom);
++		::SelectObject(hdc, hOldFont);
+ 
+-			HPEN hPen = ::CreatePen(PS_SOLID, 1, isDisabled ? DarkMode::getDlgBackgroundColor() : DarkMode::getBackgroundColor());
+-			RECT rcInner{ rcClient };
+-			::InflateRect(&rcInner, -1, -1);
+-			rcInner.right = rcArrow.left - 1;
+-			DarkMode::paintRoundFrameRect(hdc, rcInner, hPen);
+-			::DeleteObject(hPen);
+-			::InflateRect(&rcInner, -1, -1);
+-			::FillRect(hdc, &rcInner, DarkMode::getCtrlBackgroundBrush());
++		::SelectClipRgn(hdc, holdClip);
++		if (holdClip)
++		{
++			::DeleteObject(holdClip);
++			holdClip = nullptr;
+ 		}
+ 
+-		const int roundCornerValue = DarkMode::isWindows11() ? 4 : 0;
+-
+-		DarkMode::paintRoundFrameRect(hdc, rcClient, hSelectedPen, roundCornerValue, roundCornerValue);
+-
+ 		::SelectObject(hdc, holdPen);
+ 	}
+ 
+-	constexpr UINT_PTR g_comboBoxSubclassID = 42;
++	constexpr UINT_PTR g_tabPaintSubclassID = static_cast<UINT_PTR>(DarkMode::SubclassID::tabPaint);
+ 
+-	static LRESULT CALLBACK ComboBoxSubclass(
++	static LRESULT CALLBACK TabPaintSubclass(
+ 		HWND hWnd,
+ 		UINT uMsg,
+ 		WPARAM wParam,
+ 		LPARAM lParam,
+ 		UINT_PTR uIdSubclass,
+-		DWORD_PTR dwRefData
++		DWORD_PTR /*dwRefData*/
+ 	)
+ 	{
+-		auto pComboboxData = reinterpret_cast<ComboboxData*>(dwRefData);
+-		auto& themeData = pComboboxData->_themeData;
+-		auto& bufferData = pComboboxData->_bufferData;
+-		auto& hMemDC = bufferData._hMemDC;
+-
+ 		switch (uMsg)
+ 		{
+ 			case WM_NCDESTROY:
+ 			{
+-				::RemoveWindowSubclass(hWnd, ComboBoxSubclass, uIdSubclass);
+-				delete pComboboxData;
++				::RemoveWindowSubclass(hWnd, TabPaintSubclass, uIdSubclass);
+ 				break;
+ 			}
+ 
+ 			case WM_ERASEBKGND:
+ 			{
+-				if (DarkMode::isEnabled() && themeData.ensureTheme(hWnd))
++				if (DarkMode::isEnabled())
+ 				{
+-					auto hdc = reinterpret_cast<HDC>(wParam);
+-					if (pComboboxData->_cbStyle != CBS_DROPDOWN && hdc != hMemDC)
+-					{
+-						return FALSE;
+-					}
+ 					return TRUE;
+ 				}
+ 				break;
+@@ -2082,92 +1982,27 @@ namespace DarkMode
+ 					break;
+ 				}
+ 
+-				PAINTSTRUCT ps{};
+-				auto hdc = ::BeginPaint(hWnd, &ps);
+-
+-				if (pComboboxData->_cbStyle != CBS_DROPDOWN)
+-				{
+-					if (ps.rcPaint.right <= ps.rcPaint.left || ps.rcPaint.bottom <= ps.rcPaint.top)
+-					{
+-						::EndPaint(hWnd, &ps);
+-						return 0;
+-					}
+-
+-					RECT rcClient{};
+-					::GetClientRect(hWnd, &rcClient);
+-
+-					if (bufferData.ensureBuffer(hdc, rcClient))
+-					{
+-						int savedState = ::SaveDC(hMemDC);
+-						::IntersectClipRect(
+-							hMemDC,
+-							ps.rcPaint.left, ps.rcPaint.top, ps.rcPaint.right, ps.rcPaint.bottom
+-						);
+-
+-						DarkMode::paintCombobox(hWnd, hMemDC, *pComboboxData);
+-
+-						::RestoreDC(hMemDC, savedState);
+-
+-						::BitBlt(
+-							hdc,
+-							ps.rcPaint.left, ps.rcPaint.top,
+-							ps.rcPaint.right - ps.rcPaint.left,
+-							ps.rcPaint.bottom - ps.rcPaint.top,
+-							hMemDC,
+-							ps.rcPaint.left, ps.rcPaint.top,
+-							SRCCOPY
+-						);
+-					}
+-				}
+-				else
+-				{
+-					DarkMode::paintCombobox(hWnd, hdc, *pComboboxData);
+-				}
+-
+-				::EndPaint(hWnd, &ps);
+-				return 0;
+-			}
+-
+-			case WM_ENABLE:
+-			{
+-				if (!DarkMode::isEnabled())
++				const auto nStyle = ::GetWindowLongPtr(hWnd, GWL_STYLE);
++				if ((nStyle & TCS_BUTTONS) || (nStyle & TCS_VERTICAL))
+ 				{
+ 					break;
+ 				}
+ 
+-				LRESULT lr = ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
+-				::RedrawWindow(hWnd, nullptr, nullptr, RDW_INVALIDATE);
+-				return lr;
+-			}
++				PAINTSTRUCT ps{};
++				auto hdc = ::BeginPaint(hWnd, &ps);
++				
++				DarkMode::paintTab(hWnd, hdc, ps.rcPaint);
+ 
+-			case WM_DPICHANGED:
+-			{
+-				themeData.closeTheme();
++				::EndPaint(hWnd, &ps);
+ 				return 0;
+ 			}
+-
+-			case WM_THEMECHANGED:
+-			{
+-				themeData.closeTheme();
+-				break;
+-			}
+ 		}
+ 		return ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
+ 	}
+ 
+-	void subclassComboBoxControl(HWND hWnd)
+-	{
+-		if (::GetWindowSubclass(hWnd, ComboBoxSubclass, g_comboBoxSubclassID, nullptr) == FALSE)
+-		{
+-			auto cbStyle = ::GetWindowLongPtr(hWnd, GWL_STYLE) & CBS_DROPDOWNLIST;
+-			auto pComboboxData = reinterpret_cast<DWORD_PTR>(new ComboboxData(cbStyle));
+-			::SetWindowSubclass(hWnd, ComboBoxSubclass, g_comboBoxSubclassID, pComboboxData);
+-		}
+-	}
+-
+-	constexpr UINT_PTR g_comboboxExSubclassID = 42;
++	constexpr UINT_PTR g_tabUpDownSubclassID = static_cast<UINT_PTR>(DarkMode::SubclassID::tabUpDown);
+ 
+-	static LRESULT CALLBACK ComboboxExSubclass(
++	static LRESULT CALLBACK TabUpDownSubclass(
+ 		HWND hWnd,
+ 		UINT uMsg,
+ 		WPARAM wParam,
+@@ -2175,324 +2010,396 @@ namespace DarkMode
+ 		UINT_PTR uIdSubclass,
+ 		DWORD_PTR /*dwRefData*/
+ 	)
+-	{
+-		switch (uMsg)
+-		{
+-			case WM_NCDESTROY:
+-			{
+-				::RemoveWindowSubclass(hWnd, ComboboxExSubclass, uIdSubclass);
+-				DarkMode::unhookSysColor();
+-				break;
+-			}
+-
+-			case WM_CTLCOLOREDIT:
+-			{
+-				if (DarkMode::isEnabled())
+-				{
+-					return DarkMode::onCtlColorCtrl(reinterpret_cast<HDC>(wParam));
+-				}
+-				break;
+-			}
+-
+-			case WM_CTLCOLORLISTBOX:
++	{
++		switch (uMsg)
++		{
++			case WM_NCDESTROY:
+ 			{
+-				if (DarkMode::isEnabled())
+-				{
+-					return DarkMode::onCtlColorListbox(wParam, lParam);
+-				}
++				::RemoveWindowSubclass(hWnd, TabUpDownSubclass, uIdSubclass);
+ 				break;
+ 			}
+ 
+-			case WM_COMMAND:
++			case WM_PARENTNOTIFY:
+ 			{
+-				// ComboboxEx has only one child combobox, so only control-defined notification code is checked.
+-				// Hooking is done only when listbox is about to show. And unhook when listbox is closed.
+-				// This process is used to avoid visual glitches in other GUI.
+-				switch (HIWORD(wParam))
++				switch (LOWORD(wParam))
+ 				{
+-					case CBN_DROPDOWN:
+-					{
+-						DarkMode::hookSysColor();
+-						break;
+-					}
+-
+-					case CBN_CLOSEUP:
++					case WM_CREATE:
+ 					{
+-						DarkMode::unhookSysColor();
++						auto hwndUpdown = reinterpret_cast<HWND>(lParam);
++						if (DarkMode::subclassUpDownControl(hwndUpdown))
++						{
++							return 0;
++						}
+ 						break;
+ 					}
+-
+-					default:
+-						break;
+ 				}
+-				break;
++				return 0;
+ 			}
+ 		}
+ 		return ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
+ 	}
+ 
+-	static void subclassComboboxEx(HWND hWnd)
++	static void subclassTabControlPaint(HWND hWnd)
+ 	{
+-		if (::GetWindowSubclass(hWnd, ComboboxExSubclass, g_comboboxExSubclassID, nullptr) == FALSE)
++		if (::GetWindowSubclass(hWnd, TabPaintSubclass, g_tabPaintSubclassID, nullptr) == FALSE)
+ 		{
+-			::SetWindowSubclass(hWnd, ComboboxExSubclass, g_comboboxExSubclassID, 0);
++			::SetWindowSubclass(hWnd, TabPaintSubclass, g_tabPaintSubclassID, 0);
+ 		}
+ 	}
+ 
+-	void subclassComboboxEx(HWND hWnd, DarkModeParams p)
++	void subclassTabControlUpDown(HWND hWnd)
++	{
++		if (::GetWindowSubclass(hWnd, TabUpDownSubclass, g_tabUpDownSubclassID, nullptr) == FALSE)
++		{
++			::SetWindowSubclass(hWnd, TabUpDownSubclass, g_tabUpDownSubclassID, 0);
++		}
++	}
++
++	void subclassTabControl(HWND hWnd)
++	{
++		DarkMode::subclassTabControlPaint(hWnd);
++		DarkMode::subclassTabControlUpDown(hWnd);
++	}
++
++	void subclassTabControl(HWND hWnd, DarkModeParams p)
+ 	{
+ 		if (p._subclass)
+ 		{
+-			subclassComboboxEx(hWnd);
++			DarkMode::subclassTabControl(hWnd);
+ 		}
+ 	}
+ 
+-	constexpr UINT_PTR g_listViewSubclassID = 42;
++	struct BorderMetricsData
++	{
++		UINT _dpi = USER_DEFAULT_SCREEN_DPI;
++		LONG _xEdge = ::GetSystemMetrics(SM_CXEDGE);
++		LONG _yEdge = ::GetSystemMetrics(SM_CYEDGE);
++		LONG _xScroll = ::GetSystemMetrics(SM_CXVSCROLL);
++		LONG _yScroll = ::GetSystemMetrics(SM_CYVSCROLL);
++		bool _isHot = false;
++	};
+ 
+-	static LRESULT CALLBACK ListViewSubclass(
++	constexpr UINT_PTR g_customBorderSubclassID = static_cast<UINT_PTR>(DarkMode::SubclassID::customBorder);
++
++	static LRESULT CALLBACK CustomBorderSubclass(
+ 		HWND hWnd,
+ 		UINT uMsg,
+ 		WPARAM wParam,
+ 		LPARAM lParam,
+ 		UINT_PTR uIdSubclass,
+-		DWORD_PTR /*dwRefData*/
++		DWORD_PTR dwRefData
+ 	)
+ 	{
++		auto pBorderMetricsData = reinterpret_cast<BorderMetricsData*>(dwRefData);
++
+ 		switch (uMsg)
+ 		{
+ 			case WM_NCDESTROY:
+ 			{
+-				DarkMode::unhookSysColor();
+-				::RemoveWindowSubclass(hWnd, ListViewSubclass, uIdSubclass);
++				::RemoveWindowSubclass(hWnd, CustomBorderSubclass, uIdSubclass);
++				delete pBorderMetricsData;
+ 				break;
+ 			}
+ 
+-			case WM_PAINT:
++			case WM_NCPAINT:
+ 			{
+-				const auto lvStyle = ::GetWindowLongPtr(hWnd, GWL_STYLE) & LVS_TYPEMASK;
+-				const bool isReport = (lvStyle == LVS_REPORT);
+-				bool hasGridlines = false;
+-				if (isReport)
++				if (!DarkMode::isEnabled())
+ 				{
+-					const auto lvExStyle = ListView_GetExtendedListViewStyle(hWnd);
+-					hasGridlines = (lvExStyle & LVS_EX_GRIDLINES) == LVS_EX_GRIDLINES;
++					break;
+ 				}
+ 
+-				if (hasGridlines)
++				::DefSubclassProc(hWnd, uMsg, wParam, lParam);
++
++				HDC hdc = ::GetWindowDC(hWnd);
++				RECT rcClient{};
++				::GetClientRect(hWnd, &rcClient);
++				rcClient.right += (2 * pBorderMetricsData->_xEdge);
++
++				const auto nStyle = ::GetWindowLongPtr(hWnd, GWL_STYLE);
++				const bool hasVerScrollbar = (nStyle & WS_VSCROLL) == WS_VSCROLL;
++				if (hasVerScrollbar)
+ 				{
+-					DarkMode::hookSysColor();
+-					LRESULT lr = ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
+-					DarkMode::unhookSysColor();
+-					return lr;
++					rcClient.right += pBorderMetricsData->_xScroll;
+ 				}
+-				break;
++
++				rcClient.bottom += (2 * pBorderMetricsData->_yEdge);
++
++				const bool hasHorScrollbar = (nStyle & WS_HSCROLL) == WS_HSCROLL;
++				if (hasHorScrollbar)
++				{
++					rcClient.bottom += pBorderMetricsData->_yScroll;
++				}
++
++				HPEN hPen = ::CreatePen(PS_SOLID, 1, (::IsWindowEnabled(hWnd) == TRUE) ? DarkMode::getBackgroundColor() : DarkMode::getDlgBackgroundColor());
++				RECT rcInner = rcClient;
++				::InflateRect(&rcInner, -1, -1);
++				DarkMode::paintRoundFrameRect(hdc, rcInner, hPen);
++				::DeleteObject(hPen);
++
++				POINT ptCursor{};
++				::GetCursorPos(&ptCursor);
++				::ScreenToClient(hWnd, &ptCursor);
++
++				const bool isHot = ::PtInRect(&rcClient, ptCursor);
++				const bool hasFocus = ::GetFocus() == hWnd;
++
++				HPEN hEnabledPen = ((pBorderMetricsData->_isHot && isHot) || hasFocus ? DarkMode::getHotEdgePen() : DarkMode::getEdgePen());
++
++				DarkMode::paintRoundFrameRect(hdc, rcClient, (::IsWindowEnabled(hWnd) == TRUE) ? hEnabledPen : DarkMode::getDisabledEdgePen());
++
++				::ReleaseDC(hWnd, hdc);
++
++				return 0;
+ 			}
+ 
+-			// For edit control, which is created when renaming/editing items
+-			case WM_CTLCOLOREDIT:
++			case WM_NCCALCSIZE:
+ 			{
+-				if (DarkMode::isEnabled())
++				if (!DarkMode::isEnabled())
+ 				{
+-					return DarkMode::onCtlColorCtrl(reinterpret_cast<HDC>(wParam));
++					break;
+ 				}
+-				break;
++
++				auto lpRect = reinterpret_cast<LPRECT>(lParam);
++				::InflateRect(lpRect, -(pBorderMetricsData->_xEdge), -(pBorderMetricsData->_yEdge));
++
++				const auto nStyle = ::GetWindowLongPtr(hWnd, GWL_STYLE);
++				const bool hasVerScrollbar = (nStyle & WS_VSCROLL) == WS_VSCROLL;
++				if (hasVerScrollbar)
++				{
++					lpRect->right -= pBorderMetricsData->_xScroll;
++				}
++
++				const bool hasHorScrollbar = (nStyle & WS_HSCROLL) == WS_HSCROLL;
++				if (hasHorScrollbar)
++				{
++					lpRect->bottom -= pBorderMetricsData->_yScroll;
++				}
++
++				return 0;
+ 			}
+ 
+-			case WM_NOTIFY:
++			case WM_DPICHANGED:
+ 			{
+-				switch (reinterpret_cast<LPNMHDR>(lParam)->code)
++				::SetWindowPos(hWnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
++				return 0;
++			}
++
++			case WM_MOUSEMOVE:
++			{
++				if (!DarkMode::isEnabled())
+ 				{
+-					case NM_CUSTOMDRAW:
+-					{
+-						auto lpnmcd = reinterpret_cast<LPNMCUSTOMDRAW>(lParam);
+-						switch (lpnmcd->dwDrawStage)
+-						{
+-							case CDDS_PREPAINT:
+-							{
+-								if (DarkMode::isExperimentalActive())
+-								{
+-									return CDRF_NOTIFYITEMDRAW;
+-								}
+-								return CDRF_DODEFAULT;
+-							}
++					break;
++				}
+ 
+-							case CDDS_ITEMPREPAINT:
+-							{
+-								::SetTextColor(lpnmcd->hdc, DarkMode::getDarkerTextColor());
++				if (::GetFocus() == hWnd)
++				{
++					break;
++				}
+ 
+-								return CDRF_NEWFONT;
+-							}
++				TRACKMOUSEEVENT tme{};
++				tme.cbSize = sizeof(TRACKMOUSEEVENT);
++				tme.dwFlags = TME_LEAVE;
++				tme.hwndTrack = hWnd;
++				tme.dwHoverTime = HOVER_DEFAULT;
++				::TrackMouseEvent(&tme);
+ 
+-							default:
+-								return CDRF_DODEFAULT;
+-						}
+-					}
++				if (!pBorderMetricsData->_isHot)
++				{
++					pBorderMetricsData->_isHot = true;
++					::SetWindowPos(hWnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
++				}
++				break;
++			}
++
++			case WM_MOUSELEAVE:
++			{
++				if (!DarkMode::isEnabled())
++				{
+ 					break;
+ 				}
++
++				if (pBorderMetricsData->_isHot)
++				{
++					pBorderMetricsData->_isHot = false;
++					::SetWindowPos(hWnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
++				}
++
++				TRACKMOUSEEVENT tme{};
++				tme.cbSize = sizeof(TRACKMOUSEEVENT);
++				tme.dwFlags = TME_LEAVE | TME_CANCEL;
++				tme.hwndTrack = hWnd;
++				tme.dwHoverTime = HOVER_DEFAULT;
++				::TrackMouseEvent(&tme);
+ 				break;
+ 			}
+-			break;
+ 		}
+ 		return ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
+ 	}
+ 
+-	void subclassListViewControl(HWND hWnd)
++	static void subclassCustomBorderForListBoxAndEditControls(HWND hWnd)
+ 	{
+-		if (::GetWindowSubclass(hWnd, ListViewSubclass, g_listViewSubclassID, nullptr) == FALSE)
++		if (::GetWindowSubclass(hWnd, CustomBorderSubclass, g_customBorderSubclassID, nullptr) == FALSE)
+ 		{
+-			::SetWindowSubclass(hWnd, ListViewSubclass, g_listViewSubclassID, 0);
++			auto pBorderMetricsData = reinterpret_cast<DWORD_PTR>(new BorderMetricsData());
++			::SetWindowSubclass(hWnd, CustomBorderSubclass, g_customBorderSubclassID, pBorderMetricsData);
+ 		}
+ 	}
+ 
+-	struct HeaderData
++	struct ComboboxData
+ 	{
+ 		ThemeData _themeData{};
+ 		BufferData _bufferData{};
+-		FontData _fontData{};
+ 
+-		POINT _pt{ LONG_MIN, LONG_MIN };
+-		bool _isHot = false;
+-		bool _hasBtnStyle = true;
+-		bool _isPressed = false;
++		LONG_PTR _cbStyle = CBS_SIMPLE;
+ 
+-		HeaderData()
+-			: _themeData(VSCLASS_HEADER),
+-			_hasBtnStyle(true)
++		ComboboxData()
++			: _themeData(VSCLASS_COMBOBOX)
+ 		{}
+ 
+-		HeaderData(bool hasBtnStyle)
+-			: _themeData(VSCLASS_HEADER),
+-			_hasBtnStyle(hasBtnStyle)
++		ComboboxData(LONG_PTR cbStyle)
++			: _themeData(VSCLASS_COMBOBOX)
++			, _cbStyle(cbStyle)
+ 		{}
++
++		~ComboboxData() = default;
+ 	};
+ 
+-	static void paintHeader(HWND hWnd, HDC hdc, HeaderData& headerData)
++	static void paintCombobox(HWND hWnd, HDC hdc, ComboboxData& comboboxData)
+ 	{
+-		auto& themeData = headerData._themeData;
++		auto& themeData = comboboxData._themeData;
+ 		const auto& hTheme = themeData._hTheme;
++
+ 		const bool hasTheme = themeData.ensureTheme(hWnd);
+-		auto& hHeaderFont = headerData._fontData._hFont;
+ 
+-		::SetBkMode(hdc, TRANSPARENT);
+-		auto hOldPen = static_cast<HPEN>(::SelectObject(hdc, DarkMode::getHeaderEdgePen()));
++		COMBOBOXINFO cbi{};
++		cbi.cbSize = sizeof(COMBOBOXINFO);
++		::GetComboBoxInfo(hWnd, &cbi);
++
++		RECT rcClient{};
++		::GetClientRect(hWnd, &rcClient);
+ 
+-		RECT rcHeader{};
+-		::GetClientRect(hWnd, &rcHeader);
+-		::FillRect(hdc, &rcHeader, DarkMode::getHeaderBackgroundBrush());
++		POINT ptCursor{};
++		::GetCursorPos(&ptCursor);
++		::ScreenToClient(hWnd, &ptCursor);
+ 
+-		LOGFONT lf{};
+-		if (hHeaderFont == nullptr
+-			&& hasTheme
+-			&& SUCCEEDED(::GetThemeFont(hTheme, hdc, HP_HEADERITEM, HIS_NORMAL, TMT_FONT, &lf)))
+-		{
+-			hHeaderFont = ::CreateFontIndirect(&lf);
+-		}
++		const bool isDisabled = ::IsWindowEnabled(hWnd) == FALSE;
++		const bool isHot = ::PtInRect(&rcClient, ptCursor) == TRUE && !isDisabled;
++		
++		bool hasFocus = false;
+ 
+-		HFONT hFont = (hHeaderFont == nullptr) ? reinterpret_cast<HFONT>(::SendMessage(hWnd, WM_GETFONT, 0, 0)) : hHeaderFont;
+-		auto hOldFont = static_cast<HFONT>(::SelectObject(hdc, hFont));
++		::SelectObject(hdc, reinterpret_cast<HFONT>(::SendMessage(hWnd, WM_GETFONT, 0, 0)));
++		::SetBkMode(hdc, TRANSPARENT); // for non-theme DrawText
+ 
+-		DTTOPTS dtto{};
+-		if (hasTheme)
+-		{
+-			dtto.dwSize = sizeof(DTTOPTS);
+-			dtto.dwFlags = DTT_TEXTCOLOR;
+-			dtto.crText = DarkMode::getHeaderTextColor();
+-		}
+-		else
+-		{
+-			::SetTextColor(hdc, DarkMode::getHeaderTextColor());
+-		}
++		RECT rcArrow{ cbi.rcButton };
++		rcArrow.left -= 1;
+ 
+-		auto hList = ::GetParent(hWnd);
+-		const auto lvStyle = ::GetWindowLongPtr(hList, GWL_STYLE) & LVS_TYPEMASK;
+-		bool hasGridlines = false;
+-		if (lvStyle == LVS_REPORT)
+-		{
+-			const auto lvExStyle = ListView_GetExtendedListViewStyle(hList);
+-			hasGridlines = (lvExStyle & LVS_EX_GRIDLINES) == LVS_EX_GRIDLINES;
+-		}
++		HBRUSH hSelectedBrush = isDisabled ? DarkMode::getDlgBackgroundBrush() : (isHot ? DarkMode::getHotBackgroundBrush() : DarkMode::getCtrlBackgroundBrush());
+ 
+-		const int count = Header_GetItemCount(hWnd);
+-		RECT rcItem{};
+-		for (int i = 0; i < count; i++)
++		// CBS_DROPDOWN text is handled by parent by WM_CTLCOLOREDIT
++		if (comboboxData._cbStyle == CBS_DROPDOWNLIST)
+ 		{
+-			Header_GetItemRect(hWnd, i, &rcItem);
+-			const bool isOnItem = ::PtInRect(&rcItem, headerData._pt);
++			// erase background on item change
++			::FillRect(hdc, &rcClient, hSelectedBrush);
+ 
+-			if (headerData._hasBtnStyle && isOnItem)
++			auto index = static_cast<int>(::SendMessage(hWnd, CB_GETCURSEL, 0, 0));
++			if (index != CB_ERR)
+ 			{
+-				RECT rcTmp{ rcItem };
+-				if (hasGridlines)
++				auto bufferLen = static_cast<size_t>(::SendMessage(hWnd, CB_GETLBTEXTLEN, index, 0));
++				wchar_t* buffer = new wchar_t[(bufferLen + 1)];
++				::SendMessage(hWnd, CB_GETLBTEXT, index, reinterpret_cast<LPARAM>(buffer));
++
++				RECT rcText{ cbi.rcItem };
++				::InflateRect(&rcText, -2, 0);
++
++				constexpr DWORD dtFlags = DT_NOPREFIX | DT_LEFT | DT_VCENTER | DT_SINGLELINE;
++				if (hasTheme)
+ 				{
+-					::OffsetRect(&rcTmp, 1, 0);
++					DTTOPTS dtto{};
++					dtto.dwSize = sizeof(DTTOPTS);
++					dtto.dwFlags = DTT_TEXTCOLOR;
++					dtto.crText = isDisabled ? DarkMode::getDisabledTextColor() : DarkMode::getTextColor();
++
++#ifdef __GNUC__
++					constexpr int CP_DROPDOWNITEM = 9; // for some reason mingw use only enum up to 8
++#endif
++					::DrawThemeTextEx(hTheme, hdc, CP_DROPDOWNITEM, isDisabled ? CBXSR_DISABLED : CBXSR_NORMAL, buffer, -1, dtFlags, &rcText, &dtto);
+ 				}
+-				else if (DarkMode::isExperimentalActive())
++				else
+ 				{
+-					::OffsetRect(&rcTmp, -1, 0);
++					::SetTextColor(hdc, isDisabled ? DarkMode::getDisabledTextColor() : DarkMode::getTextColor());
++					::DrawText(hdc, buffer, -1, &rcText, dtFlags);
+ 				}
+-				::FillRect(hdc, &rcTmp, DarkMode::getHeaderHotBackgroundBrush());
++				delete[] buffer;
+ 			}
+ 
+-			wchar_t buffer[MAX_PATH]{};
+-			HDITEM hdi{};
+-			hdi.mask = HDI_TEXT | HDI_FORMAT;
+-			hdi.pszText = buffer;
+-			hdi.cchTextMax = MAX_PATH - 1;
++			hasFocus = ::GetFocus() == hWnd;
++			if (!isDisabled && hasFocus && ::SendMessage(hWnd, CB_GETDROPPEDSTATE, 0, 0) == FALSE)
++			{
++				::DrawFocusRect(hdc, &cbi.rcItem);
++			}
++		}
++		else if (comboboxData._cbStyle == CBS_DROPDOWN && cbi.hwndItem != nullptr)
++		{
++			hasFocus = ::GetFocus() == cbi.hwndItem;
+ 
+-			Header_GetItem(hWnd, i, &hdi);
++			::FillRect(hdc, &rcArrow, hSelectedBrush);
++		}
+ 
+-			if (hasTheme
+-				&& ((hdi.fmt & HDF_SORTUP) == HDF_SORTUP
+-					|| (hdi.fmt & HDF_SORTDOWN) == HDF_SORTDOWN))
+-			{
+-				int iStateID = ((hdi.fmt & HDF_SORTUP) == HDF_SORTUP) ? HSAS_SORTEDUP : HSAS_SORTEDDOWN;
+-				RECT rcArrow{ rcItem };
+-				SIZE szArrow{};
+-				if (SUCCEEDED(::GetThemePartSize(hTheme, hdc, HP_HEADERSORTARROW, iStateID, nullptr, TS_DRAW, &szArrow)))
+-					rcArrow.bottom = szArrow.cy;
++		const auto hSelectedPen = isDisabled ? DarkMode::getDisabledEdgePen() : ((isHot || hasFocus) ? DarkMode::getHotEdgePen() : DarkMode::getEdgePen());
++		auto holdPen = static_cast<HPEN>(::SelectObject(hdc, hSelectedPen));
+ 
+-				::DrawThemeBackground(hTheme, hdc, HP_HEADERSORTARROW, iStateID, &rcArrow, nullptr);
++		if (comboboxData._cbStyle != CBS_SIMPLE)
++		{
++			if (hasTheme)
++			{
++				RECT rcThemedArrow { rcArrow.left, rcArrow.top - 1, rcArrow.right, rcArrow.bottom - 1 };
++				::DrawThemeBackground(hTheme, hdc, CP_DROPDOWNBUTTONRIGHT, isDisabled ? CBXSR_DISABLED : CBXSR_NORMAL, &rcThemedArrow, nullptr);
+ 			}
+-
+-			LONG edgeX = rcItem.right;
+-			if (!hasGridlines)
++			else
+ 			{
+-				edgeX--;
+-				if (DarkMode::isExperimentalActive())
+-					edgeX--;
++				const auto clrText = isDisabled ? DarkMode::getDisabledTextColor() : (isHot ? DarkMode::getTextColor() : DarkMode::getDarkerTextColor());
++				::SetTextColor(hdc, clrText);
++				wchar_t arrow[] = L"˅";
++				::DrawText(hdc, arrow, -1, &rcArrow, DT_NOPREFIX | DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOCLIP);
+ 			}
++		}
+ 
+-			POINT edge[]{
+-				{edgeX, rcItem.top},
+-				{edgeX, rcItem.bottom}
++		if (comboboxData._cbStyle == CBS_DROPDOWNLIST)
++		{
++			::ExcludeClipRect(hdc, rcClient.left + 1, rcClient.top + 1, rcClient.right - 1, rcClient.bottom - 1);
++		}
++		else if (comboboxData._cbStyle == CBS_DROPDOWN)
++		{
++			POINT edge[] = {
++				{rcArrow.left - 1, rcArrow.top},
++				{rcArrow.left - 1, rcArrow.bottom}
+ 			};
++
+ 			::Polyline(hdc, edge, _countof(edge));
+ 
+-			int dtFlags = DT_VCENTER | DT_SINGLELINE | DT_WORD_ELLIPSIS | DT_HIDEPREFIX;
+-			if ((hdi.fmt & HDF_RIGHT) == HDF_RIGHT)
+-				dtFlags |= DT_RIGHT;
+-			else if ((hdi.fmt & HDF_CENTER) == HDF_CENTER)
+-				dtFlags |= DT_CENTER;
++			::ExcludeClipRect(hdc, cbi.rcItem.left, cbi.rcItem.top, cbi.rcItem.right, cbi.rcItem.bottom);
++			::ExcludeClipRect(hdc, rcArrow.left - 1, rcArrow.top, rcArrow.right, rcArrow.bottom);
+ 
+-			rcItem.left += 6;
+-			rcItem.right -= 8;
++			HPEN hPen = ::CreatePen(PS_SOLID, 1, isDisabled ? DarkMode::getDlgBackgroundColor() : DarkMode::getBackgroundColor());
++			RECT rcInner{ rcClient };
++			::InflateRect(&rcInner, -1, -1);
++			rcInner.right = rcArrow.left - 1;
++			DarkMode::paintRoundFrameRect(hdc, rcInner, hPen);
++			::DeleteObject(hPen);
++			::InflateRect(&rcInner, -1, -1);
++			::FillRect(hdc, &rcInner, DarkMode::getCtrlBackgroundBrush());
++		}
+ 
+-			if (headerData._isPressed && isOnItem)
+-				::OffsetRect(&rcItem, 1, 1);
++		const int roundCornerValue = DarkMode::isWindows11() ? 4 : 0;
+ 
+-			if (hasTheme)
+-				::DrawThemeTextEx(hTheme, hdc, HP_HEADERITEM, HIS_NORMAL, hdi.pszText, -1, dtFlags, &rcItem, &dtto);
+-			else
+-				::DrawText(hdc, hdi.pszText, -1, &rcItem, dtFlags);
+-		}
++		DarkMode::paintRoundFrameRect(hdc, rcClient, hSelectedPen, roundCornerValue, roundCornerValue);
+ 
+-		::SelectObject(hdc, hOldFont);
+-		::SelectObject(hdc, hOldPen);
++		::SelectObject(hdc, holdPen);
+ 	}
+ 
+-	constexpr UINT_PTR g_headerSubclassID = 42;
++	constexpr UINT_PTR g_comboBoxSubclassID = static_cast<UINT_PTR>(DarkMode::SubclassID::combobox);
+ 
+-	static LRESULT CALLBACK HeaderSubclass(
++	static LRESULT CALLBACK ComboBoxSubclass(
+ 		HWND hWnd,
+ 		UINT uMsg,
+ 		WPARAM wParam,
+@@ -2501,17 +2408,17 @@ namespace DarkMode
+ 		DWORD_PTR dwRefData
+ 	)
+ 	{
+-		auto pHeaderData = reinterpret_cast<HeaderData*>(dwRefData);
+-		auto& themeData = pHeaderData->_themeData;
+-		auto& bufferData = pHeaderData->_bufferData;
++		auto pComboboxData = reinterpret_cast<ComboboxData*>(dwRefData);
++		auto& themeData = pComboboxData->_themeData;
++		auto& bufferData = pComboboxData->_bufferData;
+ 		auto& hMemDC = bufferData._hMemDC;
+ 
+ 		switch (uMsg)
+ 		{
+ 			case WM_NCDESTROY:
+ 			{
+-				::RemoveWindowSubclass(hWnd, HeaderSubclass, uIdSubclass);
+-				delete pHeaderData;
++				::RemoveWindowSubclass(hWnd, ComboBoxSubclass, uIdSubclass);
++				delete pComboboxData;
+ 				break;
+ 			}
+ 
+@@ -2520,7 +2427,7 @@ namespace DarkMode
+ 				if (DarkMode::isEnabled() && themeData.ensureTheme(hWnd))
+ 				{
+ 					auto hdc = reinterpret_cast<HDC>(wParam);
+-					if (hdc != hMemDC)
++					if (pComboboxData->_cbStyle != CBS_DROPDOWN && hdc != hMemDC)
+ 					{
+ 						return FALSE;
+ 					}
+@@ -2539,42 +2446,61 @@ namespace DarkMode
+ 				PAINTSTRUCT ps{};
+ 				auto hdc = ::BeginPaint(hWnd, &ps);
+ 
+-				if (ps.rcPaint.right <= ps.rcPaint.left || ps.rcPaint.bottom <= ps.rcPaint.top)
++				if (pComboboxData->_cbStyle != CBS_DROPDOWN)
+ 				{
+-					::EndPaint(hWnd, &ps);
+-					return 0;
+-				}
++					if (ps.rcPaint.right <= ps.rcPaint.left || ps.rcPaint.bottom <= ps.rcPaint.top)
++					{
++						::EndPaint(hWnd, &ps);
++						return 0;
++					}
+ 
+-				RECT rcClient{};
+-				::GetClientRect(hWnd, &rcClient);
++					RECT rcClient{};
++					::GetClientRect(hWnd, &rcClient);
+ 
+-				if (bufferData.ensureBuffer(hdc, rcClient))
+-				{
+-					int savedState = ::SaveDC(hMemDC);
+-					::IntersectClipRect(
+-						hMemDC,
+-						ps.rcPaint.left, ps.rcPaint.top, ps.rcPaint.right, ps.rcPaint.bottom
+-					);
++					if (bufferData.ensureBuffer(hdc, rcClient))
++					{
++						int savedState = ::SaveDC(hMemDC);
++						::IntersectClipRect(
++							hMemDC,
++							ps.rcPaint.left, ps.rcPaint.top, ps.rcPaint.right, ps.rcPaint.bottom
++						);
+ 
+-					DarkMode::paintHeader(hWnd, hMemDC, *pHeaderData);
++						DarkMode::paintCombobox(hWnd, hMemDC, *pComboboxData);
+ 
+-					::RestoreDC(hMemDC, savedState);
++						::RestoreDC(hMemDC, savedState);
+ 
+-					::BitBlt(
+-						hdc,
+-						ps.rcPaint.left, ps.rcPaint.top,
+-						ps.rcPaint.right - ps.rcPaint.left,
+-						ps.rcPaint.bottom - ps.rcPaint.top,
+-						hMemDC,
+-						ps.rcPaint.left, ps.rcPaint.top,
+-						SRCCOPY
+-					);
++						::BitBlt(
++							hdc,
++							ps.rcPaint.left, ps.rcPaint.top,
++							ps.rcPaint.right - ps.rcPaint.left,
++							ps.rcPaint.bottom - ps.rcPaint.top,
++							hMemDC,
++							ps.rcPaint.left, ps.rcPaint.top,
++							SRCCOPY
++						);
++					}
++				}
++				else
++				{
++					DarkMode::paintCombobox(hWnd, hdc, *pComboboxData);
+ 				}
+ 
+ 				::EndPaint(hWnd, &ps);
+ 				return 0;
+ 			}
+ 
++			case WM_ENABLE:
++			{
++				if (!DarkMode::isEnabled())
++				{
++					break;
++				}
++
++				LRESULT lr = ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
++				::RedrawWindow(hWnd, nullptr, nullptr, RDW_INVALIDATE);
++				return lr;
++			}
++
+ 			case WM_DPICHANGED:
+ 			{
+ 				themeData.closeTheme();
+@@ -2586,198 +2512,348 @@ namespace DarkMode
+ 				themeData.closeTheme();
+ 				break;
+ 			}
++		}
++		return ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
++	}
+ 
+-			case WM_LBUTTONDOWN:
+-			{
+-				if (!pHeaderData->_hasBtnStyle)
+-					break;
++	void subclassComboBoxControl(HWND hWnd)
++	{
++		if (::GetWindowSubclass(hWnd, ComboBoxSubclass, g_comboBoxSubclassID, nullptr) == FALSE)
++		{
++			auto cbStyle = ::GetWindowLongPtr(hWnd, GWL_STYLE) & CBS_DROPDOWNLIST;
++			auto pComboboxData = reinterpret_cast<DWORD_PTR>(new ComboboxData(cbStyle));
++			::SetWindowSubclass(hWnd, ComboBoxSubclass, g_comboBoxSubclassID, pComboboxData);
++		}
++	}
+ 
+-				pHeaderData->_isPressed = true;
++	constexpr UINT_PTR g_comboboxExSubclassID = static_cast<UINT_PTR>(DarkMode::SubclassID::comboboxEx);
+ 
++	static LRESULT CALLBACK ComboboxExSubclass(
++		HWND hWnd,
++		UINT uMsg,
++		WPARAM wParam,
++		LPARAM lParam,
++		UINT_PTR uIdSubclass,
++		DWORD_PTR /*dwRefData*/
++	)
++	{
++		switch (uMsg)
++		{
++			case WM_NCDESTROY:
++			{
++				::RemoveWindowSubclass(hWnd, ComboboxExSubclass, uIdSubclass);
++				DarkMode::unhookSysColor();
+ 				break;
+ 			}
+ 
+-			case WM_LBUTTONUP:
++			case WM_CTLCOLOREDIT:
+ 			{
+-				if (!pHeaderData->_hasBtnStyle)
+-					break;
+-
+-				pHeaderData->_isPressed = false;
++				if (DarkMode::isEnabled())
++				{
++					return DarkMode::onCtlColorCtrl(reinterpret_cast<HDC>(wParam));
++				}
+ 				break;
+ 			}
+ 
+-			case WM_MOUSEMOVE:
++			case WM_CTLCOLORLISTBOX:
+ 			{
+-				if (!pHeaderData->_hasBtnStyle || pHeaderData->_isPressed)
+-					break;
+-
+-				TRACKMOUSEEVENT tme{};
+-
+-				if (!pHeaderData->_isHot)
++				if (DarkMode::isEnabled())
+ 				{
+-					tme.cbSize = sizeof(TRACKMOUSEEVENT);
+-					tme.dwFlags = TME_LEAVE;
+-					tme.hwndTrack = hWnd;
+-
+-					::TrackMouseEvent(&tme);
+-
+-					pHeaderData->_isHot = true;
++					return DarkMode::onCtlColorListbox(wParam, lParam);
+ 				}
+-
+-				pHeaderData->_pt.x = GET_X_LPARAM(lParam);
+-				pHeaderData->_pt.y = GET_Y_LPARAM(lParam);
+-
+-				::InvalidateRect(hWnd, nullptr, FALSE);
+ 				break;
+ 			}
+ 
+-			case WM_MOUSELEAVE:
++			case WM_COMMAND:
+ 			{
+-				if (!pHeaderData->_hasBtnStyle)
+-					break;
+-
+-				LRESULT result = ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
+-
+-				pHeaderData->_isHot = false;
+-				pHeaderData->_pt.x = LONG_MIN;
+-				pHeaderData->_pt.y = LONG_MIN;
++				// ComboboxEx has only one child combobox, so only control-defined notification code is checked.
++				// Hooking is done only when listbox is about to show. And unhook when listbox is closed.
++				// This process is used to avoid visual glitches in other GUI.
++				switch (HIWORD(wParam))
++				{
++					case CBN_DROPDOWN:
++					{
++						DarkMode::hookSysColor();
++						break;
++					}
+ 
+-				::InvalidateRect(hWnd, nullptr, TRUE);
++					case CBN_CLOSEUP:
++					{
++						DarkMode::unhookSysColor();
++						break;
++					}
+ 
+-				return result;
++					default:
++						break;
++				}
++				break;
+ 			}
+ 		}
+ 		return ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
+ 	}
+ 
+-	void subclassHeaderControl(HWND hWnd)
++	static void subclassComboboxEx(HWND hWnd)
+ 	{
+-		if (::GetWindowSubclass(hWnd, HeaderSubclass, g_headerSubclassID, nullptr) == FALSE)
++		if (::GetWindowSubclass(hWnd, ComboboxExSubclass, g_comboboxExSubclassID, nullptr) == FALSE)
+ 		{
+-			const bool hasBtnStyle = (::GetWindowLongPtr(hWnd, GWL_STYLE) & HDS_BUTTONS) == HDS_BUTTONS;
+-			auto pHeaderData = reinterpret_cast<DWORD_PTR>(new HeaderData(hasBtnStyle));
+-			::SetWindowSubclass(hWnd, HeaderSubclass, g_headerSubclassID, pHeaderData);
++			::SetWindowSubclass(hWnd, ComboboxExSubclass, g_comboboxExSubclassID, 0);
+ 		}
+ 	}
+ 
+-	struct UpDownData
++	void subclassComboboxEx(HWND hWnd, DarkModeParams p)
+ 	{
+-		ThemeData _themeData{};
+-		BufferData _bufferData{};
+-
+-		RECT _rcClient{};
+-		RECT _rcPrev{};
+-		RECT _rcNext{};
+-		bool _isHorizontal = false;
+-		bool _wasHotNext = false;
+-
+-		UpDownData()
+-			: _themeData(VSCLASS_BUTTON)
+-		{}
+-
+-		UpDownData(HWND hWnd)
+-			: _themeData(VSCLASS_BUTTON)
++		if (p._subclass)
+ 		{
+-			const auto nStyle = ::GetWindowLongPtr(hWnd, GWL_STYLE);
+-			_isHorizontal = ((nStyle & UDS_HORZ) == UDS_HORZ);
+-
+-			updateRect(hWnd);
++			subclassComboboxEx(hWnd);
+ 		}
++	}
+ 
+-		~UpDownData() = default;
++	constexpr UINT_PTR g_listViewSubclassID = static_cast<UINT_PTR>(DarkMode::SubclassID::listView);
+ 
+-		void updateRect(HWND hWnd)
++	static LRESULT CALLBACK ListViewSubclass(
++		HWND hWnd,
++		UINT uMsg,
++		WPARAM wParam,
++		LPARAM lParam,
++		UINT_PTR uIdSubclass,
++		DWORD_PTR /*dwRefData*/
++	)
++	{
++		switch (uMsg)
+ 		{
+-			::GetClientRect(hWnd, &_rcClient);
++			case WM_NCDESTROY:
++			{
++				DarkMode::unhookSysColor();
++				::RemoveWindowSubclass(hWnd, ListViewSubclass, uIdSubclass);
++				break;
++			}
+ 
+-			if (_isHorizontal)
++			case WM_PAINT:
+ 			{
+-				RECT rcArrowLeft{
+-					_rcClient.left, _rcClient.top,
+-					_rcClient.right - ((_rcClient.right - _rcClient.left) / 2), _rcClient.bottom
+-				};
++				const auto lvStyle = ::GetWindowLongPtr(hWnd, GWL_STYLE) & LVS_TYPEMASK;
++				const bool isReport = (lvStyle == LVS_REPORT);
++				bool hasGridlines = false;
++				if (isReport)
++				{
++					const auto lvExStyle = ListView_GetExtendedListViewStyle(hWnd);
++					hasGridlines = (lvExStyle & LVS_EX_GRIDLINES) == LVS_EX_GRIDLINES;
++				}
+ 
+-				RECT rcArrowRight{
+-					rcArrowLeft.right, _rcClient.top,
+-					_rcClient.right, _rcClient.bottom
+-				};
++				if (hasGridlines)
++				{
++					DarkMode::hookSysColor();
++					LRESULT lr = ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
++					DarkMode::unhookSysColor();
++					return lr;
++				}
++				break;
++			}
+ 
+-				_rcPrev = rcArrowLeft;
+-				_rcNext = rcArrowRight;
++			// For edit control, which is created when renaming/editing items
++			case WM_CTLCOLOREDIT:
++			{
++				if (DarkMode::isEnabled())
++				{
++					return DarkMode::onCtlColorCtrl(reinterpret_cast<HDC>(wParam));
++				}
++				break;
+ 			}
+-			else
++
++			case WM_NOTIFY:
+ 			{
+-				_rcClient.left += 2;
++				switch (reinterpret_cast<LPNMHDR>(lParam)->code)
++				{
++					case NM_CUSTOMDRAW:
++					{
++						auto lpnmcd = reinterpret_cast<LPNMCUSTOMDRAW>(lParam);
++						switch (lpnmcd->dwDrawStage)
++						{
++							case CDDS_PREPAINT:
++							{
++								if (DarkMode::isExperimentalActive())
++								{
++									return CDRF_NOTIFYITEMDRAW;
++								}
++								return CDRF_DODEFAULT;
++							}
+ 
+-				RECT rcArrowTop{
+-					_rcClient.left, _rcClient.top,
+-					_rcClient.right, _rcClient.bottom - ((_rcClient.bottom - _rcClient.top) / 2)
+-				};
++							case CDDS_ITEMPREPAINT:
++							{
++								::SetTextColor(lpnmcd->hdc, DarkMode::getDarkerTextColor());
+ 
+-				RECT rcArrowBottom{
+-					_rcClient.left, rcArrowTop.bottom,
+-					_rcClient.right, _rcClient.bottom
+-				};
++								return CDRF_NEWFONT;
++							}
+ 
+-				_rcPrev = rcArrowTop;
+-				_rcNext = rcArrowBottom;
++							default:
++								return CDRF_DODEFAULT;
++						}
++					}
++					break;
++				}
++				break;
+ 			}
++			break;
++		}
++		return ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
++	}
++
++	void subclassListViewControl(HWND hWnd)
++	{
++		if (::GetWindowSubclass(hWnd, ListViewSubclass, g_listViewSubclassID, nullptr) == FALSE)
++		{
++			::SetWindowSubclass(hWnd, ListViewSubclass, g_listViewSubclassID, 0);
+ 		}
++	}
++
++	struct HeaderData
++	{
++		ThemeData _themeData{};
++		BufferData _bufferData{};
++		FontData _fontData{};
++
++		POINT _pt{ LONG_MIN, LONG_MIN };
++		bool _isHot = false;
++		bool _hasBtnStyle = true;
++		bool _isPressed = false;
++
++		HeaderData()
++			: _themeData(VSCLASS_HEADER),
++			_hasBtnStyle(true)
++		{}
++
++		HeaderData(bool hasBtnStyle)
++			: _themeData(VSCLASS_HEADER),
++			_hasBtnStyle(hasBtnStyle)
++		{}
+ 	};
+ 
+-	static void paintUpDown(HWND hWnd, HDC hdc, UpDownData& upDownData)
++	static void paintHeader(HWND hWnd, HDC hdc, HeaderData& headerData)
+ 	{
+-		auto& themeData = upDownData._themeData;
++		auto& themeData = headerData._themeData;
+ 		const auto& hTheme = themeData._hTheme;
++		const bool hasTheme = themeData.ensureTheme(hWnd);
++		auto& hHeaderFont = headerData._fontData._hFont;
+ 
+-		const bool isDisabled = ::IsWindowEnabled(hWnd) == FALSE;
+-		const bool hasTheme = themeData.ensureTheme(hWnd) && upDownData._isHorizontal;
+-		
+-		::FillRect(hdc, &upDownData._rcClient, DarkMode::getDlgBackgroundBrush());
+ 		::SetBkMode(hdc, TRANSPARENT);
++		auto hOldPen = static_cast<HPEN>(::SelectObject(hdc, DarkMode::getHeaderEdgePen()));
+ 
+-		POINT ptCursor{};
+-		::GetCursorPos(&ptCursor);
+-		::ScreenToClient(hWnd, &ptCursor);
++		RECT rcHeader{};
++		::GetClientRect(hWnd, &rcHeader);
++		::FillRect(hdc, &rcHeader, DarkMode::getHeaderBackgroundBrush());
+ 
+-		const bool isHotPrev = ::PtInRect(&upDownData._rcPrev, ptCursor);
+-		const bool isHotNext = ::PtInRect(&upDownData._rcNext, ptCursor);
++		LOGFONT lf{};
++		if (hHeaderFont == nullptr
++			&& hasTheme
++			&& SUCCEEDED(::GetThemeFont(hTheme, hdc, HP_HEADERITEM, HIS_NORMAL, TMT_FONT, &lf)))
++		{
++			hHeaderFont = ::CreateFontIndirect(&lf);
++		}
+ 
+-		upDownData._wasHotNext = isHotNext;
++		HFONT hFont = (hHeaderFont == nullptr) ? reinterpret_cast<HFONT>(::SendMessage(hWnd, WM_GETFONT, 0, 0)) : hHeaderFont;
++		auto hOldFont = static_cast<HFONT>(::SelectObject(hdc, hFont));
+ 
++		DTTOPTS dtto{};
+ 		if (hasTheme)
+ 		{
+-			auto stateID = isDisabled ? PBS_DISABLED : PBS_NORMAL;
+-			::DrawThemeBackground(hTheme, hdc, BP_PUSHBUTTON, isHotPrev ? PBS_HOT : stateID, &upDownData._rcPrev, nullptr);
+-			::DrawThemeBackground(hTheme, hdc, BP_PUSHBUTTON, isHotNext ? PBS_HOT : stateID, &upDownData._rcNext, nullptr);
++			dtto.dwSize = sizeof(DTTOPTS);
++			dtto.dwFlags = DTT_TEXTCOLOR;
++			dtto.crText = DarkMode::getHeaderTextColor();
+ 		}
+ 		else
+ 		{
+-			HBRUSH hBrush = isDisabled ? DarkMode::getDlgBackgroundBrush() : DarkMode::getCtrlBackgroundBrush();
+-			::FillRect(hdc, &upDownData._rcPrev, isHotPrev ? DarkMode::getHotBackgroundBrush() : hBrush);
+-			::FillRect(hdc, &upDownData._rcNext, isHotNext ? DarkMode::getHotBackgroundBrush() : hBrush);
++			::SetTextColor(hdc, DarkMode::getHeaderTextColor());
+ 		}
+ 
+-		constexpr auto arrowTextFlags = DT_NOPREFIX | DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOCLIP;
+-		COLORREF clrText = isDisabled ? DarkMode::getDisabledTextColor() : DarkMode::getDarkerTextColor();
++		auto hList = ::GetParent(hWnd);
++		const auto lvStyle = ::GetWindowLongPtr(hList, GWL_STYLE) & LVS_TYPEMASK;
++		bool hasGridlines = false;
++		if (lvStyle == LVS_REPORT)
++		{
++			const auto lvExStyle = ListView_GetExtendedListViewStyle(hList);
++			hasGridlines = (lvExStyle & LVS_EX_GRIDLINES) == LVS_EX_GRIDLINES;
++		}
+ 
+-		::SetTextColor(hdc, isHotPrev ? DarkMode::getTextColor() : clrText);
+-		::DrawText(hdc, upDownData._isHorizontal ? L"<" : L"˄", -1, &upDownData._rcPrev, arrowTextFlags);
++		const int count = Header_GetItemCount(hWnd);
++		RECT rcItem{};
++		for (int i = 0; i < count; i++)
++		{
++			Header_GetItemRect(hWnd, i, &rcItem);
++			const bool isOnItem = ::PtInRect(&rcItem, headerData._pt);
+ 
+-		::SetTextColor(hdc, isHotNext ? DarkMode::getTextColor() : clrText);
+-		::DrawText(hdc, upDownData._isHorizontal ? L">" : L"˅", -1, &upDownData._rcNext, arrowTextFlags);
++			if (headerData._hasBtnStyle && isOnItem)
++			{
++				RECT rcTmp{ rcItem };
++				if (hasGridlines)
++				{
++					::OffsetRect(&rcTmp, 1, 0);
++				}
++				else if (DarkMode::isExperimentalActive())
++				{
++					::OffsetRect(&rcTmp, -1, 0);
++				}
++				::FillRect(hdc, &rcTmp, DarkMode::getHeaderHotBackgroundBrush());
++			}
+ 
+-		if (!hasTheme)
+-		{
+-			HPEN hPen = isDisabled ? DarkMode::getDisabledEdgePen() : DarkMode::getEdgePen();
+-			DarkMode::paintRoundFrameRect(hdc, upDownData._rcPrev, hPen);
+-			DarkMode::paintRoundFrameRect(hdc, upDownData._rcNext, hPen);
++			wchar_t buffer[MAX_PATH]{};
++			HDITEM hdi{};
++			hdi.mask = HDI_TEXT | HDI_FORMAT;
++			hdi.pszText = buffer;
++			hdi.cchTextMax = MAX_PATH - 1;
++
++			Header_GetItem(hWnd, i, &hdi);
++
++			if (hasTheme
++				&& ((hdi.fmt & HDF_SORTUP) == HDF_SORTUP
++					|| (hdi.fmt & HDF_SORTDOWN) == HDF_SORTDOWN))
++			{
++				int iStateID = ((hdi.fmt & HDF_SORTUP) == HDF_SORTUP) ? HSAS_SORTEDUP : HSAS_SORTEDDOWN;
++				RECT rcArrow{ rcItem };
++				SIZE szArrow{};
++				if (SUCCEEDED(::GetThemePartSize(hTheme, hdc, HP_HEADERSORTARROW, iStateID, nullptr, TS_DRAW, &szArrow)))
++					rcArrow.bottom = szArrow.cy;
++
++				::DrawThemeBackground(hTheme, hdc, HP_HEADERSORTARROW, iStateID, &rcArrow, nullptr);
++			}
++
++			LONG edgeX = rcItem.right;
++			if (!hasGridlines)
++			{
++				edgeX--;
++				if (DarkMode::isExperimentalActive())
++					edgeX--;
++			}
++
++			POINT edge[]{
++				{edgeX, rcItem.top},
++				{edgeX, rcItem.bottom}
++			};
++			::Polyline(hdc, edge, _countof(edge));
++
++			int dtFlags = DT_VCENTER | DT_SINGLELINE | DT_WORD_ELLIPSIS | DT_HIDEPREFIX;
++			if ((hdi.fmt & HDF_RIGHT) == HDF_RIGHT)
++				dtFlags |= DT_RIGHT;
++			else if ((hdi.fmt & HDF_CENTER) == HDF_CENTER)
++				dtFlags |= DT_CENTER;
++
++			rcItem.left += 6;
++			rcItem.right -= 8;
++
++			if (headerData._isPressed && isOnItem)
++				::OffsetRect(&rcItem, 1, 1);
++
++			if (hasTheme)
++				::DrawThemeTextEx(hTheme, hdc, HP_HEADERITEM, HIS_NORMAL, hdi.pszText, -1, dtFlags, &rcItem, &dtto);
++			else
++				::DrawText(hdc, hdi.pszText, -1, &rcItem, dtFlags);
+ 		}
++
++		::SelectObject(hdc, hOldFont);
++		::SelectObject(hdc, hOldPen);
+ 	}
+ 
+-	constexpr UINT_PTR g_upDownSubclassID = 42;
++	constexpr UINT_PTR g_headerSubclassID = static_cast<UINT_PTR>(DarkMode::SubclassID::header);
+ 
+-	static LRESULT CALLBACK UpDownSubclass(
++	static LRESULT CALLBACK HeaderSubclass(
+ 		HWND hWnd,
+ 		UINT uMsg,
+ 		WPARAM wParam,
+@@ -2786,17 +2862,17 @@ namespace DarkMode
+ 		DWORD_PTR dwRefData
+ 	)
+ 	{
+-		auto pUpDownData = reinterpret_cast<UpDownData*>(dwRefData);
+-		auto& themeData = pUpDownData->_themeData;
+-		auto& bufferData = pUpDownData->_bufferData;
++		auto pHeaderData = reinterpret_cast<HeaderData*>(dwRefData);
++		auto& themeData = pHeaderData->_themeData;
++		auto& bufferData = pHeaderData->_bufferData;
+ 		auto& hMemDC = bufferData._hMemDC;
+ 
+ 		switch (uMsg)
+ 		{
+ 			case WM_NCDESTROY:
+ 			{
+-				::RemoveWindowSubclass(hWnd, UpDownSubclass, uIdSubclass);
+-				delete pUpDownData;
++				::RemoveWindowSubclass(hWnd, HeaderSubclass, uIdSubclass);
++				delete pHeaderData;
+ 				break;
+ 			}
+ 
+@@ -2814,7 +2890,6 @@ namespace DarkMode
+ 				break;
+ 			}
+ 
+-			case WM_PRINTCLIENT:
+ 			case WM_PAINT:
+ 			{
+ 				if (!DarkMode::isEnabled())
+@@ -2824,10 +2899,6 @@ namespace DarkMode
+ 
+ 				PAINTSTRUCT ps{};
+ 				auto hdc = ::BeginPaint(hWnd, &ps);
+-				if (!pUpDownData->_isHorizontal)
+-				{
+-					::OffsetRect(&ps.rcPaint, 2, 0);
+-				}
+ 
+ 				if (ps.rcPaint.right <= ps.rcPaint.left || ps.rcPaint.bottom <= ps.rcPaint.top)
+ 				{
+@@ -2837,10 +2908,6 @@ namespace DarkMode
+ 
+ 				RECT rcClient{};
+ 				::GetClientRect(hWnd, &rcClient);
+-				if (!pUpDownData->_isHorizontal)
+-				{
+-					::OffsetRect(&rcClient, 2, 0);
+-				}
+ 
+ 				if (bufferData.ensureBuffer(hdc, rcClient))
+ 				{
+@@ -2850,7 +2917,7 @@ namespace DarkMode
+ 						ps.rcPaint.left, ps.rcPaint.top, ps.rcPaint.right, ps.rcPaint.bottom
+ 					);
+ 
+-					DarkMode::paintUpDown(hWnd, hMemDC, *pUpDownData);
++					DarkMode::paintHeader(hWnd, hMemDC, *pHeaderData);
+ 
+ 					::RestoreDC(hMemDC, savedState);
+ 
+@@ -2872,7 +2939,6 @@ namespace DarkMode
+ 			case WM_DPICHANGED:
+ 			{
+ 				themeData.closeTheme();
+-				pUpDownData->updateRect(hWnd);
+ 				return 0;
+ 			}
+ 
+@@ -2882,71 +2948,77 @@ namespace DarkMode
+ 				break;
+ 			}
+ 
+-			case WM_MOUSEMOVE:
++			case WM_LBUTTONDOWN:
+ 			{
+-				if (!DarkMode::isEnabled())
+-				{
++				if (!pHeaderData->_hasBtnStyle)
+ 					break;
+-				}
+ 
+-				POINT ptCursor{};
+-				::GetCursorPos(&ptCursor);
+-				::ScreenToClient(hWnd, &ptCursor);
++				pHeaderData->_isPressed = true;
+ 
+-				const bool isHotPrev = ::PtInRect(&pUpDownData->_rcPrev, ptCursor);
++				break;
++			}
+ 
+-				if ((isHotPrev && pUpDownData->_wasHotNext))
+-				{
+-					pUpDownData->_wasHotNext = false;
+-					::RedrawWindow(hWnd, &pUpDownData->_rcNext, nullptr, RDW_INVALIDATE);
+-				}
++			case WM_LBUTTONUP:
++			{
++				if (!pHeaderData->_hasBtnStyle)
++					break;
+ 
++				pHeaderData->_isPressed = false;
+ 				break;
+ 			}
+ 
+-			case WM_MOUSELEAVE:
++			case WM_MOUSEMOVE:
+ 			{
+-				if (!DarkMode::isEnabled())
+-				{
++				if (!pHeaderData->_hasBtnStyle || pHeaderData->_isPressed)
+ 					break;
++
++				TRACKMOUSEEVENT tme{};
++
++				if (!pHeaderData->_isHot)
++				{
++					tme.cbSize = sizeof(TRACKMOUSEEVENT);
++					tme.dwFlags = TME_LEAVE;
++					tme.hwndTrack = hWnd;
++
++					::TrackMouseEvent(&tme);
++
++					pHeaderData->_isHot = true;
+ 				}
+ 
+-				pUpDownData->_wasHotNext = false;
+-				::RedrawWindow(hWnd, nullptr, nullptr, RDW_INVALIDATE);
++				pHeaderData->_pt.x = GET_X_LPARAM(lParam);
++				pHeaderData->_pt.y = GET_Y_LPARAM(lParam);
+ 
++				::InvalidateRect(hWnd, nullptr, FALSE);
+ 				break;
+ 			}
+-		}
+-		return ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
+-	}
+ 
+-	static void subclassAndThemeUpDownControl(HWND hWnd, DarkModeParams p)
+-	{
+-		if (p._subclass && ::GetWindowSubclass(hWnd, UpDownSubclass, g_upDownSubclassID, nullptr) == FALSE)
+-		{
+-			auto pUpDownData = reinterpret_cast<DWORD_PTR>(new UpDownData(hWnd));
+-			::SetWindowSubclass(hWnd, UpDownSubclass, g_upDownSubclassID, pUpDownData);
+-		}
++			case WM_MOUSELEAVE:
++			{
++				if (!pHeaderData->_hasBtnStyle)
++					break;
+ 
+-		if (p._theme)
+-		{
+-			::SetWindowTheme(hWnd, p._themeClassName, nullptr);
++				LRESULT result = ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
++
++				pHeaderData->_isHot = false;
++				pHeaderData->_pt.x = LONG_MIN;
++				pHeaderData->_pt.y = LONG_MIN;
++
++				::InvalidateRect(hWnd, nullptr, TRUE);
++
++				return result;
++			}
+ 		}
++		return ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
+ 	}
+ 
+-	bool subclassTabUpDownControl(HWND hWnd)
++	void subclassHeaderControl(HWND hWnd)
+ 	{
+-		if (::GetWindowSubclass(hWnd, UpDownSubclass, g_upDownSubclassID, nullptr) == FALSE)
++		if (::GetWindowSubclass(hWnd, HeaderSubclass, g_headerSubclassID, nullptr) == FALSE)
+ 		{
+-			if (cmpWndClassName(hWnd, UPDOWN_CLASS))
+-			{
+-				auto pUpDownData = reinterpret_cast<DWORD_PTR>(new UpDownData(hWnd));
+-				::SetWindowSubclass(hWnd, UpDownSubclass, g_upDownSubclassID, pUpDownData);
+-				DarkMode::setDarkExplorerTheme(hWnd);
+-				return true;
+-			}
++			const bool hasBtnStyle = (::GetWindowLongPtr(hWnd, GWL_STYLE) & HDS_BUTTONS) == HDS_BUTTONS;
++			auto pHeaderData = reinterpret_cast<DWORD_PTR>(new HeaderData(hasBtnStyle));
++			::SetWindowSubclass(hWnd, HeaderSubclass, g_headerSubclassID, pHeaderData);
+ 		}
+-		return false;
+ 	}
+ 
+ 	struct StatusBarData
+@@ -3077,7 +3149,7 @@ namespace DarkMode
+ 		::SelectObject(hdc, holdPen);
+ 	}
+ 
+-	constexpr UINT_PTR g_statusBarSubclassID = 42;
++	constexpr UINT_PTR g_statusBarSubclassID = static_cast<UINT_PTR>(DarkMode::SubclassID::statusBar);
+ 
+ 	static LRESULT CALLBACK StatusBarSubclass(
+ 		HWND hWnd,
+@@ -3262,7 +3334,7 @@ namespace DarkMode
+ 		::FillRect(hdc, &rcClient, DarkMode::getCtrlBackgroundBrush());
+ 	}
+ 
+-	const UINT_PTR g_progressBarSubclassID = 42;
++	const UINT_PTR g_progressBarSubclassID = static_cast<UINT_PTR>(DarkMode::SubclassID::progress);
+ 
+ 	static LRESULT CALLBACK ProgressBarSubclass(
+ 		HWND hWnd,
+@@ -3416,7 +3488,7 @@ namespace DarkMode
+ 		~StaticTextData() = default;
+ 	};
+ 
+-	constexpr UINT_PTR g_staticTextSubclassID = 42;
++	constexpr UINT_PTR g_staticTextSubclassID = static_cast<UINT_PTR>(DarkMode::SubclassID::staticText);
+ 
+ 	static LRESULT CALLBACK StaticTextSubclass(
+ 		HWND hWnd,
+@@ -3728,29 +3800,15 @@ namespace DarkMode
+ 			DarkMode::subclassCustomBorderForListBoxAndEditControls(hWnd);
+ 		}
+ 
+-		bool changed = false;
+ 		if (::GetWindowSubclass(hWnd, CustomBorderSubclass, g_customBorderSubclassID, nullptr) == TRUE)
+ 		{
+-			if (DarkMode::isEnabled())
+-			{
+-				if (hasClientEdge)
+-				{
+-					::SetWindowLongPtr(hWnd, GWL_EXSTYLE, nExStyle & ~WS_EX_CLIENTEDGE);
+-					changed = true;
+-				}
+-			}
+-			else if (!hasClientEdge)
++			const bool enableClientEdge = !DarkMode::isEnabled();
++			if (enableClientEdge != hasClientEdge)
+ 			{
+-				::SetWindowLongPtr(hWnd, GWL_EXSTYLE, nExStyle | WS_EX_CLIENTEDGE);
+-				changed = true;
++				::SetWindowLongPtr(hWnd, GWL_EXSTYLE, nExStyle ^ WS_EX_CLIENTEDGE);
++				::SetWindowPos(hWnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+ 			}
+ 		}
+-
+-		if (changed)
+-		{
+-			::SetWindowPos(hWnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+-		}
+-
+ 	}
+ 
+ 	void subclassAndThemeListView(HWND hWnd, DarkModeParams p)
+@@ -4240,7 +4298,7 @@ namespace DarkMode
+ 		return ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
+ 	}
+ 
+-	constexpr UINT_PTR g_WindowCtlColorSubclassID = 42;
++	constexpr UINT_PTR g_WindowCtlColorSubclassID = static_cast<UINT_PTR>(DarkMode::SubclassID::ctlColor);
+ 
+ 	static LRESULT CALLBACK WindowCtlColorSubclass(
+ 		HWND hWnd,
+@@ -4345,7 +4403,7 @@ namespace DarkMode
+ 		}
+ 	}
+ 
+-	constexpr UINT_PTR g_windowNotifySubclassID = 42;
++	constexpr UINT_PTR g_windowNotifySubclassID = static_cast<UINT_PTR>(DarkMode::SubclassID::notify);
+ 
+ 	static LRESULT CALLBACK WindowNotifySubclass(
+ 		HWND hWnd,
+@@ -4452,7 +4510,7 @@ namespace DarkMode
+ 		::ReleaseDC(hWnd, hdc);
+ 	}
+ 
+-	constexpr UINT_PTR g_windowMenuBarSubclassID = 42;
++	constexpr UINT_PTR g_windowMenuBarSubclassID = static_cast<UINT_PTR>(DarkMode::SubclassID::menuBar);
+ 
+ 	static LRESULT CALLBACK WindowMenuBarSubclass(
+ 		HWND hWnd,
+@@ -4650,7 +4708,7 @@ namespace DarkMode
+ 		}
+ 	}
+ 
+-	constexpr UINT_PTR g_windowSettingChangeSubclassID = 42;
++	constexpr UINT_PTR g_windowSettingChangeSubclassID = static_cast<UINT_PTR>(DarkMode::SubclassID::settingChange);
+ 
+ 	static LRESULT CALLBACK WindowSettingChangeSubclass(
+ 		HWND hWnd,
+diff --git a/DarkMode/DarkModeSubclass.h b/DarkMode/DarkModeSubclass.h
+index 5d0a410e5..076ae32ed 100644
+--- a/DarkMode/DarkModeSubclass.h
++++ b/DarkMode/DarkModeSubclass.h
+@@ -162,12 +162,13 @@ namespace DarkMode
+ 
+ 	void subclassButtonControl(HWND hWnd);
+ 	void subclassGroupboxControl(HWND hWnd);
++	bool subclassUpDownControl(HWND hWnd);
++	void subclassTabControlUpDown(HWND hWnd);
+ 	void subclassTabControl(HWND hWnd);
+ 	void subclassComboBoxControl(HWND hWnd);
+ 	void subclassListViewControl(HWND hWnd);
+ 	void subclassStatusBarControl(HWND hWnd);
+ 	void subclassProgressBarControl(HWND hWnd);
+-	bool subclassTabUpDownControl(HWND hWnd);
+ 
+ 	void subclassAndThemeButton(HWND hWnd, DarkModeParams p);
+ 	void subclassAndThemeComboBox(HWND hWnd, DarkModeParams p);

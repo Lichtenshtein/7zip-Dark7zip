@@ -1,0 +1,62 @@
+From 2c782f206033cbeb056ef609b8d0b9af0555142e Mon Sep 17 00:00:00 2001
+From: ozone10 <positronix10@gmail.com>
+Date: Wed, 23 Apr 2025 12:17:18 +0200
+Subject: [PATCH] Tweaks
+
+---
+ DarkMode/DarkModeSubclass.cpp | 15 +++++++++++++--
+ DarkMode/DarkModeSubclass.h   |  1 +
+ 2 files changed, 14 insertions(+), 2 deletions(-)
+
+diff --git a/DarkMode/DarkModeSubclass.cpp b/DarkMode/DarkModeSubclass.cpp
+index c6fc9e226..1f5d26713 100644
+--- a/DarkMode/DarkModeSubclass.cpp
++++ b/DarkMode/DarkModeSubclass.cpp
+@@ -1571,7 +1571,7 @@ namespace DarkMode
+ 
+ 				wchar_t label[MAX_PATH]{};
+ 				TCITEM tci{};
+-				tci.mask = TCIF_TEXT;
++				tci.mask = TCIF_TEXT | TCIF_IMAGE;
+ 				tci.pszText = label;
+ 				tci.cchTextMax = MAX_PATH - 1;
+ 
+@@ -1589,6 +1589,17 @@ namespace DarkMode
+ 					rcFrame.right += 1;
+ 				}
+ 
++				if (tci.iImage != -1)
++				{
++					int cx = 0;
++					int cy = 0;
++					auto hImagelist = TabCtrl_GetImageList(hWnd);
++					int offset = 2;
++					::ImageList_GetIconSize(hImagelist, &cx, &cy);
++					::ImageList_Draw(hImagelist, tci.iImage, hdc, rcText.left + offset, rcText.top + ((rcText.bottom - rcText.top) - cy) / 2, ILD_NORMAL);
++					rcText.left += cx;
++				}
++
+ 				::FrameRect(hdc, &rcFrame, DarkMode::getEdgeBrush());
+ 
+ 				::DrawText(hdc, label, -1, &rcText, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+@@ -2325,7 +2336,7 @@ namespace DarkMode
+ 		return ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
+ 	}
+ 
+-	static void subclassListViewControl(HWND hWnd)
++	void subclassListViewControl(HWND hWnd)
+ 	{
+ 		if (::GetWindowSubclass(hWnd, ListViewSubclass, g_listViewSubclassID, nullptr) == FALSE)
+ 		{
+diff --git a/DarkMode/DarkModeSubclass.h b/DarkMode/DarkModeSubclass.h
+index f5a10eb77..5d0a410e5 100644
+--- a/DarkMode/DarkModeSubclass.h
++++ b/DarkMode/DarkModeSubclass.h
+@@ -164,6 +164,7 @@ namespace DarkMode
+ 	void subclassGroupboxControl(HWND hWnd);
+ 	void subclassTabControl(HWND hWnd);
+ 	void subclassComboBoxControl(HWND hWnd);
++	void subclassListViewControl(HWND hWnd);
+ 	void subclassStatusBarControl(HWND hWnd);
+ 	void subclassProgressBarControl(HWND hWnd);
+ 	bool subclassTabUpDownControl(HWND hWnd);

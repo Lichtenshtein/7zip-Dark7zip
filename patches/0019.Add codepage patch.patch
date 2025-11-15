@@ -1,0 +1,301 @@
+From 79d5d6a065a9de4c6de1d3e0a097c090f80dd346 Mon Sep 17 00:00:00 2001
+From: Autori <q8cwx7bt@anonaddy.me>
+Date: Wed, 13 Aug 2025 16:22:45 +0200
+Subject: [PATCH] Add codepage patch
+
+---
+ CPP/7zip/UI/Agent/Agent.cpp                 | 30 +++++++
+ CPP/7zip/UI/FileManager/ExtractCallback.cpp | 29 +++++++
+ CPP/7zip/UI/FileManager/MyLoadMenu.cpp      | 92 ++++++++++++++++++++-
+ CPP/7zip/UI/FileManager/resource.h          | 22 +++++
+ CPP/7zip/UI/FileManager/resource.rc         | 25 ++++++
+ 5 files changed, 196 insertions(+), 2 deletions(-)
+
+diff --git a/CPP/7zip/UI/Agent/Agent.cpp b/CPP/7zip/UI/Agent/Agent.cpp
+index 46b740ad..f47c949c 100644
+--- a/CPP/7zip/UI/Agent/Agent.cpp
++++ b/CPP/7zip/UI/Agent/Agent.cpp
+@@ -1664,6 +1664,36 @@ Z7_COM7F_IMF(CAgent::Open(
+   if (!_archiveLink.Arcs.IsEmpty())
+   {
+     CArc &arc = _archiveLink.Arcs.Back();
++
++    // AUTORI PATCH BEGIN
++    char* val = nullptr;
++    size_t len = 0;
++    if (_dupenv_s(&val, &len, "Z7_FORCE_CODEC") == 0 && val != nullptr) {
++      unsigned int codec = std::strtoul(val, nullptr, 10);
++      free(val);
++
++      CMyComPtr<ISetProperties> setProperties;
++      arc.Archive.QueryInterface(IID_ISetProperties, (void**)&setProperties);
++      
++      if (setProperties)
++      {
++        const wchar_t* names[] =
++        {
++          L"cp",
++        };
++        const unsigned kNumProps = Z7_ARRAY_SIZE(names);
++        NWindows::NCOM::CPropVariant values[kNumProps] =
++        {
++            codec
++        };
++        setProperties->SetProperties(names, values, kNumProps);
++      }
++      else {
++        MessageBoxA(NULL, "Failed to get setProperties function (Agent.cpp)", "7zip Autori Codepage Patch", 0);
++      }
++    }
++    // AUTORI PATCH END
++
+     if (!inStream)
+     {
+       arc.MTime.Set_From_FiTime(fi.MTime);
+diff --git a/CPP/7zip/UI/FileManager/ExtractCallback.cpp b/CPP/7zip/UI/FileManager/ExtractCallback.cpp
+index da25969c..11c523e2 100644
+--- a/CPP/7zip/UI/FileManager/ExtractCallback.cpp
++++ b/CPP/7zip/UI/FileManager/ExtractCallback.cpp
+@@ -553,6 +553,35 @@ void OpenResult_GUI(UString &s, const CCodecs *codecs, const CArchiveLink &arcLi
+     const CArc &arc = arcLink.Arcs[level];
+     const CArcErrorInfo &er = arc.ErrorInfo;
+ 
++    // AUTORI PATCH BEGIN
++    char* val = nullptr;
++    size_t len = 0;
++    if (_dupenv_s(&val, &len, "Z7_FORCE_CODEC") == 0 && val != nullptr) {
++      unsigned int codec = std::strtoul(val, nullptr, 10);
++      free(val);
++      
++      CMyComPtr<ISetProperties> setProperties;
++      arc.Archive.QueryInterface(IID_ISetProperties, (void**)&setProperties);
++      
++      if (setProperties)
++      {
++        const wchar_t* names[] =
++        {
++          L"cp",
++        };
++        const unsigned kNumProps = Z7_ARRAY_SIZE(names);
++        NWindows::NCOM::CPropVariant values[kNumProps] =
++        {
++            codec
++        };
++        setProperties->SetProperties(names, values, kNumProps);
++      }
++      else {
++        MessageBoxA(NULL, "Failed to get setProperties function (ExtractCallback.cpp)", "7zip Autori Codepage Patch", 0);
++      }
++    }
++    // AUTORI PATCH END
++
+     if (!er.IsThereErrorOrWarning() && er.ErrorFormatIndex < 0)
+       continue;
+ 
+diff --git a/CPP/7zip/UI/FileManager/MyLoadMenu.cpp b/CPP/7zip/UI/FileManager/MyLoadMenu.cpp
+index f190929f..622e2dfd 100644
+--- a/CPP/7zip/UI/FileManager/MyLoadMenu.cpp
++++ b/CPP/7zip/UI/FileManager/MyLoadMenu.cpp
+@@ -21,6 +21,9 @@
+ 
+ #include "PropertyNameRes.h"
+ #include "resource.h"
++// AUTORI PATCH BEGIN
++#include <string>
++// AUTORI PATCH END
+ 
+ using namespace NWindows;
+ 
+@@ -39,14 +42,19 @@ extern HINSTANCE g_hInstance;
+ 
+ extern void OptionsDialog(HWND hwndOwner, HINSTANCE hInstance);
+ 
++// AUTORI PATCH BEGIN
+ enum
+ {
+   k_MenuIndex_File = 0,
+   k_MenuIndex_Edit,
+   k_MenuIndex_View,
+-  k_MenuIndex_Bookmarks
++  k_MenuIndex_Bookmarks,
++  k_MenuIndex_Tools,
+ };
+ 
++constexpr unsigned int codePagesArray[] = { 65001, 1252, 437, 850, 852, 866, 874, 932, 936, 949, 950, 1250, 1251, 1253, 1254, 1255, 1256, 1257, 1258 };
++// AUTORI PATCH END
++
+ #ifdef Z7_LANG
+ static const UInt32 k_LangID_TopMenuItems[] =
+ {
+@@ -558,6 +566,39 @@ void OnMenuActivating(HWND /* hWnd */, HMENU hMenu, int position)
+     }
+ #endif
+   }
++  // AUTORI PATCH BEGIN
++  else if (position == k_MenuIndex_Tools)
++  {
++    char* val = nullptr;
++    size_t len = 0;
++    unsigned int codec = 0;
++    if (_dupenv_s(&val, &len, "Z7_FORCE_CODEC") == 0 && val != nullptr) {
++        codec = std::strtoul(val, nullptr, 10);
++        free(val);
++    }
++
++    CMenu menu;
++    menu.Attach(hMenu);
++      
++    CMenu subMenu;
++    subMenu.Attach(menu.GetSubMenu(2)); // I hope this submenu index is stable
++      
++    int idx = -1;
++    for (size_t i = 0; i < Z7_ARRAY_SIZE(codePagesArray); i++) {
++      if (codePagesArray[i] == codec) {
++        idx = (int)i;
++        break;
++      }
++    }
++    
++    subMenu.CheckRadioItem(
++        IDM_NAME_ENCODING_DEFAULT,
++        IDM_NAME_ENCODING_DEFAULT + Z7_ARRAY_SIZE(codePagesArray),
++        IDM_NAME_ENCODING_DEFAULT + (idx + 1),
++        MF_BYCOMMAND
++    );
++  }
++  // AUTORI PATCH END
+ }
+ 
+ /*
+@@ -913,7 +954,54 @@ bool OnMenuCommand(HWND hWnd, unsigned id)
+ 
+     // Tools
+     case IDM_OPTIONS: OptionsDialog(hWnd, g_hInstance); break;
+-          
++    
++    // AUTORI PATCH BEGIN
++    // Tools > Name Encoding
++    case IDM_NAME_ENCODING_DEFAULT:
++    case IDM_NAME_ENCODING_65001:
++    case IDM_NAME_ENCODING_1252:
++    case IDM_NAME_ENCODING_437:
++    case IDM_NAME_ENCODING_850:
++    case IDM_NAME_ENCODING_852:
++    case IDM_NAME_ENCODING_866:
++    case IDM_NAME_ENCODING_874:
++    case IDM_NAME_ENCODING_932:
++    case IDM_NAME_ENCODING_936:
++    case IDM_NAME_ENCODING_949:
++    case IDM_NAME_ENCODING_950:
++    case IDM_NAME_ENCODING_1250:
++    case IDM_NAME_ENCODING_1251:
++    case IDM_NAME_ENCODING_1253:
++    case IDM_NAME_ENCODING_1254:
++    case IDM_NAME_ENCODING_1255:
++    case IDM_NAME_ENCODING_1256:
++    case IDM_NAME_ENCODING_1257:
++    case IDM_NAME_ENCODING_1258:
++    {
++      unsigned int codePageIndex = id - IDM_NAME_ENCODING_DEFAULT;
++      if (codePageIndex == 0)
++      {
++        // Default selected, remove env variable
++        _putenv_s("Z7_FORCE_CODEC", "");
++      }
++      else {
++        codePageIndex--;
++        unsigned int codePage = codePagesArray[codePageIndex];
++
++        _putenv_s("Z7_FORCE_CODEC", std::to_string(codePage).c_str());
++      }
++
++      // Refresh
++      for (unsigned int i = 0; i < g_App.NumPanels; i++)
++      {
++        UString originalPath = g_App.Panels[i]._currentFolderPrefix;
++        g_App.Panels[i].OpenRootFolder();
++        g_App.Panels[i].BindToPathAndRefresh(originalPath);
++      }
++      break;
++    }
++    // AUTORI PATCH END
++
+     case IDM_BENCHMARK: MyBenchmark(false); break;
+     case IDM_BENCHMARK2: MyBenchmark(true); break;
+ 
+diff --git a/CPP/7zip/UI/FileManager/resource.h b/CPP/7zip/UI/FileManager/resource.h
+index 36c4b531..a1baee7e 100644
+--- a/CPP/7zip/UI/FileManager/resource.h
++++ b/CPP/7zip/UI/FileManager/resource.h
+@@ -38,6 +38,7 @@
+ #define IDM_FAVORITES            503
+ #define IDM_TOOLS                504
+ #define IDM_HELP                 505
++#define IDM_NAME_ENCODING        506
+ 
+ #define IDM_OPEN                 540
+ #define IDM_OPEN_INSIDE          541
+@@ -110,6 +111,27 @@
+ #define IDM_ADD_TO_FAVORITES     800
+ #define IDS_BOOKMARK             801
+ 
++#define IDM_NAME_ENCODING_DEFAULT 805
++#define IDM_NAME_ENCODING_65001   806
++#define IDM_NAME_ENCODING_1252    807
++#define IDM_NAME_ENCODING_437     808
++#define IDM_NAME_ENCODING_850     809
++#define IDM_NAME_ENCODING_852     810
++#define IDM_NAME_ENCODING_866     811
++#define IDM_NAME_ENCODING_874     812
++#define IDM_NAME_ENCODING_932     813
++#define IDM_NAME_ENCODING_936     814
++#define IDM_NAME_ENCODING_949     815
++#define IDM_NAME_ENCODING_950     816
++#define IDM_NAME_ENCODING_1250    817
++#define IDM_NAME_ENCODING_1251    818
++#define IDM_NAME_ENCODING_1253    819
++#define IDM_NAME_ENCODING_1254    820
++#define IDM_NAME_ENCODING_1255    821
++#define IDM_NAME_ENCODING_1256    822
++#define IDM_NAME_ENCODING_1257    823
++#define IDM_NAME_ENCODING_1258    824
++
+ #define IDM_OPTIONS              900
+ #define IDM_BENCHMARK            901
+ #define IDM_BENCHMARK2           902
+diff --git a/CPP/7zip/UI/FileManager/resource.rc b/CPP/7zip/UI/FileManager/resource.rc
+index d9fc6f25..63d7a51e 100644
+--- a/CPP/7zip/UI/FileManager/resource.rc
++++ b/CPP/7zip/UI/FileManager/resource.rc
+@@ -143,6 +143,31 @@ BEGIN
+   BEGIN
+     MENUITEM "&Options...",                 IDM_OPTIONS
+     MY_MENUITEM_SEPARATOR
++    POPUP "Name &Encoding"                  MY_MENUITEM_ID(IDM_NAME_ENCODING)
++    BEGIN
++      MENUITEM "&Default",                                        IDM_NAME_ENCODING_DEFAULT, MY_MFS_CHECKED
++      MENUITEM "65001 (UTF-8)",                                   IDM_NAME_ENCODING_65001
++      MENUITEM "1252 (ANSI - Latin I)",                           IDM_NAME_ENCODING_1252
++      MENUITEM "437 (OEM - United States)",                       IDM_NAME_ENCODING_437
++      MY_MENUITEM_SEPARATOR
++      MENUITEM "850 (OEM - Multilingual Latin I)",                IDM_NAME_ENCODING_850
++      MENUITEM "852 (OEM - Latin II)",                            IDM_NAME_ENCODING_852
++      MENUITEM "866 (OEM - Russian)",                             IDM_NAME_ENCODING_866
++      MENUITEM "874 (ANSI/OEM - Thai)",                           IDM_NAME_ENCODING_874
++      MENUITEM "932 (ANSI/OEM - Japanese Shift-JIS)",             IDM_NAME_ENCODING_932
++      MENUITEM "936 (ANSI/OEM - Simplified Chinese GBK)",         IDM_NAME_ENCODING_936
++      MENUITEM "949 (ANSI/OEM - Korean)",                         IDM_NAME_ENCODING_949
++      MENUITEM "950 (ANSI/OEM - Traditional Chinese Big5)",       IDM_NAME_ENCODING_950
++      MENUITEM "1250 (ANSI - Central Europe)",                    IDM_NAME_ENCODING_1250
++      MENUITEM "1251 (ANSI - Cyrillic)",                          IDM_NAME_ENCODING_1251
++      MENUITEM "1253 (ANSI - Greek)",                             IDM_NAME_ENCODING_1253
++      MENUITEM "1254 (ANSI - Turkish)",                           IDM_NAME_ENCODING_1254
++      MENUITEM "1255 (ANSI - Hebrew)",                            IDM_NAME_ENCODING_1255
++      MENUITEM "1256 (ANSI - Arabic)",                            IDM_NAME_ENCODING_1256
++      MENUITEM "1257 (ANSI - Baltic)",                            IDM_NAME_ENCODING_1257
++      MENUITEM "1258 (ANSI/OEM - Viet Nam)",                      IDM_NAME_ENCODING_1258
++    END
++    MY_MENUITEM_SEPARATOR
+     MENUITEM "&Benchmark",                  IDM_BENCHMARK
+   #ifdef UNDER_CE
+     MENUITEM "Benchmark 2",                 IDM_BENCHMARK2

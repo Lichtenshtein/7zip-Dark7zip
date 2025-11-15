@@ -1,0 +1,120 @@
+From ea6457b4ba78a863837cd8afe63f091d55f5abfc Mon Sep 17 00:00:00 2001
+From: Nobody <36154203+PopuriAO29@users.noreply.github.com>
+Date: Sun, 14 Jan 2024 03:40:09 +0000
+Subject: [PATCH]: Propagate-Mark-of-the-Web-from-archives-to-extracted-files
+
+---
+diff --git a/CPP/7zip/UI/Common/ArchiveExtractCallback.cpp b/CPP/7zip/UI/Common/ArchiveExtractCallback.cpp
+index 6631629a..f492839a 100644
+--- a/CPP/7zip/UI/Common/ArchiveExtractCallback.cpp
++++ b/CPP/7zip/UI/Common/ArchiveExtractCallback.cpp
+@@ -1315,6 +1315,19 @@ return:
+   needExit = false: caller will     use (outStreamLoc) and _hashStreamSpec
+   needExit = true : caller will not use (outStreamLoc) and _hashStreamSpec.
+ */
++
++static const FChar * const k_ZoneId_StreamName = FTEXT("Zone.Identifier");
++static bool WriteZoneFile(FString fileName, const CByteBuffer &zoneBuf)
++{
++  NIO::COutFile file;
++  if (!file.Create(fileName + FTEXT(":") + k_ZoneId_StreamName, true))
++    return false;
++  UInt32 processed;
++  if (!file.Write(zoneBuf, (UInt32)zoneBuf.Size(), processed))
++    return false;
++  return processed == zoneBuf.Size();
++}
++
+ HRESULT CArchiveExtractCallback::GetExtractStream(CMyComPtr<ISequentialOutStream> &outStreamLoc, bool &needExit)
+ {
+   needExit = true;
+@@ -1349,6 +1362,11 @@ HRESULT CArchiveExtractCallback::GetExtractStream(CMyComPtr<ISequentialOutStream
+   #ifdef SUPPORT_ALT_STREAMS
+   if (_item.IsAltStream && _item.ParentIndex != (UInt32)(Int32)-1)
+   {
++   //Don't overwrite ZoneIds propagated from the archive file with ZoneId stream items
++   if (_arc->zoneBuf.Size() != 0 && _item.AltStreamName == k_ZoneId_StreamName) {
++   needExit = true;
++   return S_OK;
++   }
+     const int renIndex = _renamedFiles.FindInSorted(CIndexToPathPair(_item.ParentIndex));
+     if (renIndex != -1)
+     {
+@@ -1556,7 +1574,17 @@ HRESULT CArchiveExtractCallback::GetExtractStream(CMyComPtr<ISequentialOutStream
+   } // if not reparse
+ 
+   _outFileStream = outFileStream_Loc;
+-      
++
++  #if defined(_WIN32) && !defined(_UNDER_CE)
++  #ifndef _UNICODE
++  if (g_IsNT)
++  #endif
++  if (_arc->zoneBuf.Size() != 0)
++  {
++   WriteZoneFile(fullProcessedPath, _arc->zoneBuf);
++  }
++  #endif
++
+   needExit = false;
+   return S_OK;
+ }
+diff --git a/CPP/7zip/UI/Common/OpenArchive.cpp b/CPP/7zip/UI/Common/OpenArchive.cpp
+index 4a7546cd..2129ce4d 100644
+--- a/CPP/7zip/UI/Common/OpenArchive.cpp
++++ b/CPP/7zip/UI/Common/OpenArchive.cpp
+@@ -3079,6 +3079,25 @@ HRESULT CArc::OpenStream(const COpenOptions &op)
+ 
+ #endif
+ 
++static const FChar * const k_ZoneId_StreamName = FTEXT("Zone.Identifier");
++static void ReadZoneFile(FString fileName, CByteBuffer &zoneBuf)
++{
++  zoneBuf.Free();
++  NFile::NIO::CInFile file;
++  if (!file.Open(fileName + FTEXT(":") + k_ZoneId_StreamName))
++    return;
++  UInt64 fileSize;
++  if (!file.GetLength(fileSize))
++    return;
++  if (fileSize == 0 || fileSize >= ((UInt32)1 << 20))
++    return;
++  zoneBuf.Alloc((size_t)fileSize);
++  size_t processed;
++  if (file.ReadFull(zoneBuf, (size_t)fileSize, processed) && processed == fileSize)
++    return;
++  zoneBuf.Free();
++}
++
+ HRESULT CArc::OpenStreamOrFile(COpenOptions &op)
+ {
+   CMyComPtr<IInStream> fileStream;
+@@ -3164,6 +3183,13 @@ HRESULT CArc::OpenStreamOrFile(COpenOptions &op)
+   }
+   
+   #endif
++  
++  #if defined(_WIN32) && !defined(_UNDER_CE)
++  #ifndef _UNICODE
++  if (g_IsNT)
++  #endif
++  ReadZoneFile(Path, zoneBuf);
++  #endif
+ 
+   return res;
+ }
+diff --git a/CPP/7zip/UI/Common/OpenArchive.h b/CPP/7zip/UI/Common/OpenArchive.h
+index 5c3bfe5d..efcf8778 100644
+--- a/CPP/7zip/UI/Common/OpenArchive.h
++++ b/CPP/7zip/UI/Common/OpenArchive.h
+@@ -318,6 +318,10 @@ public:
+   CArcErrorInfo ErrorInfo; // for OK archives
+   CArcErrorInfo NonOpen_ErrorInfo; // ErrorInfo for mainArchive (false OPEN)
+ 
++  #if defined(_WIN32) && !defined(UNDER_CE)
++  CByteBuffer zoneBuf;
++  #endif
++  
+   UInt64 GetEstmatedPhySize() const { return PhySize_Defined ? PhySize : FileSize; }
+ 
+   UInt64 ArcStreamOffset; // offset of stream that is open by Archive Handler
