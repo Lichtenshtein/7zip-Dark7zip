@@ -26,7 +26,7 @@ echo Doing ARCH=%ARCH% in SOURCE=%BIN%
 REM 7-Zip Files
 cd %SKEL%
 del *.exe *.dll *.sfx
-FOR %%f IN (7z.dll 7z.exe 7z.sfx 7za.dll 7za.exe 7zCon.sfx 7zFM.exe 7zG.exe 7-zip.dll 7zxa.dll Uninstall.exe) DO (
+FOR %%f IN (7z.dll 7z.exe 7z.sfx 7za.dll 7zf.exe 7za.exe 7zCon.sfx 7zFM.exe 7zG.exe 7-zip.dll 7zxa.dll Uninstall.exe) DO (
   copy %BIN%\%%f %%f
 )
 IF DEFINED ZIP32 copy %ZIP32% 7-zip32.dll
