@@ -1,3 +1,12 @@
+# Edits
+
+Based on [7z-zstd Srv Mode](https://github.com/sebres/7-Zip-zstd/tree/7z-srv-mode)
+- applied latest Dark Mode changes
+- applied patches from patches folder
+- Dark Mode from *-old branch with commits up to 10 May 2025 works on Win v19041
+ 
+(for testing only)
+
 # Dark7zip
 
 [![7z](https://img.shields.io/badge/7z-DarkMode-black.svg?&logo=7zip)](https://github.com/ozone10/7zip-Dark7zip)
