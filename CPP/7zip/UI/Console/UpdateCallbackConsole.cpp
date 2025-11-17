@@ -890,6 +890,49 @@ HRESULT CUpdateCallbackConsole::CryptoGetPasswordIfAny(bool& passwordIsDefined, 
   COM_TRY_END
 }
 
+// by abc321 \/
+HRESULT CUpdateCallbackConsole::CryptoGetNextPassword(BSTR *password)
+{
+	COM_TRY_BEGIN
+
+	*password = NULL;
+
+#ifdef Z7_NO_CRYPTO
+
+	return E_NOTIMPL;
+
+#else
+
+	if (!PasswordIsDefined)
+	{
+		{
+			RINOK(GetPassword_HRESULT(_so, Password))
+			PasswordIsDefined = true;
+		}
+	}
+	return StringToBstr(Password, password);
+
+#endif
+	COM_TRY_END
+}
+
+HRESULT CUpdateCallbackConsole::CryptoPasswordValid()
+{
+	COM_TRY_BEGIN
+
+#ifdef Z7_NO_CRYPTO
+
+	return E_NOTIMPL;
+
+#else
+
+	return S_OK;
+
+#endif
+	COM_TRY_END
+}
+// by abc321 /\~
+
 HRESULT CUpdateCallbackConsole::ShowDeleteFile(const wchar_t *name, bool isDir)
 {
   if (StdOutMode)

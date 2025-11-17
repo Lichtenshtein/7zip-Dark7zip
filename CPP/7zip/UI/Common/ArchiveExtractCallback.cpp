@@ -2884,6 +2884,32 @@ Z7_COM7F_IMF(CArchiveExtractCallback::CryptoGetPasswordIfAny(bool& passwordIsDef
   COM_TRY_END
 }
 
+// by abc321 \/
+Z7_COM7F_IMF(CArchiveExtractCallback::CryptoGetNextPassword(BSTR *password))
+{
+	COM_TRY_BEGIN
+	if (!_cryptoGetNextPassword)
+	{
+		RINOK(_extractCallback2.QueryInterface(IID_ICryptoGetNextPassword,
+			&_cryptoGetNextPassword))
+	}
+	return _cryptoGetNextPassword->CryptoGetNextPassword(password);
+	COM_TRY_END
+}
+
+Z7_COM7F_IMF(CArchiveExtractCallback::CryptoPasswordValid())
+{
+	COM_TRY_BEGIN
+	if (!_cryptoGetNextPassword)
+	{
+		RINOK(_extractCallback2.QueryInterface(IID_ICryptoGetNextPassword,
+			&_cryptoGetNextPassword))
+	}
+	return _cryptoGetNextPassword->CryptoPasswordValid();
+	COM_TRY_END
+}
+// by abc321 /\~
+
 #ifndef Z7_SFX
 
 // ---------- HASH functions ----------

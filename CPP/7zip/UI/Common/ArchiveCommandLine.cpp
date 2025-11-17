@@ -210,6 +210,7 @@ enum Enum
   #ifndef Z7_NO_CRYPTO
   , kPassword
   , kEncKey
+  , kPasswordFile // by abc321
   #endif
 
   , kExtrOffsLen
@@ -363,6 +364,7 @@ static const CSwitchForm kSwitchForms[] =
 
   #ifndef Z7_NO_CRYPTO
   , { "p", SWFRM_STRING }
+  , { "fp", SWFRM_STRING } // by abc321
   , { "ekey", SWFRM_STRING }
   #endif
 
@@ -1479,6 +1481,13 @@ void CArcCmdLineParser::Parse2(CArcCmdLineOptions &options)
       if (!keyLen || (keyLen != 32 && keyLen != (32+16))) { /* kKeySize ?+ kIvSizeMax? */
         throw CArcCmdLineException("Invalid key specified (must be hex, 32?+16? bytes)");
       }
+    }
+  } else {
+  // by abc321 \/
+    options.PasswordFileEnabled = parser[NKey::kPasswordFile].ThereIs;
+    if (options.PasswordFileEnabled) {
+      options.PasswordFile = parser[NKey::kPasswordFile].PostStrings[0];
+  // by abc321 /\~
     }
   }
   #endif
