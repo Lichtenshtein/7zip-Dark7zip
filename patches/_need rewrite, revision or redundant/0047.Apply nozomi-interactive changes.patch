@@ -4,18 +4,16 @@ Date: Tue, 14 Oct 2025 12:38:47 +0200
 Subject: [PATCH] Apply nozomi-interactive changes.
 
 ---
- C/warn_clang.mak                |   2 +-
- C/warn_clang_mac.mak            |   2 +-
- C/warn_gcc.mak                  |   1 -
- CPP/7zip/7zip_gcc.mak           |   2 +-
- CPP/7zip/Bundles/Alone/afxres.h |   1 +
- CPP/7zip/UI/Console/MainAr.cpp  | 108 +++++++++++++++++++++++++++++++-
- CPP/7zip/warn_clang.mak         |   2 +-
- CPP/7zip/warn_clang_mac.mak     |   2 +-
- CPP/7zip/warn_gcc.mak           |   3 +-
- CPP/Windows/SystemInfo.cpp      |   4 +-
- 10 files changed, 116 insertions(+), 11 deletions(-)
- create mode 100644 CPP/7zip/Bundles/Alone/afxres.h
+ C/warn_clang.mak               |   2 +-
+ C/warn_clang_mac.mak           |   2 +-
+ C/warn_gcc.mak                 |   1 -
+ CPP/7zip/7zip_gcc.mak          |   2 +-
+ CPP/7zip/UI/Console/MainAr.cpp | 106 +++++++++++++++++++++++++++++++++
+ CPP/7zip/warn_clang.mak        |   2 +-
+ CPP/7zip/warn_clang_mac.mak    |   2 +-
+ CPP/7zip/warn_gcc.mak          |   3 +-
+ CPP/Windows/SystemInfo.cpp     |   4 +-
+ 9 files changed, 114 insertions(+), 10 deletions(-)
 
 diff --git a/C/warn_clang.mak b/C/warn_clang.mak
 index 0d6446d..e923096 100644
@@ -43,28 +41,8 @@ index 7aab7a4..01adaab 100644
    -Waggressive-loop-optimizations \
    -Wattributes \
    -Wbool-compare \
-diff --git a/CPP/7zip/7zip_gcc.mak b/CPP/7zip/7zip_gcc.mak
-index 12f1ef2..6b0c6fb 100644
---- a/CPP/7zip/7zip_gcc.mak
-+++ b/CPP/7zip/7zip_gcc.mak
-@@ -24,7 +24,7 @@ PROGPATH_STATIC = $(O)/$(PROG)s
- 
- 
- ifneq ($(CC), xlc)
--CFLAGS_WARN_WALL = -Werror -Wall -Wextra
-+CFLAGS_WARN_WALL = -Wall -Wextra
- endif
- 
- ifndef CFLAGS_OPT
-diff --git a/CPP/7zip/Bundles/Alone/afxres.h b/CPP/7zip/Bundles/Alone/afxres.h
-new file mode 100644
-index 0000000..c2fadd4
---- /dev/null
-+++ b/CPP/7zip/Bundles/Alone/afxres.h
-@@ -0,0 +1 @@
-+#include <winresrc.h>
 diff --git a/CPP/7zip/UI/Console/MainAr.cpp b/CPP/7zip/UI/Console/MainAr.cpp
-index 490950b..5428d40 100644
+index 490950b..646528a 100644
 --- a/CPP/7zip/UI/Console/MainAr.cpp
 +++ b/CPP/7zip/UI/Console/MainAr.cpp
 @@ -1,5 +1,11 @@
@@ -107,7 +85,7 @@ index 490950b..5428d40 100644
  int Z7_CDECL main
  (
    #ifndef _WIN32
-@@ -121,8 +134,20 @@ int Z7_CDECL main
+@@ -121,6 +134,18 @@ int Z7_CDECL main
    NT_CHECK
  
    NConsoleClose::CCtrlHandlerSetter ctrlHandlerSetter;
@@ -124,11 +102,8 @@ index 490950b..5428d40 100644
 +int MainWrapper(int numArgs, char *args[])
 +{
    int res = 0;
--  
-+
+   
    try
-   {
-     #ifdef _WIN32
 @@ -233,3 +258,84 @@ int Z7_CDECL main
  
    return res;
