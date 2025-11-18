@@ -49,9 +49,9 @@ jobs:
         with:
           repository: Lichtenshtein/Dark7zip-zstd-7zz
           ref: ${{ needs.get-version-info.outputs.tag }}
-          path: Dark7zip-zstd-7zz-src
+          path: Dark7zip-zstd-7zz
       - shell: pwsh
-        run: cd Dark7zip-zstd-7zz-src\CPP\7zip\Bundles\Alone2 && nmake PLATFORM=x64
+        run: cd Dark7zip-zstd-7zz\CPP\7zip\Bundles\Alone2 && nmake PLATFORM=x64
 #      - shell: pwsh
 #        run: |
 #          mkdir 7zip-doc
