@@ -39,8 +39,8 @@ jobs:
   build-windows-x64:
     name: Build 7zz.exe for Windows (x64)
     runs-on: windows-latest
-    needs: get-version-info
-    if: needs.get-version-info.outputs.release_exists == 'false'
+#    needs: get-version-info
+#    if: needs.get-version-info.outputs.release_exists == 'false'
     steps:
       - uses: TheMrMilchmann/setup-msvc-dev@v4
         with:
