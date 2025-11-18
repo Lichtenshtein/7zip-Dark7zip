@@ -64,6 +64,11 @@ jobs:
           REM Will be by the do-release action
           copy %WDIR%\.github\workflows\do-release.cmd %WDIR%\build\do-release.cmd
 
+      - shell: pwsh
+        run: |
+          mkdir %WDIR%/build/bin-%PLATFORM%/Lang
+          cp %cd%/Lang/en.ttt , %cd%/Lang/ru.txt %WDIR%/build/bin-%PLATFORM%/Lang
+
       - name: Test
         shell: cmd
         run: |
