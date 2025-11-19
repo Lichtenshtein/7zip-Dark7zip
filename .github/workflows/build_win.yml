@@ -52,7 +52,7 @@ jobs:
 #          ref: ${{ needs.get-version-info.outputs.tag }}
 #          path: Dark7zip-zstd-7zz
       - shell: pwsh
-        run: ls && cd .\CPP\7zip\Bundles\Alone2 && nmake PLATFORM=x64
+        run: dir && cd .\CPP\7zip\Bundles\Alone2 && nmake PLATFORM=x64
 #      - shell: pwsh
 #        run: |
 #          mkdir 7zip-doc
