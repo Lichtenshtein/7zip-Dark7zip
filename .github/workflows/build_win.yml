@@ -46,13 +46,13 @@ jobs:
       - uses: TheMrMilchmann/setup-msvc-dev@v4
         with:
           arch: x64
-#      - uses: actions/checkout@v5
-#        with:
-#          repository: Lichtenshtein/Dark7zip-zstd-7zz
-#          ref: ${{ needs.get-version-info.outputs.tag }}
-#          path: Dark7zip-zstd-7zz
+      - uses: actions/checkout@v5
+        with:
+          repository: Lichtenshtein/7zip-Dark7zip
+          ref: Dark7zip-zstd-7zz
+          path: Dark7zip-zstd-7zz
       - shell: pwsh
-        run: dir && cd .\CPP\7zip\Bundles\Alone2 && nmake PLATFORM=x64
+        run: cd Dark7zip-zstd-7zz-src\CPP\7zip\Bundles\Alone2 && nmake PLATFORM=x64
 #      - shell: pwsh
 #        run: |
 #          mkdir 7zip-doc
@@ -62,7 +62,7 @@ jobs:
         shell: pwsh
         run: |
           mkdir asset
-          cp Dark7zip-zstd-7zz-sr/CPP/7zip/Bundles/Alone2/x64/7zz.exe asset/
+          cp Dark7zip-zstd-7zz-src/CPP/7zip/Bundles/Alone2/x64/7zz.exe asset/
 #          cp -r 7zip-doc/ asset/
       - uses: actions/upload-artifact@v4
         with:
