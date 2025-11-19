@@ -52,7 +52,7 @@ jobs:
           ref: Dark7zip-zstd-7zz
           path: Dark7zip-zstd-7zz
       - shell: pwsh
-        run: cd Dark7zip-zstd-7zz-src\CPP\7zip\Bundles\Alone2 && nmake PLATFORM=x64
+        run: Get-ChildItem && cd Dark7zip-zstd-7zz\CPP\7zip\Bundles\Alone2 && nmake PLATFORM=x64
 #      - shell: pwsh
 #        run: |
 #          mkdir 7zip-doc
