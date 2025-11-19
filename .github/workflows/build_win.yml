@@ -1,159 +1,24 @@
-name: Build 7zz stand-alone binaries
-
 on:
-#  schedule:
-#    - cron: '38 2 * * *'
   workflow_dispatch:
 
 jobs:
-#  get-version-info:
-#    name: Get latest 7-Zip version
-#    runs-on: ubuntu-latest
-#    outputs:
-#      tag: ${{ steps.get_info.outputs.tag }}
-#      release_url: ${{ steps.get_info.outputs.release_url }}
-#      linux_download_url: ${{ steps.get_info.outputs.linux_download_url }}
-#      release_exists: ${{ steps.check_release.outputs.exists }}
-#    steps:
-#      - name: Get latest 7-Zip release info
-#        id: get_info
-#        shell: pwsh
-#        run: |
-#          $latest_release = Invoke-RestMethod "https://api.github.com/repos/ip7z/7zip/releases/latest"
-#          $linux_asset = $latest_release.assets | Where-Object { $_.name -like '*-linux-x64.tar.xz' }
-#          "tag=$($latest_release.tag_name)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-#          "release_url=$($latest_release.html_url)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-#          "linux_download_url=$($linux_asset.browser_download_url)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-#      - name: Check if our release already exists
-#        id: check_release
-#        shell: pwsh
-#        run: |
-#          $tag = "${{ steps.get_info.outputs.tag }}"
-#          try {
-#            Invoke-RestMethod "https://api.github.com/repos/${{ github.repository }}/releases/tags/$tag" -Headers @{ Authorization = "Bearer ${{ secrets.GITHUB_TOKEN }}" }
-#            "exists=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-#          } catch {
-#            "exists=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-#          }
-
-  build-windows-x64:
-    name: Build 7zz.exe for Windows (x64)
-    runs-on: windows-latest
-#    needs: get-version-info
-#    if: needs.get-version-info.outputs.release_exists == 'false'
+  build:
+    runs-on: ubuntu-latest
     steps:
-      - uses: TheMrMilchmann/setup-msvc-dev@v4
-        with:
-          arch: x64
-      - uses: actions/checkout@v5
-        with:
-          repository: Lichtenshtein/Dark7zip-zstd-7zz
-#          ref: ${{ needs.get-version-info.outputs.tag }}
-          path: Dark7zip-zstd-7zz
-      - shell: pwsh
-        run: cd Dark7zip-zstd-7zz\CPP\7zip\Bundles\Alone2 && nmake PLATFORM=x64
-#      - shell: pwsh
-#        run: |
-#          mkdir 7zip-doc
-#          cp 7zip-src/DOC/*License.txt , 7zip-src/DOC/copying.txt 7zip-doc/
-#          cp 7zip-src/DOC/readme.txt , 7zip-src/DOC/src-history.txt 7zip-doc/
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Compile/Build project (Example)
+        run: cd Dark7zip-zstd-7zz/CPP/7zip/Bundles/Alone2 && nmake PLATFORM=x64
+        
       - name: Prepare artifact
         shell: pwsh
         run: |
           mkdir asset
           cp Dark7zip-zstd-7zz/CPP/7zip/Bundles/Alone2/x64/7zz.exe asset/
-#          cp -r 7zip-doc/ asset/
-      - uses: actions/upload-artifact@v4
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
         with:
-          name: windows-x64
+          name: compiled-output
           path: asset/
-
-#  build-windows-x86:
-#    name: Build 7zz.exe for Windows (x86)
-#    runs-on: windows-latest
-#    needs: get-version-info
-#    if: needs.get-version-info.outputs.release_exists == 'false'
-#    steps:
-#      - uses: TheMrMilchmann/setup-msvc-dev@v4
-#        with:
-#          arch: x86
-#      - uses: actions/checkout@v5
-#        with:
-#          repository: ip7z/7zip
-#          ref: ${{ needs.get-version-info.outputs.tag }}
-#          path: 7zip-src
-#      - shell: pwsh
-#        run: cd 7zip-src\CPP\7zip\Bundles\Alone2 && nmake PLATFORM=x86
-#      - shell: pwsh
-#        run: |
-#          mkdir 7zip-doc
-#          cp 7zip-src/DOC/*License.txt , 7zip-src/DOC/copying.txt 7zip-doc/
-#          cp 7zip-src/DOC/readme.txt , 7zip-src/DOC/src-history.txt 7zip-doc/
-#      - name: Prepare artifact
-#        shell: pwsh
-#        run: |
-#          mkdir asset
-#          cp 7zip-src/CPP/7zip/Bundles/Alone2/x86/7zz.exe asset/
-#          cp -r 7zip-doc/ asset/
-#      - uses: actions/upload-artifact@v4
-#        with:
-#          name: windows-x86
-#          path: asset/
-
-
-#  package-linux-x64:
-#    name: Package official 7zz & 7zzs for Linux (x64)
-#    runs-on: ubuntu-latest
-#    needs: get-version-info
-#    if: needs.get-version-info.outputs.release_exists == 'false'
-#    steps:
-#      - name: Download and Extract
-#        shell: bash
-#        run: |
-#          DOWNLOAD_URL="${{ needs.get-version-info.outputs.linux_download_url }}"
-#          wget --quiet -O 7z-linux-x64.tar.xz "$DOWNLOAD_URL"
-#
-#          mkdir -p asset/7zip-doc/
-#          tar -xf 7z-linux-x64.tar.xz -C asset/7zip-doc/
-#          mv asset/7zip-doc/7zz* asset/
-#
-#      - name: Upload Linux binaries as artifact
-#        uses: actions/upload-artifact@v4
-#        with:
-#          name: linux-x64
-#          path: asset/
-
-#  create-release:
-#    name: Create GitHub Release
-#    runs-on: ubuntu-latest
-#    needs: [get-version-info, build-windows-x64, build-windows-x86, package-linux-x64]
-#    if: needs.get-version-info.outputs.release_exists == 'false'
-#    permissions:
-#      contents: write
-#    steps:
-#      - name: Download all artifacts
-#        uses: actions/download-artifact@v5
-#        with:
-#          path: artifacts
-#
-#      - name: Prepare and Rename Assets for Release
-#        run: |
-#          mkdir release-assets
-#
-#          (cd artifacts/windows-x64/ && zip -r ../../release-assets/7zz-windows-x64.zip ./*)
-#          (cd artifacts/windows-x86/ && zip -r ../../release-assets/7zz-windows-x86.zip ./*)
-#          (cd artifacts/linux-x64/ && tar caf ../../release-assets/7zz-linux-x64.tar.xz ./*)
-#
-#          echo "Assets prepared for release:"
-#          ls -l release-assets
-#
-#      - name: Create Release and Upload Assets
-#        uses: softprops/action-gh-release@v2
-#        with:
-#          tag_name: ${{ needs.get-version-info.outputs.tag }}
-#          name: "7zz ${{ needs.get-version-info.outputs.tag }}"
-#          body: |
-#            This is an automated release. See the official changelog and release notes at:
-#            **[Official 7-Zip ${{ needs.get-version-info.outputs.tag }} Release Page](${{ needs.get-version-info.outputs.release_url }})**
-#          files: release-assets/*
-#          token: ${{ secrets.GITHUB_TOKEN }}
