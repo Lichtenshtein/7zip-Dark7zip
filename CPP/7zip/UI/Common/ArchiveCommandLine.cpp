@@ -1469,26 +1469,26 @@ void CArcCmdLineParser::Parse2(CArcCmdLineOptions &options)
       nop,
       thereAreSwitchIncludes, codePage);
 
-  #ifndef Z7_NO_CRYPTO
-  options.PasswordEnabled = parser[NKey::kPassword].ThereIs;
-  if (options.PasswordEnabled) {
-    options.Password = parser[NKey::kPassword].PostStrings;
+#ifndef Z7_NO_CRYPTO
+  options.PasswordFileEnabled = parser[NKey::kPasswordFile].ThereIs;
+  if (options.PasswordFileEnabled) {
+      options.PasswordFile = parser[NKey::kPasswordFile].PostStrings;
   } else {
-    options.PasswordEnabled = parser[NKey::kEncKey].ThereIs;
+    options.PasswordEnabled = parser[NKey::kPassword].ThereIs;
     if (options.PasswordEnabled) {
-      options.Password = parser[NKey::kEncKey].PostStrings;
-      unsigned keyLen = options.Password.HexKeyToBytes(0);
-      if (!keyLen || (keyLen != 32 && keyLen != (32+16))) {
-        throw CArcCmdLineException("Invalid key specified (must be hex, 32+16 bytes)");
-      }
+      options.Password = parser[NKey::kPassword].PostStrings;
     } else {
-      options.PasswordFileEnabled = parser[NKey::kPasswordFile].ThereIs;
-      if (options.PasswordFileEnabled) {
-        options.PasswordFile = parser[NKey::kPasswordFile].PostStrings;
+      options.PasswordEnabled = parser[NKey::kEncKey].ThereIs;
+      if (options.PasswordEnabled) {
+        options.Password = parser[NKey::kEncKey].PostStrings;
+        unsigned keyLen = options.Password.HexKeyToBytes(0);
+        if (!keyLen || (keyLen != 32 && keyLen != (32+16))) {
+          throw CArcCmdLineException("Invalid key specified (must be hex, 32+16 bytes)");
+        }
       }
     }
   }
-  #endif
+#endif
 
   if (parser[NKey::kExtrOffsLen].ThereIs) {
     if (!isExtractGroupCommand) {
