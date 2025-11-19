@@ -48,7 +48,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           repository: Lichtenshtein/Dark7zip-zstd-7zz
-          ref: ${{ needs.get-version-info.outputs.tag }}
+#          ref: ${{ needs.get-version-info.outputs.tag }}
           path: Dark7zip-zstd-7zz
       - shell: pwsh
         run: cd Dark7zip-zstd-7zz\CPP\7zip\Bundles\Alone2 && nmake PLATFORM=x64
