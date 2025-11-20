@@ -149,17 +149,6 @@ LRESULT CPanel::OnMessage(UINT message, WPARAM wParam, LPARAM lParam)
       if (OnContextMenu(HANDLE(wParam), GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)))
         return 0;
       break;
-    case WM_APPCOMMAND:
-      switch(GET_APPCOMMAND_LPARAM(lParam))
-      {
-        case APPCOMMAND_BROWSER_BACKWARD:
-          MoveBackward();
-          return 0;
-        case APPCOMMAND_BROWSER_FORWARD:
-          MoveForward();
-          return 0;
-      }
-      break;
     /*
     case WM_DROPFILES:
       CompressDropFiles(HDROP(wParam));
@@ -455,9 +444,7 @@ bool CPanel::OnCreate(CREATESTRUCT * /* createStruct */)
   const TBBUTTON tbb[] =
   {
     // {0, 0, TBSTATE_ENABLED, BTNS_SEP, 0L, 0},
-    {NAVIBAR_BACK, kMoveBackwardID, TBSTATE_ENABLED, TBSTATE_INDETERMINATE, { 0, 0 }, 0, 0 },
-    {NAVIBAR_FORWARD, kMoveForwardID, TBSTATE_ENABLED, TBSTATE_INDETERMINATE, { 0, 0 }, 0, 0 },
-    {NAVIBAR_UP, kParentFolderID, TBSTATE_ENABLED, BTNS_BUTTON, { 0, 0 }, 0, 0 },
+    {VIEW_PARENTFOLDER, kParentFolderID, TBSTATE_ENABLED, BTNS_BUTTON, { 0, 0 }, 0, 0 },
     // {0, 0, TBSTATE_ENABLED, BTNS_SEP, 0L, 0},
     // {VIEW_NEWFOLDER, kCreateFolderID, TBSTATE_ENABLED, BTNS_BUTTON, 0L, 0},
   };
@@ -498,22 +485,12 @@ bool CPanel::OnCreate(CREATESTRUCT * /* createStruct */)
       ;
   }
 
-  _headerImageList.Create(24, 24, ILC_MASK | ILC_COLOR32, 0, 0);
-  HBITMAP b = ::LoadBitmap(g_hInstance, MAKEINTRESOURCE(IDB_NAVIBAR));
-  if (b)
-  {
-    _headerImageList.AddMasked(b, RGB(255, 0, 255));
-    ::DeleteObject(b);
-  }
-
   _headerToolBar.Attach(::CreateToolbarEx ((*this), toolbarStyle,
-      _baseID + 2, NAVIBAR_COUNT,
-      NULL,
-      IDB_NAVIBAR,
+      _baseID + 2, 11,
+      (HINSTANCE)HINST_COMMCTRL,
+      IDB_VIEW_SMALL_COLOR,
       (LPCTBBUTTON)&tbb, Z7_ARRAY_SIZE(tbb),
-      24, 24, 24, 24, sizeof (TBBUTTON)));
-
-  _headerToolBar.SetImageList(0, _headerImageList);
+      0, 0, 0, 0, sizeof (TBBUTTON)));
 
   #ifndef UNDER_CE
   // Load ComboBoxEx class
@@ -749,18 +726,6 @@ bool CPanel::OnNotify(UINT /* controlID */, LPNMHDR header, LRESULT &result)
 
 bool CPanel::OnCommand(unsigned code, unsigned itemID, LPARAM lParam, LRESULT &result)
 {
-  if (itemID == kMoveBackwardID)
-  {
-    MoveBackward();
-    result = 0;
-    return true;
-  }
-  if (itemID == kMoveForwardID)
-  {
-    MoveForward();
-    result = 0;
-    return true;
-  }
   if (itemID == kParentFolderID)
   {
     OpenParentFolder();
@@ -1040,11 +1005,11 @@ void CPanel::GetFilePaths(const CRecordVector<UInt32> &operatedIndices, UStringV
 }
 
 
-void CPanel::ExtractArchives(bool _auto)
+void CPanel::ExtractArchives()
 {
   if (!_parentFolders.IsEmpty())
   {
-    _panelCallback->OnCopy(false, false, _auto);
+    _panelCallback->OnCopy(false, false);
     return;
   }
   CRecordVector<UInt32> indices;

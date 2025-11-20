@@ -1183,13 +1183,6 @@ HRESULT CInArchive::ReadAndDecodePackedStreams(
     const size_t unpackSize = (size_t)unpackSize64;
     if (unpackSize != unpackSize64)
       ThrowUnsupported();
-
-	  // by abc321 \/
-	  bool passwordTested = false;
-	  while (!passwordTested) {
-		  passwordTested = true;
-	  // by abc321 /\~
-
     data.Alloc(unpackSize);
     
     CMyComPtr2_Create<ISequentialOutStream, CBufPtrSeqOutStream> outStreamSpec;
@@ -1225,35 +1218,9 @@ HRESULT CInArchive::ReadAndDecodePackedStreams(
     if (unpackSize != outStreamSpec->GetPos())
       ThrowIncorrect();
 
-		// by abc321 \/
-		if (getNextPassword) {
-			if (folders.FolderCRCs.ValidAndDefined(i)) {
-				if (CrcCalc(data, unpackSize) != folders.FolderCRCs.Vals[i]) {
-					CMyComBSTR_Wipe passwordBSTR;
-					//RINOK(getNextPassword->CryptoGetNextPassword(&passwordBSTR))
-					getNextPassword->CryptoGetNextPassword(&passwordBSTR);
-					if (passwordBSTR) {
-						password = passwordBSTR;
-						passwordTested = false;
-					}
-				}
-				else {
-					getNextPassword->CryptoPasswordValid();
-				}
-			}
-		}
-
-		if (passwordTested)
-		// by abc321 /\~
-
     if (folders.FolderCRCs.ValidAndDefined(i))
       if (CrcCalc(data, unpackSize) != folders.FolderCRCs.Vals[i])
         ThrowIncorrect();
-
-	// by abc321 \/
-	  }
-	// by abc321 /\~
-
   }
 
   if (folders.PackPositions)

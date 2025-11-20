@@ -21,9 +21,6 @@
 
 #include "PropertyNameRes.h"
 #include "resource.h"
-// AUTORI PATCH BEGIN
-#include <string>
-// AUTORI PATCH END
 
 using namespace NWindows;
 
@@ -42,18 +39,13 @@ extern HINSTANCE g_hInstance;
 
 extern void OptionsDialog(HWND hwndOwner, HINSTANCE hInstance);
 
-// AUTORI PATCH BEGIN
 enum
 {
   k_MenuIndex_File = 0,
   k_MenuIndex_Edit,
   k_MenuIndex_View,
-  k_MenuIndex_Bookmarks,
-  k_MenuIndex_Tools,
+  k_MenuIndex_Bookmarks
 };
-
-constexpr unsigned int codePagesArray[] = { 65001, 1252, 437, 850, 852, 866, 874, 932, 936, 949, 950, 1250, 1251, 1253, 1254, 1255, 1256, 1257, 1258 };
-// AUTORI PATCH END
 
 #ifdef Z7_LANG
 static const UInt32 k_LangID_TopMenuItems[] =
@@ -434,10 +426,7 @@ void OnMenuActivating(HWND /* hWnd */, HMENU hMenu, int position)
         IDM_VIEW_ARANGE_NO_SORT,
         GetSortControlID(g_App.GetSortID()),
         MF_BYCOMMAND);
-
-    menu.EnableItem(IDM_OPEN_BACK_FOLDER, !g_App.IsBackwardAvailable());
-    menu.EnableItem(IDM_OPEN_FORWARD_FOLDER, !g_App.IsForwardAvailable());
-
+    
     menu.CheckItemByID(IDM_VIEW_TWO_PANELS, g_App.NumPanels == 2);
     menu.CheckItemByID(IDM_VIEW_FLAT_VIEW, g_App.GetFlatMode());
     menu.CheckItemByID(IDM_VIEW_ARCHIVE_TOOLBAR, g_App.ShowArchiveToolbar);
@@ -565,43 +554,10 @@ void OnMenuActivating(HWND /* hWnd */, HMENU hMenu, int position)
         s = "Temp : ";
         s  += fs2us(tempPathF);
         menu.AppendItem(MF_STRING, k_MenuID_Bookmark_Temp, s);
-  }
+      }
     }
 #endif
   }
-  // AUTORI PATCH BEGIN
-  else if (position == k_MenuIndex_Tools)
-  {
-    char* val = nullptr;
-    size_t len = 0;
-    unsigned int codec = 0;
-    if (_dupenv_s(&val, &len, "Z7_FORCE_CODEC") == 0 && val != nullptr) {
-        codec = std::strtoul(val, nullptr, 10);
-        free(val);
-    }
-
-    CMenu menu;
-    menu.Attach(hMenu);
-      
-    CMenu subMenu;
-    subMenu.Attach(menu.GetSubMenu(2)); // I hope this submenu index is stable
-      
-    int idx = -1;
-    for (size_t i = 0; i < Z7_ARRAY_SIZE(codePagesArray); i++) {
-      if (codePagesArray[i] == codec) {
-        idx = (int)i;
-        break;
-      }
-    }
-    
-    subMenu.CheckRadioItem(
-        IDM_NAME_ENCODING_DEFAULT,
-        IDM_NAME_ENCODING_DEFAULT + Z7_ARRAY_SIZE(codePagesArray),
-        IDM_NAME_ENCODING_DEFAULT + (idx + 1),
-        MF_BYCOMMAND
-    );
-  }
-  // AUTORI PATCH END
 }
 
 /*
@@ -807,20 +763,14 @@ bool ExecuteFileCommand(unsigned id)
     case IDM_HASH_ALL: g_App.CalculateCrc("*"); break;
     case IDM_CRC32: g_App.CalculateCrc("CRC32"); break;
     case IDM_CRC64: g_App.CalculateCrc("CRC64"); break;
-    case IDM_XXH32: g_App.CalculateCrc("XXH32"); break;
     case IDM_XXH64: g_App.CalculateCrc("XXH64"); break;
-    case IDM_MD2:   g_App.CalculateCrc("MD2"); break;
-    case IDM_MD4:   g_App.CalculateCrc("MD4"); break;
-    case IDM_MD5:   g_App.CalculateCrc("MD5"); break;
-    case IDM_SHA1:  g_App.CalculateCrc("SHA1"); break;
-    case IDM_SHA2_256: g_App.CalculateCrc("SHA256"); break;
-    case IDM_SHA2_384: g_App.CalculateCrc("SHA384"); break;
-    case IDM_SHA2_512: g_App.CalculateCrc("SHA512"); break;
-    case IDM_BLAKE2sp: g_App.CalculateCrc("BLAKE2sp"); break;
-    case IDM_BLAKE3: g_App.CalculateCrc("BLAKE3"); break;
+    case IDM_MD5: g_App.CalculateCrc("MD5"); break;
+    case IDM_SHA1: g_App.CalculateCrc("SHA1"); break;
+    case IDM_SHA256: g_App.CalculateCrc("SHA256"); break;
+    case IDM_SHA384: g_App.CalculateCrc("SHA384"); break;
+    case IDM_SHA512: g_App.CalculateCrc("SHA512"); break;
     case IDM_SHA3_256: g_App.CalculateCrc("SHA3-256"); break;
-    case IDM_SHA3_384: g_App.CalculateCrc("SHA3-384"); break;
-    case IDM_SHA3_512: g_App.CalculateCrc("SHA3-512"); break;
+    case IDM_BLAKE2SP: g_App.CalculateCrc("BLAKE2sp"); break;
     
     case IDM_DIFF: g_App.DiffFiles(); break;
 
@@ -932,11 +882,8 @@ bool OnMenuCommand(HWND hWnd, unsigned id)
     case IDM_VIEW_ARANGE_BY_SIZE: g_App.SortItemsWithPropID(kpidSize); break;
     case IDM_VIEW_ARANGE_NO_SORT: g_App.SortItemsWithPropID(kpidNoProperty); break;
 
-    case IDM_OPEN_BACK_FOLDER:    g_App.MoveBackward(); break;
-    case IDM_OPEN_FORWARD_FOLDER: g_App.MoveForward(); break;
     case IDM_OPEN_ROOT_FOLDER:    g_App.OpenRootFolder(); break;
     case IDM_OPEN_PARENT_FOLDER:  g_App.OpenParentFolder(); break;
-
     case IDM_FOLDERS_HISTORY:     g_App.FoldersHistory(); break;
     case IDM_VIEW_FLAT_VIEW:      g_App.ChangeFlatMode(); break;
     case IDM_VIEW_REFRESH:        g_App.RefreshView(); break;
@@ -966,54 +913,7 @@ bool OnMenuCommand(HWND hWnd, unsigned id)
 
     // Tools
     case IDM_OPTIONS: OptionsDialog(hWnd, g_hInstance); break;
-    
-    // AUTORI PATCH BEGIN
-    // Tools > Name Encoding
-    case IDM_NAME_ENCODING_DEFAULT:
-    case IDM_NAME_ENCODING_65001:
-    case IDM_NAME_ENCODING_1252:
-    case IDM_NAME_ENCODING_437:
-    case IDM_NAME_ENCODING_850:
-    case IDM_NAME_ENCODING_852:
-    case IDM_NAME_ENCODING_866:
-    case IDM_NAME_ENCODING_874:
-    case IDM_NAME_ENCODING_932:
-    case IDM_NAME_ENCODING_936:
-    case IDM_NAME_ENCODING_949:
-    case IDM_NAME_ENCODING_950:
-    case IDM_NAME_ENCODING_1250:
-    case IDM_NAME_ENCODING_1251:
-    case IDM_NAME_ENCODING_1253:
-    case IDM_NAME_ENCODING_1254:
-    case IDM_NAME_ENCODING_1255:
-    case IDM_NAME_ENCODING_1256:
-    case IDM_NAME_ENCODING_1257:
-    case IDM_NAME_ENCODING_1258:
-    {
-      unsigned int codePageIndex = id - IDM_NAME_ENCODING_DEFAULT;
-      if (codePageIndex == 0)
-      {
-        // Default selected, remove env variable
-        _putenv_s("Z7_FORCE_CODEC", "");
-      }
-      else {
-        codePageIndex--;
-        unsigned int codePage = codePagesArray[codePageIndex];
-
-        _putenv_s("Z7_FORCE_CODEC", std::to_string(codePage).c_str());
-      }
-
-      // Refresh
-      for (unsigned int i = 0; i < g_App.NumPanels; i++)
-      {
-        UString originalPath = g_App.Panels[i]._currentFolderPrefix;
-        g_App.Panels[i].OpenRootFolder();
-        g_App.Panels[i].BindToPathAndRefresh(originalPath);
-      }
-      break;
-    }
-    // AUTORI PATCH END
-
+          
     case IDM_BENCHMARK: MyBenchmark(false); break;
     case IDM_BENCHMARK2: MyBenchmark(true); break;
 

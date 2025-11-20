@@ -5,12 +5,8 @@
 #include "resource.h"
 #include "OverwriteDialogRes.h"
 
-#include "../../../Common/Wildcard.h"
-
 #include "../../../Windows/FileName.h"
 #include "../../../Windows/PropVariantConv.h"
-
-#include "../Common/PropIDUtils.h"
 
 /*
 #include "Windows/COM.h"
@@ -33,7 +29,7 @@
 
 #include "PropertyNameRes.h"
 
-#include "../../../../DarkMode/DarkModeSubclass.h"
+#include "../../../../DarkMode/src/DarkModeSubclass.h"
 
 using namespace NWindows;
 using namespace NFile;
@@ -63,7 +59,7 @@ void CPanelCallbackImp::SetFocusToPath(unsigned index)
 }
 
 
-void CPanelCallbackImp::OnCopy(bool move, bool copyToSame ,bool _auto) { _app->OnCopy(move, copyToSame, _index, _auto); }
+void CPanelCallbackImp::OnCopy(bool move, bool copyToSame) { _app->OnCopy(move, copyToSame, _index); }
 void CPanelCallbackImp::OnSetSameFolder() { _app->OnSetSameFolder(_index); }
 void CPanelCallbackImp::OnSetSubFolder()  { _app->OnSetSubFolder(_index); }
 void CPanelCallbackImp::PanelWasFocused() { _app->SetFocusedPanel(_index); _app->RefreshTitlePanel(_index); }
@@ -114,6 +110,31 @@ void CApp::SetListSettings()
     panel._listView.SetStyle(style);
     panel.SetExtendedStyle();
   }
+
+  if (!DarkMode::doesConfigFileExist())
+  {
+    switch (Read_ClrMode())
+    {
+      case 0:
+      {
+        DarkMode::setDarkModeConfigEx(static_cast<UINT>(DarkMode::DarkModeType::classic));
+        break;
+      }
+
+      case 2:
+      {
+        DarkMode::setDarkModeConfig();
+        break;
+      }
+
+      //case 1:
+      default:
+      {
+        return;
+      }
+    }
+		DarkMode::setDefaultColors(false);
+  }
 }
 
 #ifndef ILC_COLOR32
@@ -140,10 +161,24 @@ HRESULT CApp::CreateOnePanel(unsigned panelIndex, const UString &mainPath, const
   
   const unsigned id = 1000 + 100 * panelIndex; // check it
 
-  return Panels[panelIndex].Create(_window, _window,
+  const auto resVal = Panels[panelIndex].Create(_window, _window,
       id, path, arcFormat, &m_PanelCallbackImp[panelIndex], &AppState,
       needOpenArc,
       openRes);
+  
+  if (Panels[panelIndex].PanelCreated)
+  {
+    DarkMode::setChildCtrlsSubclassAndTheme(Panels[panelIndex]);
+    DarkMode::setWindowEraseBgSubclass(Panels[panelIndex]);
+    DarkMode::setWindowCtlColorSubclass(Panels[panelIndex]);
+    DarkMode::setWindowNotifyCustomDrawSubclass(Panels[panelIndex]);
+    DarkMode::setWindowEraseBgSubclass(Panels[panelIndex]._headerReBar);
+    DarkMode::setWindowCtlColorSubclass(Panels[panelIndex]._headerReBar);
+
+    DarkMode::redrawWindowFrame(Panels[panelIndex]._headerComboBox);
+  }
+
+  return resVal;
 }
 
 
@@ -200,7 +235,6 @@ static const CButtonInfo g_ArchiveButtons[] =
 {
   { kMenuCmdID_Toolbar_Add,     IDB_ADD,     IDB_ADD2,     IDS_ADD },
   { kMenuCmdID_Toolbar_Extract, IDB_EXTRACT, IDB_EXTRACT2, IDS_EXTRACT },
-  { kMenuCmdID_Toolbar_AutoExtract, IDB_EXTRACT, IDB_EXTRACT2, IDS_AUTOEXTRACT },
   { kMenuCmdID_Toolbar_Test,    IDB_TEST,    IDB_TEST2,    IDS_TEST }
 };
 
@@ -276,6 +310,9 @@ void CApp::ReloadToolbars()
       for (i = 0; i < Z7_ARRAY_SIZE(g_StandardButtons); i++)
         AddButton(_buttonsImageList, _toolBar, g_StandardButtons[i], ShowButtonsLables, LargeButtons);
 
+    DarkMode::setDarkLineAbovePanelToolbar(_toolBar);
+    DarkMode::setDarkTooltips(_toolBar, static_cast<int>(DarkMode::ToolTipsType::toolbar));
+
     _toolBar.AutoSize();
   }
 }
@@ -292,7 +329,7 @@ HRESULT CApp::Create(HWND hwnd, const UString &mainPath, const UString &arcForma
 {
   _window.Attach(hwnd);
 
-  DarkMode::initDarkMode(L"7zDark");
+  DarkMode::initDarkModeEx(L"7zDark");
 
   #ifdef UNDER_CE
   _commandBar.Create(g_hInstance, hwnd, 1);
@@ -361,17 +398,8 @@ HRESULT CApp::Create(HWND hwnd, const UString &mainPath, const UString &arcForma
   }
 
   DarkMode::setWindowEraseBgSubclass(hwnd);
-  DarkMode::setDarkDlgNotifySafe(hwnd, true);
+  DarkMode::setDarkWndNotifySafeEx(hwnd, true, true);
   DarkMode::setWindowMenuBarSubclass(hwnd);
-
-  for (i = 0; i < kNumPanelsMax; i++)
-  {
-    DarkMode::setWindowEraseBgSubclass(Panels[i]);
-    DarkMode::setWindowCtlColorSubclass(Panels[i]);
-    DarkMode::setWindowEraseBgSubclass(Panels[i]._headerReBar);
-    DarkMode::setWindowCtlColorSubclass(Panels[i]._headerReBar);
-    DarkMode::setWindowNotifyCustomDrawSubclass(Panels[i], false);
-  }
 
   SetFocusedPanel(LastFocusedPanel);
   Panels[LastFocusedPanel].SetFocusToList();
@@ -584,7 +612,7 @@ static bool IsFsPath(const FString &path)
 }
 */
 
-void CApp::OnCopy(bool move, bool copyToSame, unsigned srcPanelIndex, bool _auto)
+void CApp::OnCopy(bool move, bool copyToSame, unsigned srcPanelIndex)
 {
   const unsigned destPanelIndex = (NumPanels <= 1) ? srcPanelIndex : (1 - srcPanelIndex);
   CPanel &srcPanel = Panels[srcPanelIndex];
@@ -626,78 +654,17 @@ void CApp::OnCopy(bool move, bool copyToSame, unsigned srcPanelIndex, bool _auto
       if (indices.Size() == 0)
         return;
       destPath = destPanel.GetFsPath();
-     if (NumPanels == 1) {
-       Reduce_Path_To_RealFileSystemPath(destPath);
-
-        CMyComPtr<IGetFolderArcProps> getFolderArcProps;
-        GetFocusedPanel()._folder.QueryInterface(IID_IGetFolderArcProps, &getFolderArcProps);
-        if (getFolderArcProps) {
-          CMyComPtr<IFolderArcProps> getProps;
-          getFolderArcProps->GetFolderArcProps(&getProps);
-          UInt32 numLevels;
-          if (getProps->GetArcNumLevels(&numLevels) != S_OK)
-            numLevels = 0;
-          for (UInt32 level2 = 0; level2 < numLevels; level2++)
-          {
-            UInt32 level = numLevels - 1;
-            NCOM::CPropVariant prop;
-            if (getProps->GetArcProp(level, kpidPath, &prop) == S_OK) {
-              ConvertPropertyToString2(destPath, prop, kpidName, 9);
-              UString fileName = ExtractFileNameFromPath(destPath);
-              const int dotPos = fileName.ReverseFind_Dot();
-              UString prefix;
-              if (dotPos > 0) {
-                prefix = fileName.Left((unsigned)(dotPos));
-              } else {
-                prefix = fileName;
-              }
-              const UString zipDir = destPath.Left((unsigned)(destPath.ReverseFind_PathSepar() + 1));
-              destPath = zipDir + prefix;
-              break;
-            }
-          }
-        }
-      }
+      if (NumPanels == 1)
+        Reduce_Path_To_RealFileSystemPath(destPath);
     }
   }
   
   UStringVector copyFolders;
   ReadCopyHistory(copyFolders);
   
-  UString ArchiveName;
-  for (unsigned int i = 0; i < srcPanel._parentFolders.Size(); i++) {
-    CFolderLink folder = srcPanel._parentFolders[i];
-    if (
-      folder.FileInfo.IsArchived() &&
-      (
-        i + 1 >= srcPanel._parentFolders.Size() ||
-        !srcPanel._parentFolders[i+1].FileInfo.IsArchived()
-      )
-    ) {
-      ArchiveName = folder.FileInfo.Name;
-      int dotIndex = ArchiveName.ReverseFind_Dot();
-      ArchiveName.DeleteFrom(dotIndex);
-      break;
-    }
-  }
-
-  bool addArchiveName = true;
-  if (indices.Size() == 1 && srcPanel.IsItem_Folder(indices[0])) {
-    UString relativePath = srcPanel.GetItemRelPath(indices[0]);
-
-    if (ArchiveName.IsPrefixedBy(relativePath)) {
-      addArchiveName = false;
-    }
-  }
-
-  if (addArchiveName) {
-    destPath += ArchiveName;
-    destPath.Add_PathSepar();
-  }
-
   const bool useFullItemPaths = srcPanel.Is_IO_FS_Folder(); // maybe we need flat also here ??
 
-  if (!_auto) {
+  {
     CCopyDialog copyDialog;
 
     copyDialog.Strings = copyFolders;
@@ -731,22 +698,6 @@ void CApp::OnCopy(bool move, bool copyToSame, unsigned srcPanelIndex, bool _auto
     else
       destPath = srcPanel.GetFsPath();
     destPath += correctName;
-
-    if (_auto) {
-		// 添加父文件夹名
-        UString archiveName = srcPanel.GetFsPath();
-        int posx = archiveName.ReverseFind_PathSepar();
-		if (posx == int(archiveName.Len() - 1)) {
-			archiveName.DeleteBack();
-			posx = archiveName.ReverseFind_PathSepar();
-		}
-        if (posx >= 0) {
-            archiveName.DeleteFrontal((unsigned)(posx + 1));
-            archiveName.DeleteFrom(archiveName.ReverseFind(L'.'));
-            destPath += archiveName;
-            destPath.Add_PathSepar();
-        }
-    }
 
     #if defined(_WIN32) && !defined(UNDER_CE)
     if (destPath.Len() != 0 && destPath[0] == '\\')
@@ -797,7 +748,7 @@ void CApp::OnCopy(bool move, bool copyToSame, unsigned srcPanelIndex, bool _auto
         {
           srcPanel.MessageBoxError2Lines(basePath, ERROR_FILE_NOT_FOUND); // GetLastError()
           return;
-      }
+        }
         destIsFsPath = true;
         */
       }
@@ -952,9 +903,6 @@ void CApp::OnCopy(bool move, bool copyToSame, unsigned srcPanelIndex, bool _auto
   disableNotify1.Restore();
   disableNotify2.Restore();
   srcPanel.SetFocusToList();
-
-  ShellExecuteW(NULL, L"open", destPath, NULL, NULL, SW_SHOW);
-  exit(EXIT_SUCCESS);
 }
 
 void CApp::OnSetSameFolder(unsigned srcPanelIndex)
@@ -1067,37 +1015,6 @@ void CApp::RefreshTitle(bool always)
   UString path = GetFocusedPanel()._currentFolderPrefix;
   if (path.IsEmpty())
     path = "7-Zip"; // LangString(IDS_APP_TITLE);
-  else {
-    CMyComPtr<IGetFolderArcProps> getFolderArcProps;
-    GetFocusedPanel()._folder.QueryInterface(IID_IGetFolderArcProps, &getFolderArcProps);
-    if (getFolderArcProps) {
-      CMyComPtr<IFolderArcProps> getProps;
-      getFolderArcProps->GetFolderArcProps(&getProps);
-      UInt32 numLevels;
-      if (getProps->GetArcNumLevels(&numLevels) != S_OK)
-        numLevels = 0;
-      for (UInt32 level2 = 0; level2 < numLevels; level2++)
-      {
-        UInt32 level = numLevels - 1;
-        NCOM::CPropVariant prop;
-        if (getProps->GetArcProp(level, kpidPath, &prop) == S_OK) {
-          ConvertPropertyToString2(path, prop, kpidName, 9);
-          break;
-        }
-      }
-    }
-    if (path.Len() >
-        #ifdef _WIN32
-        3
-        #else
-        1
-        #endif
-        && IS_PATH_SEPAR(path.Back()))
-      path.DeleteBack();
-    path = ExtractFileNameFromPath(path);
-  }
-  if (path.IsEmpty())
-    path = "7-Zip";
   if (!always && path == PrevTitle)
     return;
   PrevTitle = path;
@@ -1134,19 +1051,4 @@ void CFolderHistory::AddString(const UString &s)
   NSynchronization::CCriticalSectionLock lock(_criticalSection);
   AddUniqueStringToHead(Strings, s);
   Normalize();
-}
-
-void CFolderHistory::Push(const UString &s)
-{
-  NSynchronization::CCriticalSectionLock lock(_criticalSection);
-  Strings.Insert(0, s);
-  Normalize();
-}
-
-const UString CFolderHistory::Pop()
-{
-  NSynchronization::CCriticalSectionLock lock(_criticalSection);
-  UString ret = Strings.Front();
-  Strings.Delete(0);
-  return ret;
 }

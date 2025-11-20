@@ -49,7 +49,6 @@ namespace NCompressDialog
     bool OrderMode;
     UInt32 Order;
     UString Options;
-    UString SplitVolume;
 
     UString EncryptionMethod;
 
@@ -99,7 +98,6 @@ namespace NCompressDialog
       OrderMode = false;
       Method.Empty();
       Options.Empty();
-      SplitVolume.Empty();
       EncryptionMethod.Empty();
       TimePrec = (UInt32)(Int32)(-1);
     }
@@ -230,7 +228,6 @@ public:
     EnableMultiCombo(IDC_COMPRESS_METHOD);
   }
 
-  void ComprMethodChanged();
   void MethodChanged()
   {
     SetDictionary2();
@@ -356,9 +353,7 @@ public:
 
   void OnButtonSetArchive();
   bool IsSFX();
-  bool IsAddDatetime();
   void OnButtonSFX();
-  void OnButtonAddDatetime();
 
   virtual bool OnInit() Z7_override;
   virtual bool OnMessage(UINT message, WPARAM wParam, LPARAM lParam) Z7_override;

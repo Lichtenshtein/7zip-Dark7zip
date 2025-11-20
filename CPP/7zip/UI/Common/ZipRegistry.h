@@ -31,12 +31,9 @@ namespace NExtract
     
     CBoolPair SplitDest;
     CBoolPair ElimDup;
-    CBoolPair DeleteArchive;
     // CBoolPair AltStreams;
     CBoolPair NtSecurity;
     CBoolPair ShowPassword;
-
-    CBoolPair OpnTrgFold;
 
     UStringVector Paths;
 
@@ -156,7 +153,6 @@ namespace NCompression
 
     void Save() const;
     void Load();
-    void LoadAndUpdateFormatByMethod(CFormatOptions &fo);
   };
 }
 

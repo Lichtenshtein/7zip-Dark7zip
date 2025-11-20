@@ -31,7 +31,6 @@ COMMON_OBJS = \
   $O\ListFileUtils.obj \
   $O\MyString.obj \
   $O\MyVector.obj \
-  $O\MyWindows.obj \
   $O\NewHandler.obj \
   $O\StringConvert.obj \
   $O\StringToInt.obj \
@@ -67,10 +66,6 @@ WIN_CTRL_OBJS = \
   $O\Dialog.obj \
   $O\ListView.obj \
 
-DARK_MODE_OBJS = \
-  $O\DarkMode.obj \
-  $O\DarkModeSubclass.obj \
-
 7ZIP_COMMON_OBJS = \
   $O\CreateCoder.obj \
   $O\FilePathAutoRename.obj \
@@ -94,7 +89,7 @@ UI_COMMON_OBJS = \
   $O\EnumDirItems.obj \
   $O\Extract.obj \
   $O\ExtractingFilePath.obj \
-  $O\HashCalc2.obj \
+  $O\HashCalc.obj \
   $O\LoadCodecs.obj \
   $O\OpenArchive.obj \
   $O\PropIDUtils.obj \

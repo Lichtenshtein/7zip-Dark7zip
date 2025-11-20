@@ -28,9 +28,8 @@ COMMON_OBJS = \
   $O\IntToString.obj \
   $O\NewHandler.obj \
   $O\MyString.obj \
-  $O\MyVector.obj \
-  $O\MyWindows.obj \
   $O\StringConvert.obj \
+  $O\MyVector.obj \
   $O\Wildcard.obj \
 
 WIN_OBJS = \
@@ -47,8 +46,8 @@ WIN_OBJS = \
   $O\PropVariantConv.obj \
   $O\ResourceString.obj \
   $O\Shell.obj \
-  $O\System.obj \
   $O\Synchronization.obj \
+  $O\System.obj \
   $O\TimeUtils.obj \
   $O\Window.obj \
 
@@ -56,10 +55,6 @@ WIN_CTRL_OBJS = \
   $O\ComboBox.obj \
   $O\Dialog.obj \
   $O\ListView.obj \
-
-DARK_MODE_OBJS = \
-  $O\DarkMode.obj \
-  $O\DarkModeSubclass.obj \
 
 7ZIP_COMMON_OBJS = \
   $O\CreateCoder.obj \
@@ -136,7 +131,6 @@ COMPRESS_OBJS = \
 CRYPTO_OBJS = \
   $O\7zAes.obj \
   $O\7zAesRegister.obj \
-  $O\AesStream.obj \
   $O\MyAes.obj \
   
 C_OBJS = \
@@ -161,24 +155,5 @@ C_OBJS = \
 !include "../../Crc.mak"
 !include "../../LzmaDec.mak"
 !include "../../Sha256.mak"
-
-COMPRESS_OBJS = $(COMPRESS_OBJS) \
-  $O\ZstdDecoder.obj \
-  $O\ZstdRegister.obj \
-
-ZSTD_OBJS = \
-  $O\debug.obj \
-  $O\entropy_common.obj \
-  $O\error_private.obj \
-  $O\fse_decompress.obj \
-  $O\huf_decompress.obj \
-  $O\pool.obj \
-  $O\threading.obj \
-  $O\xxhash.obj \
-  $O\zstd_common.obj \
-  $O\zstd_ddict.obj \
-  $O\zstd_decompress_block.obj \
-  $O\zstd_decompress.obj \
-  
 
 !include "../../7zip.mak"

@@ -457,10 +457,8 @@ int Main2(
           wildcardCensorHead,
           eo,
           ecs, ecs, ecs,
-#ifndef Z7_SFX
-		  NULL, // hash
-#endif
-		  errorMessage, stat);
+          // NULL, // hash
+          errorMessage, stat);
 
       ecs->ClosePercents();
 

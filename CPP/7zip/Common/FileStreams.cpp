@@ -2,7 +2,7 @@
 
 #include "StdAfx.h"
 
-#include <io.h>
+// #include <stdio.h>
 
 #ifndef _WIN32
 #include <fcntl.h>
@@ -10,9 +10,6 @@
 #include <errno.h>
 #include <grp.h>
 #include <pwd.h>
-
-#include <iostream>   // TO BE DELETED
-#include <stdio.h>    // TO BE DELETED
 
 /*
 inclusion of <sys/sysmacros.h> by <sys/types.h> is deprecated since glibc 2.25.
@@ -234,15 +231,11 @@ Z7_COM7F_IMF(CInFileStream::Read(void *data, UInt32 size, UInt32 *processedSize)
   }
 }
 
-FILE *CStdInFileStream::defIn = stdin;
-
 #ifdef UNDER_CE
-CStdInFileStream::CStdInFileStream() {}
-
 Z7_COM7F_IMF(CStdInFileStream::Read(void *data, UInt32 size, UInt32 *processedSize))
 {
-  size_t s2 = fread(data, 1, size, defIn);
-  int error = ferror(defIn);
+  size_t s2 = fread(data, 1, size, stdin);
+  int error = ferror(stdin);
   if (processedSize)
     *processedSize = s2;
   if (s2 <= size && error == 0)
@@ -250,14 +243,6 @@ Z7_COM7F_IMF(CStdInFileStream::Read(void *data, UInt32 size, UInt32 *processedSi
   return E_FAIL;
 }
 #else
-CStdInFileStream::CStdInFileStream()
-{
-  infno = _fileno(defIn);
-  #ifdef _WIN32
-  infh = (HANDLE)_get_osfhandle(infno);
-  #endif
-}
-
 Z7_COM7F_IMF(CStdInFileStream::Read(void *data, UInt32 size, UInt32 *processedSize))
 {
   // printf("\nCStdInFileStream::Read size = %d\n", (unsigned)size);
@@ -267,7 +252,21 @@ Z7_COM7F_IMF(CStdInFileStream::Read(void *data, UInt32 size, UInt32 *processedSi
   UInt32 sizeTemp = (1 << 20);
   if (sizeTemp > size)
     sizeTemp = size;
-  BOOL res = ::ReadFile(infh, data, sizeTemp, &realProcessedSize, NULL);
+  /* in GUI mode : GetStdHandle(STD_INPUT_HANDLE) returns NULL,
+     and it doesn't set LastError.  */
+  /*
+  SetLastError(0);
+  const HANDLE h = GetStdHandle(STD_INPUT_HANDLE);
+  if (!h || h == INVALID_HANDLE_VALUE)
+  {
+    if (processedSize)
+      *processedSize = 0;
+    if (GetLastError() == 0)
+      SetLastError(ERROR_INVALID_HANDLE);
+    return GetLastError_noZero_HRESULT();
+  }
+  */
+  BOOL res = ::ReadFile(GetStdHandle(STD_INPUT_HANDLE), data, sizeTemp, &realProcessedSize, NULL);
 
   /*
   printf("\nCInFileStream::Read: size=%d, processed=%8d res=%d 4rror=%3d\n",
@@ -288,7 +287,7 @@ Z7_COM7F_IMF(CStdInFileStream::Read(void *data, UInt32 size, UInt32 *processedSi
   ssize_t res;
   do
   {
-    res = read(infno, data, (size_t)size);
+    res = read(0, data, (size_t)size);
   }
   while (res < 0 && (errno == EINTR));
   if (res == -1)
@@ -592,35 +591,22 @@ Z7_COM7F_IMF(CInFileStream::ReloadProps())
 Z7_COM7F_IMF(CInFileStream::GetProps(UInt64 *size, FILETIME *cTime, FILETIME *aTime, FILETIME *mTime, UInt32 *attrib))
 {
   // printf("\nCInFileStream::GetProps VirtPos = %8d\n", (int)VirtPos);
-  // if (!_info_WasLoaded)
-  // {
-  //   RINOK(ReloadProps())
-  // }
-  // const struct stat &st = _info;
-  
-  // struct stat st;
-  // if (File.my_fstat(&st) != 0)
-  //   return GetLastError_HRESULT();
-
-  struct statx stx;
-  if (File.my_statx(&stx) != 0)
+  if (!_info_WasLoaded)
+  {
+    RINOK(ReloadProps())
+  }
+  const struct stat &st = _info;
+  /*
+  struct stat st;
+  if (File.my_fstat(&st) != 0)
     return GetLastError_HRESULT();
-
-  if (size) *size = (UInt64)stx.stx_size;
-  if (cTime) {
-    struct timespec ts = { stx.stx_btime.tv_sec, stx.stx_btime.tv_nsec };
-    FiTime_To_FILETIME(ts, *cTime);
-  }
-  // std::cout << "\nTest\n";
-  if (aTime) {
-    struct timespec ts = { stx.stx_atime.tv_sec, stx.stx_atime.tv_nsec };
-    FiTime_To_FILETIME(ts, *aTime);
-  }
-  if (mTime) {
-    struct timespec ts = { stx.stx_mtime.tv_sec, stx.stx_mtime.tv_nsec };
-    FiTime_To_FILETIME(ts, *mTime);
-  }
-  if (attrib) *attrib = NWindows::NFile::NFind::Get_WinAttribPosix_From_PosixMode(stx.stx_mode);
+  */
+  
+  if (size) *size = (UInt64)st.st_size;
+  if (cTime) FiTime_To_FILETIME (ST_CTIME(st), *cTime);
+  if (aTime) FiTime_To_FILETIME (ST_ATIME(st), *aTime);
+  if (mTime) FiTime_To_FILETIME (ST_MTIME(st), *mTime);
+  if (attrib) *attrib = NWindows::NFile::NFind::Get_WinAttribPosix_From_PosixMode(st.st_mode);
 
   return S_OK;
 }
@@ -875,17 +861,11 @@ HRESULT COutFileStream::GetSize(UInt64 *size)
   return ConvertBoolToHRESULT(File.GetLength(*size));
 }
 
-
-FILE *CStdOutFileStream::defOut = stdout;
-int CStdOutFileStream::defOutAppendMode = 0;
-
 #ifdef UNDER_CE
-
-CStdOutFileStream::CStdOutFileStream(): _size(0) {}
 
 Z7_COM7F_IMF(CStdOutFileStream::Write(const void *data, UInt32 size, UInt32 *processedSize))
 {
-  size_t s2 = fwrite(data, 1, size, defOut);
+  size_t s2 = fwrite(data, 1, size, stdout);
   if (processedSize)
     *processedSize = s2;
   return (s2 == size) ? S_OK : E_FAIL;
@@ -893,39 +873,8 @@ Z7_COM7F_IMF(CStdOutFileStream::Write(const void *data, UInt32 size, UInt32 *pro
 
 #else
 
-CStdOutFileStream::CStdOutFileStream(): _size(0)
-{
-  outfno = _fileno(defOut);
-  #ifdef _WIN32
-  outfh = (HANDLE)_get_osfhandle(outfno);
-  #endif
-
-  // because we use WriteFile below, we'll need to seek to the original position 
-  // for decriptor or outfh (considering append mode):
-  if (defOutAppendMode && defOutAppendMode != -1) {
-  #ifdef _WIN32
-    LARGE_INTEGER posli; posli.QuadPart = 0;
-    if (!SetFilePointerEx(outfh, posli, NULL, FILE_END)) {
-      defOutAppendMode = -1;
-    }
-  #else
-    if (llseek(outfno, 0, SEEK_END) == -1) {
-      defOutAppendMode = -1;
-    }
-  #endif
-  }
-}
-
 Z7_COM7F_IMF(CStdOutFileStream::Write(const void *data, UInt32 size, UInt32 *processedSize))
 {
-  if (defOutAppendMode == -1) {
-    size_t s2 = fwrite(data, 1, size, defOut);
-    if (processedSize)
-      *processedSize = (UInt32)s2;
-    _size += s2;
-    return (s2 == size) ? S_OK : E_FAIL;
-  }
-
   if (processedSize)
     *processedSize = 0;
 
@@ -933,22 +882,20 @@ Z7_COM7F_IMF(CStdOutFileStream::Write(const void *data, UInt32 size, UInt32 *pro
 
   UInt32 realProcessedSize;
   BOOL res = TRUE;
-  while (size > 0)
+  if (size > 0)
   {
     // Seems that Windows doesn't like big amounts writing to stdout.
     // So we limit portions by 32KB.
     UInt32 sizeTemp = (1 << 15);
     if (sizeTemp > size)
       sizeTemp = size;
-    res = ::WriteFile(outfh,
+    res = ::WriteFile(GetStdHandle(STD_OUTPUT_HANDLE),
         data, sizeTemp, (DWORD *)&realProcessedSize, NULL);
-    if (res == FALSE) break;
     _size += realProcessedSize;
     size -= realProcessedSize;
     data = (const void *)((const Byte *)data + realProcessedSize);
     if (processedSize)
       *processedSize += realProcessedSize;
-    if (!realProcessedSize) break;
   }
   return ConvertBoolToHRESULT(res != FALSE);
 
@@ -958,7 +905,7 @@ Z7_COM7F_IMF(CStdOutFileStream::Write(const void *data, UInt32 size, UInt32 *pro
 
   do
   {
-    res = write(outfno, data, (size_t)size);
+    res = write(1, data, (size_t)size);
   }
   while (res < 0 && (errno == EINTR));
   

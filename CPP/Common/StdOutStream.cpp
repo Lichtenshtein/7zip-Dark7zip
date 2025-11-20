@@ -10,8 +10,6 @@
 #include "StdOutStream.h"
 #include "StringConvert.h"
 #include "UTFConvert.h"
-#include <io.h>
-#include <fcntl.h>
 
 CStdOutStream g_StdOut(stdout);
 CStdOutStream g_StdErr(stderr);
@@ -51,30 +49,22 @@ CStdOutStream & endl(CStdOutStream & outStream) throw()
 
 CStdOutStream & CStdOutStream::operator<<(const wchar_t *s)
 {
-  if (CodePage == CP_UNICODE) {
-    fputws(s, _stream);
-  } else {
-    AString temp;
-    UString s2(s);
-    PrintUString(s2, temp);
-  }
+  AString temp;
+  UString s2(s);
+  PrintUString(s2, temp);
   return *this;
 }
 
 void CStdOutStream::PrintUString(const UString &s, AString &temp)
 {
-  if (CodePage == CP_UNICODE) {
-    fputws(s.Ptr(), _stream);
-  } else {
-    Convert_UString_to_AString(s, temp);
-    *this << (const char*)temp;
-  }
+  Convert_UString_to_AString(s, temp);
+  *this << (const char *)temp;
 }
 
 void CStdOutStream::Convert_UString_to_AString(const UString &src, AString &dest)
 {
   int codePage = CodePage;
-  if (codePage == -1 || codePage == CP_UNICODE)
+  if (codePage == -1)
     codePage = CP_OEMCP;
   if ((unsigned)codePage == CP_UTF8)
     ConvertUnicodeToUTF8(src, dest);
@@ -229,33 +219,6 @@ void CStdOutStream::NormalizePrint_UString(const UString &s)
   PrintUString(tempU, tempA);
 }
 
-CStdOutStream & CStdOutStream::operator<<(CStdOutStream& (*func)(CStdOutStream&))
-{
-  (*func)(*this);
-  return *this;
-}
-
-CStdOutStream & CStdOutStream::operator<<(const char* s) throw()
-{
-  if (CodePage == CP_UNICODE) {
-    UString u(s);
-    fputws(u, _stream);
-  } else {
-    fputs(s, _stream);
-  }
-  return *this;
-}
-
-CStdOutStream & CStdOutStream::operator<<(char c) throw()
-{
-  if (CodePage == CP_UNICODE) {
-    fputwc((wchar_t)c, _stream);
-  } else {
-    fputc((unsigned char)c, _stream);
-  }
-  return *this;
-}
-
 CStdOutStream & CStdOutStream::operator<<(Int32 number) throw()
 {
   char s[32];
@@ -283,15 +246,3 @@ CStdOutStream & CStdOutStream::operator<<(UInt64 number) throw()
   ConvertUInt64ToString(number, s);
   return operator<<(s);
 }
-
-int CStdOutStream::SetCodePage(int codePage)
-{
-  CodePage = codePage;
-  if (codePage == CP_UNICODE) {
-    _setmode(_fileno(_stream), _O_WTEXT);
-  } else {
-    _setmode(_fileno(_stream), _O_TEXT);
-  }
-  return 0;
-}
-

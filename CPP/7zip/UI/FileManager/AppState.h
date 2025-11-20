@@ -52,14 +52,7 @@ public:
     NWindows::NSynchronization::CCriticalSectionLock lock(_criticalSection);
     foldersHistory = Strings;
   }
-
-  int Size()
-  {
-    return Strings.Size();
-  }
-
-  void Push(const UString& s);
-  const UString Pop();
+  
   void AddString(const UString &s);
 
   void RemoveAll()

@@ -75,84 +75,6 @@ static const unsigned k_LinkDataSize_LIMIT = 1 << 12;
 
 #ifndef Z7_SFX
 
-// -------------------------------------------------------------------------
-// COutStreamWithOffsLen -- output stream extracting by offset/length pair
-//
-// Used to direct access to extracted data by offset and extracting length bytes only.
-// -------------------------------------------------------------------------
-
-Z7_CLASS_IMP_NOQIB_1(
-  COutStreamWithOffsLen
-  , IOutStream
-)
-  Z7_IFACE_COM7_IMP(ISequentialOutStream)
-
-  ISequentialOutStream *_stream;
-  UInt64 _offset;
-  UInt64 _length;
-public:
-  COutStreamWithOffsLen(ISequentialOutStream* stream, UInt64 offset, UInt64 length):
-    _stream(stream),
-    _offset(offset),
-    _length(length)
-  {}
-
-  ~COutStreamWithOffsLen()
-  {
-    _stream->Release();
-  }
-
-  //HRESULT Write(const void* data, UInt32 size, UInt32* processedSize);
-  //HRESULT Seek(Int64 offset, UInt32 seekOrigin, UInt64* newPosition);
-  //HRESULT SetSize(UInt64 newSize);
-};
-
-Z7_COM7F_IMF(COutStreamWithOffsLen::Write(const void* data, UInt32 size, UInt32* processedSize))
-{
-  HRESULT res = S_OK;
-  UInt32 writSize = 0, s;
-  if (_offset) {
-    if (_offset > size) {
-      _offset -= size;
-      writSize = size;
-      goto done;
-    }
-    size -= (UInt32)_offset;
-    data = (Byte*)data + _offset;
-    writSize = (UInt32)_offset;
-    _offset = 0;
-  }
-  if (_length != UINT64_MAX && size > _length) {
-    size = (UInt32)_length;
-  }
-  if (size) {
-    res = _stream->Write(data, size, &s);
-    if (_length != UINT64_MAX) {
-      if (s <= _length) {
-        _length -= s;
-      } else {
-        res = E_UNEXPECTED;
-      }
-    }
-    writSize += s;
-  }
-done:
-  if (processedSize) *processedSize = writSize;
-  return res == S_OK ? (_length ? S_OK : k_My_HRESULT_WritingDone) : res;
-}
-
-Z7_COM7F_IMF(COutStreamWithOffsLen::Seek(Int64, UInt32, UInt64*))
-{
-  return E_NOTIMPL;
-}
-
-Z7_COM7F_IMF(COutStreamWithOffsLen::SetSize(UInt64))
-{
-  return E_NOTIMPL;
-}
-
-// -------------------------------------------------------------------------
-
 Z7_COM7F_IMF(COutStreamWithHash::Write(const void *data, UInt32 size, UInt32 *processedSize))
 {
   HRESULT result = S_OK;
@@ -379,9 +301,7 @@ CArchiveExtractCallback::CArchiveExtractCallback():
     // Write_MTime(true),
     Is_elimPrefix_Mode(false),
     _arc(NULL),
-    _multiArchives(false),
-    ExtrOffset(0),
-    ExtrLength(UINT64_MAX)
+    _multiArchives(false)
 {
   #ifdef Z7_USE_SECURITY_CODE
   _saclEnabled = InitLocalPrivileges();
@@ -1465,8 +1385,6 @@ HRESULT CArchiveExtractCallback::GetExtractStream(CMyComPtr<ISequentialOutStream
   }
   
   _diskFilePath = fullProcessedPath;
-  if (FirstExtractedPath.IsEmpty())
-    FirstExtractedPath = fullProcessedPath;
     
 
   if (isAnti)
@@ -1947,12 +1865,6 @@ Z7_COM7F_IMF(CArchiveExtractCallback::GetStream(UInt32 index, ISequentialOutStre
 
   if (outStreamLoc)
   {
-#ifndef Z7_SFX
-    if (ExtrOffset != 0 || ExtrLength != UINT64_MAX) {
-      outStreamLoc = new COutStreamWithOffsLen(outStreamLoc.Detach(), ExtrOffset, ExtrLength);
-    }
-#endif
-      
     /*
     #ifdef SUPPORT_LINKS
     if (!_copyFile_Path.IsEmpty())
@@ -1965,7 +1877,6 @@ Z7_COM7F_IMF(CArchiveExtractCallback::GetStream(UInt32 index, ISequentialOutStre
       return S_OK;
     #endif
     */
-
     *outStream = outStreamLoc.Detach();
   }
   
@@ -2872,43 +2783,6 @@ Z7_COM7F_IMF(CArchiveExtractCallback::CryptoGetTextPassword(BSTR *password))
   COM_TRY_END
 }
 
-Z7_COM7F_IMF(CArchiveExtractCallback::CryptoGetPasswordIfAny(bool& passwordIsDefined, UString& password))
-{
-  COM_TRY_BEGIN
-  if (!_cryptoGetTextPassword)
-  {
-    RINOK(_extractCallback2.QueryInterface(IID_ICryptoGetTextPassword,
-        &_cryptoGetTextPassword));
-  }
-  return _cryptoGetTextPassword->CryptoGetPasswordIfAny(passwordIsDefined, password);
-  COM_TRY_END
-}
-
-// by abc321 \/
-Z7_COM7F_IMF(CArchiveExtractCallback::CryptoGetNextPassword(BSTR *password))
-{
-	COM_TRY_BEGIN
-	if (!_cryptoGetNextPassword)
-	{
-		RINOK(_extractCallback2.QueryInterface(IID_ICryptoGetNextPassword,
-			&_cryptoGetNextPassword))
-	}
-	return _cryptoGetNextPassword->CryptoGetNextPassword(password);
-	COM_TRY_END
-}
-
-Z7_COM7F_IMF(CArchiveExtractCallback::CryptoPasswordValid())
-{
-	COM_TRY_BEGIN
-	if (!_cryptoGetNextPassword)
-	{
-		RINOK(_extractCallback2.QueryInterface(IID_ICryptoGetNextPassword,
-			&_cryptoGetNextPassword))
-	}
-	return _cryptoGetNextPassword->CryptoPasswordValid();
-	COM_TRY_END
-}
-// by abc321 /\~
 
 #ifndef Z7_SFX
 

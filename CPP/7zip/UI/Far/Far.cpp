@@ -236,13 +236,6 @@ Z7_COM7F_IMF(COpenArchiveCallback::CryptoGetTextPassword(BSTR *password))
   return StringToBstr(Password, password);
 }
 
-Z7_COM7F_IMF(COpenArchiveCallback::CryptoGetPasswordIfAny(bool& passwordIsDefined, UString& password))
-{
-  passwordIsDefined = PasswordIsDefined;
-  password = Password;
-  return S_OK;
-}
-
 /*
 HRESULT OpenArchive(const CSysString &fileName,
     IInFolderArchive **archiveHandlerResult,

@@ -6,8 +6,6 @@
 #define IDC_EXTRACT_PATH_MODE        102
 #define IDC_EXTRACT_OVERWRITE_MODE   103
 
-#define IDX_EXTRACT_OPEN_TRG_FLD     104
-
 #define IDE_EXTRACT_PASSWORD         120
 
 #define IDE_EXTRACT_NAME             130
@@ -21,7 +19,6 @@
 #define IDX_EXTRACT_ELIM_DUP        3430
 #define IDX_EXTRACT_NT_SECUR        3431
 // #define IDX_EXTRACT_ALT_STREAMS     3432
-#define IDX_EXTRACT_DELETE_ARCHIVE  3433
 
 #define IDX_PASSWORD_SHOW           3803
 #define IDG_PASSWORD                3807

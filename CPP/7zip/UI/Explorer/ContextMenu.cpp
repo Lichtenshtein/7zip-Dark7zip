@@ -32,7 +32,7 @@
 #include "MyMessages.h"
 
 #include "resource.h"
-#include <ctime>
+
 
 // #define SHOW_DEBUG_CTX_MENU
 
@@ -197,7 +197,7 @@ IShellExtInit::Initialize()
       pidl of target folder: for nondefault drag-and-drop menu extensions
   pidlFolder == NULL in (win10): for context menu
 */
-  
+    
 Z7_COMWF_B CZipContextMenu::Initialize(LPCITEMIDLIST pidlFolder, LPDATAOBJECT dataObject, HKEY /* hkeyProgID */)
 {
   COM_TRY_BEGIN
@@ -212,7 +212,7 @@ Z7_COMWF_B CZipContextMenu::Initialize(LPCITEMIDLIST pidlFolder, LPDATAOBJECT da
   if (pidlFolder)
   {
     ODS("==== CZipContextMenu::Initialize (pidlFolder != 0)")
-    #ifndef UNDER_CE
+   #ifndef UNDER_CE
     if (NShell::GetPathFromIDList(pidlFolder, _dropPath))
     {
       ODS("==== CZipContextMenu::Initialize path from (pidl):")
@@ -226,7 +226,7 @@ Z7_COMWF_B CZipContextMenu::Initialize(LPCITEMIDLIST pidlFolder, LPDATAOBJECT da
       _dropMode = !_dropPath.IsEmpty();
     }
     else
-    #endif
+   #endif
       _dropPath.Empty();
   }
 
@@ -253,9 +253,9 @@ Z7_COMWF_B CZipContextMenu::Initialize(LPCITEMIDLIST pidlFolder, LPDATAOBJECT da
 /////////////////////////////
 // IContextMenu
 
-static LPCSTR const kMainVerb = "SevenZipZS";
-static LPCSTR const kOpenCascadedVerb = "SevenZipZS.OpenWithType.";
-static LPCSTR const kCheckSumCascadedVerb = "SevenZipZS.Checksum";
+static LPCSTR const kMainVerb = "SevenZip";
+static LPCSTR const kOpenCascadedVerb = "SevenZip.OpenWithType.";
+static LPCSTR const kCheckSumCascadedVerb = "SevenZip.Checksum";
 
 
 struct CContextMenuCommand
@@ -274,19 +274,13 @@ static const CContextMenuCommand g_Commands[] =
   CMD_REC( kExtract,     "Extract",     IDS_CONTEXT_EXTRACT),
   CMD_REC( kExtractHere, "ExtractHere", IDS_CONTEXT_EXTRACT_HERE),
   CMD_REC( kExtractTo,   "ExtractTo",   IDS_CONTEXT_EXTRACT_TO),
-  CMD_REC( kExtractSmart,        "ExtractSmart",        IDS_CONTEXT_EXTRACT_SMART),
-  CMD_REC( kExtractToSingle,        "ExtractToSingle",        IDS_CONTEXT_EXTRACT_TO_SINGLE),
   CMD_REC( kTest,        "Test",        IDS_CONTEXT_TEST),
   CMD_REC( kCompress,           "Compress",           IDS_CONTEXT_COMPRESS),
   CMD_REC( kCompressEmail,      "CompressEmail",      IDS_CONTEXT_COMPRESS_EMAIL),
   CMD_REC( kCompressTo7z,       "CompressTo7z",       IDS_CONTEXT_COMPRESS_TO),
-  CMD_REC( kCompressTo7zWithDate,      "CompressTo7z",      IDS_CONTEXT_COMPRESS_TO),
   CMD_REC( kCompressTo7zEmail,  "CompressTo7zEmail",  IDS_CONTEXT_COMPRESS_TO_EMAIL),
   CMD_REC( kCompressToZip,      "CompressToZip",      IDS_CONTEXT_COMPRESS_TO),
-  CMD_REC( kCompressToZipWithDate,      "CompressToZip",      IDS_CONTEXT_COMPRESS_TO),
-  CMD_REC( kCompressToZipEmail, "CompressToZipEmail", IDS_CONTEXT_COMPRESS_TO_EMAIL),
-  CMD_REC( kCompressToZipSeparate, "CompressToZipSeparate", IDS_CONTEXT_COMPRESS_TO_ZIP_SEPARATE),
-  CMD_REC( kCompressTo7zSeparate, "CompressTo7zSeparate", IDS_CONTEXT_COMPRESS_TO_7Z_SEPARATE)
+  CMD_REC( kCompressToZipEmail, "CompressToZipEmail", IDS_CONTEXT_COMPRESS_TO_EMAIL)
 };
 
 
@@ -299,24 +293,18 @@ struct CHashCommand
 
 static const CHashCommand g_HashCommands[] =
 {
-  { CZipContextMenu::kHash_CRC32,    "CRC-32",   "CRC32" },
-  { CZipContextMenu::kHash_CRC64,    "CRC-64",   "CRC64" },
-  { CZipContextMenu::kHash_XXH32,    "XXH-32",   "XXH32" },
-  { CZipContextMenu::kHash_XXH64,    "XXH-64",   "XXH64" },
-  { CZipContextMenu::kHash_MD2,      "MD2",      "MD2" },
-  { CZipContextMenu::kHash_MD4,      "MD4",      "MD4" },
-  { CZipContextMenu::kHash_MD5,      "MD5",      "MD5" },
-  { CZipContextMenu::kHash_SHA1,     "SHA-1",    "SHA1" },
-  { CZipContextMenu::kHash_SHA256,   "SHA2-256", "SHA256" },
-  { CZipContextMenu::kHash_SHA384,   "SHA2-384", "SHA384" },
-  { CZipContextMenu::kHash_SHA512,   "SHA2-512", "SHA512" },
-  { CZipContextMenu::kHash_BLAKE2sp, "BLAKE2sp", "BLAKE2sp" },
-  { CZipContextMenu::kHash_BLAKE3,   "BLAKE3",   "BLAKE3" },
+  { CZipContextMenu::kHash_CRC32,  "CRC-32",  "CRC32" },
+  { CZipContextMenu::kHash_CRC64,  "CRC-64",  "CRC64" },
+  { CZipContextMenu::kHash_XXH64,  "XXH64",   "XXH64" },
+  { CZipContextMenu::kHash_MD5,    "MD5",     "MD5" },
+  { CZipContextMenu::kHash_SHA1,   "SHA-1",   "SHA1" },
+  { CZipContextMenu::kHash_SHA256, "SHA-256", "SHA256" },
+  { CZipContextMenu::kHash_SHA384, "SHA-384", "SHA384" },
+  { CZipContextMenu::kHash_SHA512, "SHA-512", "SHA512" },
   { CZipContextMenu::kHash_SHA3_256, "SHA3-256", "SHA3-256" },
-  { CZipContextMenu::kHash_SHA3_384, "SHA3-384", "SHA3-384" },
-  { CZipContextMenu::kHash_SHA3_512, "SHA3-512", "SHA3-512" },
-  { CZipContextMenu::kHash_All,      "*",        "*" },
-  { CZipContextMenu::kHash_Generate_SHA256, "SHA2-256 -> file.sha256", "SHA256" },
+  { CZipContextMenu::kHash_BLAKE2SP, "BLAKE2sp", "BLAKE2sp" },
+  { CZipContextMenu::kHash_All,    "*",       "*" },
+  { CZipContextMenu::kHash_Generate_SHA256, "SHA-256 -> file.sha256", "SHA256" },
   { CZipContextMenu::kHash_TestArc, "Checksum : Test", "Hash" }
 };
 
@@ -444,13 +432,8 @@ static const char * const kArcExts[] =
     "7z"
   , "bz2"
   , "gz"
-  , "lz"
-  , "liz"
-  , "lz4"
-  , "lz5"
   , "rar"
   , "zip"
-  , "zst"
 };
 
 static bool IsItArcExt(const UString &ext)
@@ -500,8 +483,7 @@ static UString GetQuotedReducedString(const UString &s)
   UString s2 = s;
   ReduceString(s2);
   s2.Replace(L"&", L"&&");
-  s2.InsertAtFront(L'"'); s2 += L'"'; // quote without GetQuotedString (because it escapes now)
-  return s2;
+  return GetQuotedString(s2);
 }
 
 static void MyFormatNew_ReducedName(UString &s, const UString &name)
@@ -883,43 +865,6 @@ Z7_COMWF_B CZipContextMenu::QueryContextMenu(HMENU hMenu, UINT indexMenu,
           Set_UserString_in_LastCommand(s);
           MyInsertMenu(popupMenu, subIndex++, currentCommandID++, s, bitmap);
         }
- 
-        if ((contextMenuFlags & NContextMenuFlags::kExtractSmart) != 0)
-        {
-          if (_fileNames.Size() == 1)
-          {
-            // Extract Here Smart
-            CCommandMapItem cmi;
-            cmi.Folder = baseFolder;
-            AddCommand(kExtractSmart, mainString, cmi);
-            MyInsertMenu(popupMenu, subIndex++, currentCommandID++, mainString, bitmap);
-          }
-          else
-          {
-            // Extract To Smart
-            CCommandMapItem cmi;
-            AddCommand(kExtractSmart, mainString, cmi);
-            cmi.Folder = baseFolder + specFolder;
-            MyInsertMenu(popupMenu, subIndex++, currentCommandID++, mainString, bitmap);
-          }
-        }
- 
-        if ((contextMenuFlags & NContextMenuFlags::kExtractToSingle) != 0)
-        {
-          // Extract To Single
-          CCommandMapItem cmi;
-          AddCommand(kExtractToSingle, mainString, cmi);
-          /* if archive contain only one folder */
-          if (true)
-            {
-             cmi.Folder = baseFolder;
-            }
-          else
-            {
-             cmi.Folder = baseFolder + specFolder;
-            }
-        MyInsertMenu(popupMenu, subIndex++, currentCommandID++, mainString, bitmap);
-       }
       }
 
       if ((contextMenuFlags & NContextMenuFlags::kTest) != 0)
@@ -967,20 +912,6 @@ Z7_COMWF_B CZipContextMenu::QueryContextMenu(HMENU hMenu, UINT indexMenu,
     UString arcName_zip_Show = arcName_Show;
     arcName_zip_Show += ".zip";
 
-    std::time_t t = std::time(nullptr);
-    std::tm lt;
-    localtime_s(&lt, &t);
-    char buffer[16] = { 0 };
-    std::strftime(buffer, sizeof(buffer), "_%Y%m%d%H%M%S", &lt);
-    UString dt(buffer);
-    UString arcName_dt_zip = arcName + dt;
-    arcName_dt_zip += ".zip";
-    UString arcName_dt_zip_Show = arcName_Show + dt;
-    arcName_dt_zip_Show += ".zip";
-    UString arcName_dt_7z = arcName + dt;
-    arcName_dt_7z += ".7z";
-    UString arcName_dt_7z_Show = arcName_Show + dt;
-    arcName_dt_7z_Show += ".7z";
 
     // Compress
     if ((contextMenuFlags & NContextMenuFlags::kCompress) != 0)
@@ -1022,35 +953,6 @@ Z7_COMWF_B CZipContextMenu::QueryContextMenu(HMENU hMenu, UINT indexMenu,
       MyFormatNew_ReducedName(s, arcName_7z_Show);
       Set_UserString_in_LastCommand(s);
       MyInsertMenu(popupMenu, subIndex++, currentCommandID++, s, bitmap);
-
-      // CompressTo7z With Datetime
-      CCommandMapItem cmi2;
-      UString s2;
-      if (_dropMode)
-        cmi2.Folder = _dropPath;
-      else
-        cmi2.Folder = fs2us(folderPrefix);
-      cmi2.ArcName = arcName_dt_7z;
-      cmi2.ArcType = "7z";
-      AddCommand(kCompressTo7zWithDate, s2, cmi2);
-      MyFormatNew_ReducedName(s2, arcName_dt_7z_Show);
-      Set_UserString_in_LastCommand(s2);
-      MyInsertMenu(popupMenu, subIndex++, currentCommandID++, s2, bitmap);
-    }
-    // CompressToSeparate 7z
-    if (contextMenuFlags & NContextMenuFlags::kCompressTo7zSeparate)
-    {
-      CCommandMapItem cmi;
-      UString s3;
-      if (_dropMode)
-        cmi.Folder = _dropPath;
-      else
-        cmi.Folder = fs2us(folderPrefix);
-      cmi.ArcName = arcName_7z;
-      cmi.ArcType = "7z";
-      AddCommand(kCompressTo7zSeparate, s3, cmi);
-      MyFormatNew_ReducedName(s3, arcName_7z_Show);
-      MyInsertMenu(popupMenu, subIndex++, currentCommandID++, s3, bitmap);
     }
 
     #ifdef EMAIL_SUPPORT
@@ -1084,36 +986,6 @@ Z7_COMWF_B CZipContextMenu::QueryContextMenu(HMENU hMenu, UINT indexMenu,
       MyFormatNew_ReducedName(s, arcName_zip_Show);
       Set_UserString_in_LastCommand(s);
       MyInsertMenu(popupMenu, subIndex++, currentCommandID++, s, bitmap);
-
-      // CompressToZip With Datetime
-      CCommandMapItem cmi2;
-      UString s2;
-      if (_dropMode)
-        cmi2.Folder = _dropPath;
-      else
-        cmi2.Folder = fs2us(folderPrefix);
-      cmi2.ArcName = arcName_dt_zip;
-      cmi2.ArcType = "zip";
-      AddCommand(kCompressToZipWithDate, s2, cmi2);
-      MyFormatNew_ReducedName(s2, arcName_dt_zip_Show);
-      Set_UserString_in_LastCommand(s2);
-      MyInsertMenu(popupMenu, subIndex++, currentCommandID++, s2, bitmap);
-    }
- 
-    // CompressToSeparate
-    if (contextMenuFlags & NContextMenuFlags::kCompressToZipSeparate)
-    {
-      CCommandMapItem cmi;
-      UString s3;
-      if (_dropMode)
-        cmi.Folder = _dropPath;
-      else
-        cmi.Folder = fs2us(folderPrefix);
-      cmi.ArcName = arcName_zip;
-      cmi.ArcType = "zip";
-      AddCommand(kCompressToZipSeparate, s3, cmi);
-      MyFormatNew_ReducedName(s3, arcName_zip_Show);
-      MyInsertMenu(popupMenu, subIndex++, currentCommandID++, s3, bitmap);
     }
 
     #ifdef EMAIL_SUPPORT
@@ -1143,7 +1015,7 @@ Z7_COMWF_B CZipContextMenu::QueryContextMenu(HMENU hMenu, UINT indexMenu,
     CMenu menu;
     menu.Attach(hMenu);
     menuDestroyer.Disable();
-    MyAddSubMenu(_commandMap, kMainVerb, menu, indexMenu++, currentCommandID++, (UString)"7-Zip ZS",
+    MyAddSubMenu(_commandMap, kMainVerb, menu, indexMenu++, currentCommandID++, (UString)"7-Zip",
         popupMenu, // popupMenu.Detach(),
         bitmap);
   }
@@ -1166,7 +1038,7 @@ Z7_COMWF_B CZipContextMenu::QueryContextMenu(HMENU hMenu, UINT indexMenu,
   {
     CMenu subMenu;
     // CMenuDestroyer menuDestroyer_CRC;
-    
+
     UINT subIndex_CRC = 0;
     
     if (!hMenu || subMenu.CreatePopup())
@@ -1189,7 +1061,7 @@ Z7_COMWF_B CZipContextMenu::QueryContextMenu(HMENU hMenu, UINT indexMenu,
           menu.Attach(hMenu);
           // menuDestroyer_CRC.Disable();
         }
-        MyAddSubMenu(_commandMap, kCheckSumCascadedVerb, menu, indexInParent++, currentCommandID++, (UString)"7-Zip ZS Hash", subMenu,
+        MyAddSubMenu(_commandMap, kCheckSumCascadedVerb, menu, indexInParent++, currentCommandID++, (UString)"CRC SHA", subMenu,
           /* insertHashMenuTo7zipMenu ? NULL : */ bitmap);
         _commandMap.Back().CtxCommandType = CtxCommandType_CrcRoot;
         if (!insertHashMenuTo7zipMenu)
@@ -1241,7 +1113,7 @@ Z7_COMWF_B CZipContextMenu::QueryContextMenu(HMENU hMenu, UINT indexMenu,
           showName += ".sha256";
           cmi.Folder = fs2us(folderPrefix);
           cmi.ArcName = name;
-          s = "SHA2-256 -> ";
+          s = "SHA-256 -> ";
           s += showName;
         }
         else if (hc.CommandInternalID == kHash_TestArc)
@@ -1403,34 +1275,6 @@ HRESULT CZipContextMenu::InvokeCommandCommon(const CCommandMapItem &cmi)
       }
       case kExtract:
       case kExtractHere:
-      case kExtractSmart:
-      {
-        if (_attribs.FirstDirIndex != -1)
-        {
-          ShowErrorMessageRes(IDS_SELECT_FILES);
-          break;
-        }
-        ExtractArchives(_fileNames, cmi.Folder,
-            (cmdID == kExtract), // showDialog
-            (cmdID == kExtractTo) && _elimDup.Val, // elimDup
-            _writeZone
-            );
-        break;
-      }
-      case kExtractToSingle:
-      {
-        if (_attribs.FirstDirIndex != -1)
-        {
-          ShowErrorMessageRes(IDS_SELECT_FILES);
-          break;
-        }
-        ExtractArchives(_fileNames, cmi.Folder,
-            (cmdID == kExtract), // showDialog
-            (cmdID == kExtractTo) && _elimDup.Val, // elimDup
-            _writeZone
-            );
-        break;
-      }
       case kExtractTo:
       {
         if (_attribs.FirstDirIndex != -1)
@@ -1448,18 +1292,6 @@ HRESULT CZipContextMenu::InvokeCommandCommon(const CCommandMapItem &cmi)
       case kTest:
       {
         TestArchives(_fileNames);
-        break;
-      }
-      case kCompressToZipWithDate:
-      {
-        UString arcName = cmi.ArcName;
-        CompressFiles(cmi.Folder, arcName, cmi.ArcType, false, _fileNames, false, false, false);
-        break;
-      }
-      case kCompressTo7zWithDate:
-      {
-        UString arcName = cmi.ArcName;
-        CompressFiles(cmi.Folder, arcName, cmi.ArcType, false, _fileNames, false, false, false);
         break;
       }
       case kCompress:
@@ -1506,65 +1338,17 @@ HRESULT CZipContextMenu::InvokeCommandCommon(const CCommandMapItem &cmi)
             );
         break;
       }
-      case kCompressTo7zSeparate:
-      {
-        for (UInt32 i = 0; i < _fileNames.Size(); i++) {
-          UString fileName = _fileNames[i];
-          UStringVector filePaths;
-          filePaths.Add(fileName);
-          
-          UString arcName = CreateArchiveName(
-              filePaths,
-              false, // isHash
-              NULL, // fi0
-              arcName);
-          const char *postfix = NULL;
-            postfix = ".7z";
-            arcName += postfix;
-          
-          CompressFiles(cmi.Folder, arcName, cmi.ArcType, false,
-            filePaths, false, false, false);
-        }
-        break;
-      }
-      case kCompressToZipSeparate:
-      {
-        for (UInt32 i = 0; i < _fileNames.Size(); i++) {
-          UString fileName = _fileNames[i];
-          UStringVector filePaths;
-          filePaths.Add(fileName);
-          
-          UString arcName = CreateArchiveName(
-              filePaths,
-              false, // isHash
-              NULL, // fi0
-              arcName);
-          const char *postfix = NULL;
-            postfix = ".zip";
-            arcName += postfix;
-          
-          CompressFiles(cmi.Folder, arcName, cmi.ArcType, false,
-            filePaths, false, false, false);
-        }
-        break;
-      }
-
+      
       case kHash_CRC32:
       case kHash_CRC64:
-      case kHash_XXH32:
       case kHash_XXH64:
-      case kHash_MD2:
-      case kHash_MD4:
       case kHash_MD5:
       case kHash_SHA1:
       case kHash_SHA256:
       case kHash_SHA384:
       case kHash_SHA512:
-      case kHash_BLAKE2sp:
-      case kHash_BLAKE3:
       case kHash_SHA3_256:
-      case kHash_SHA3_384:
-      case kHash_SHA3_512:
+      case kHash_BLAKE2SP:
       case kHash_All:
       case kHash_Generate_SHA256:
       case kHash_TestArc:
@@ -1656,7 +1440,7 @@ Z7_COMWF_B CZipContextMenu::GetCommandString(
   {
     if (/* cmdOffset < 0 || */ (unsigned)cmdOffset >= _commandMap.Size())
       return S_FALSE;
-      return S_OK;
+    return S_OK;
   }
 
   if (/* cmdOffset < 0 || */ (unsigned)cmdOffset >= _commandMap.Size())
@@ -1670,11 +1454,11 @@ Z7_COMWF_B CZipContextMenu::GetCommandString(
   if ((uType | GCS_UNICODE) == GCS_VERBW ||
       (uType | GCS_UNICODE) == GCS_HELPTEXTW)
   {
-  const CCommandMapItem &cmi = _commandMap[(unsigned)cmdOffset];
+    const CCommandMapItem &cmi = _commandMap[(unsigned)cmdOffset];
     MyCopyString_isUnicode(pszName, cchMax, cmi.Verb, (uType & GCS_UNICODE) != 0);
     return S_OK;
   }
-  
+ 
   return E_INVALIDARG;
   
   COM_TRY_END
@@ -1783,10 +1567,10 @@ void CZipExplorerCommand::LoadItems(IShellItemArray *psiItemArray)
   SubCommands.Clear();
   _fileNames.Clear();
   {
-  UStringVector paths;
+    UStringVector paths;
     if (LoadPaths(psiItemArray, paths) != S_OK)
       return;
-  _fileNames = paths;
+    _fileNames = paths;
   }
   const HRESULT res = QueryContextMenu(
       NULL, // hMenu,

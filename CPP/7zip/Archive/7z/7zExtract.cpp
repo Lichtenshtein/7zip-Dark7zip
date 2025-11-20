@@ -362,11 +362,8 @@ Z7_COM7F_IMF(CHandler::Extract(const UInt32 *indices, UInt32 numItems,
 
     #ifndef Z7_NO_CRYPTO
     CMyComPtr<ICryptoGetTextPassword> getTextPassword;
-    CMyComPtr<ICryptoGetNextPassword> getNextPassword; // by abc321
     if (extractCallback)
       extractCallback.QueryInterface(IID_ICryptoGetTextPassword, &getTextPassword);
-    if (extractCallback) // by abc321
-      extractCallback.QueryInterface(IID_ICryptoGetNextPassword, &getNextPassword); // by abc321
     #endif
 
     try
@@ -396,9 +393,6 @@ Z7_COM7F_IMF(CHandler::Extract(const UInt32 *indices, UInt32 numItems,
             , true, _numThreads, _memUsage_Decompress
           #endif
           );
-
-      if (result == k_My_HRESULT_WritingDone)
-        return S_OK;
 
       if (result == S_FALSE || result == E_NOTIMPL || dataAfterEnd_Error)
       {

@@ -43,16 +43,28 @@ public:
   */
   bool Flush() throw();
   
-  CStdOutStream & operator<<(CStdOutStream& (*func)(CStdOutStream&));
-  CStdOutStream & operator<<(const char* s) throw();
-  CStdOutStream & operator<<(char c) throw();
+  CStdOutStream & operator<<(CStdOutStream & (* func)(CStdOutStream  &))
+  {
+    (*func)(*this);
+    return *this;
+  }
+
+  CStdOutStream & operator<<(const char *s) throw()
+  {
+    fputs(s, _stream);
+    return *this;
+  }
+
+  CStdOutStream & operator<<(char c) throw()
+  {
+    fputc((unsigned char)c, _stream);
+    return *this;
+  }
 
   CStdOutStream & operator<<(Int32 number) throw();
   CStdOutStream & operator<<(Int64 number) throw();
   CStdOutStream & operator<<(UInt32 number) throw();
   CStdOutStream & operator<<(UInt64 number) throw();
-
-  int SetCodePage(int codePage);
 
   CStdOutStream & operator<<(const wchar_t *s);
   void PrintUString(const UString &s, AString &temp);

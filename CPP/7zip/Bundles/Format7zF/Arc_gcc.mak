@@ -111,7 +111,6 @@ AR_OBJS = \
   $O/ExtHandler.o \
   $O/FatHandler.o \
   $O/FlvHandler.o \
-  $O/FontHandler.o \
   $O/GzHandler.o \
   $O/GptHandler.o \
   $O/HandlerCont.o \
@@ -299,7 +298,6 @@ endif
 CRYPTO_OBJS = \
   $O/7zAes.o \
   $O/7zAesRegister.o \
-  $O/AesStream.o \
   $O/HmacSha1.o \
   $O/HmacSha256.o \
   $O/MyAes.o \
@@ -369,6 +367,7 @@ C_OBJS = \
   $O/XzIn.o \
   $O/XzCrc64.o \
   $O/XzCrc64Opt.o \
+  $O/ZstdDec.o \
 
 ARC_OBJS = \
   $(LZMA_DEC_OPT_OBJS) \

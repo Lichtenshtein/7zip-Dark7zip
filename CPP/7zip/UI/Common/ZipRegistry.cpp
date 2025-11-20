@@ -11,8 +11,6 @@
 #include "../../../Windows/Registry.h"
 #include "../../../Windows/Synchronization.h"
 
-#include "../FileManager/RegistryUtils.h"
-
 // #include "../Explorer/ContextMenuFlags.h"
 #include "ZipRegistry.h"
 
@@ -22,7 +20,7 @@ using namespace NRegistry;
 static NSynchronization::CCriticalSection g_CS;
 #define CS_LOCK NSynchronization::CCriticalSectionLock lock(g_CS);
 
-static LPCTSTR const kCuPrefix = TEXT("Software") TEXT(STRING_PATH_SEPARATOR) TEXT("7-Zip-Zstandard") TEXT(STRING_PATH_SEPARATOR);
+static LPCTSTR const kCuPrefix = TEXT("Software") TEXT(STRING_PATH_SEPARATOR) TEXT("7-Zip") TEXT(STRING_PATH_SEPARATOR);
 
 static CSysString GetKeyPath(LPCTSTR path) { return kCuPrefix + (CSysString)path; }
 
@@ -95,11 +93,9 @@ static LPCTSTR const kKeyName = TEXT("Extraction");
 static LPCTSTR const kExtractMode = TEXT("ExtractMode");
 static LPCTSTR const kOverwriteMode = TEXT("OverwriteMode");
 static LPCTSTR const kShowPassword = TEXT("ShowPassword");
-static LPCTSTR const kOpnTrgFold = TEXT("OpnTrgFold");
 static LPCTSTR const kPathHistory = TEXT("PathHistory");
 static LPCTSTR const kSplitDest = TEXT("SplitDest");
 static LPCTSTR const kElimDup = TEXT("ElimDup");
-static LPCTSTR const kDeleteArchive = TEXT("DeleteArchive");
 // static LPCTSTR const kAltStreams = TEXT("AltStreams");
 static LPCTSTR const kNtSecur = TEXT("Security");
 static LPCTSTR const kMemLimit = TEXT("MemLimit");
@@ -109,7 +105,6 @@ void CInfo::Save() const
   CS_LOCK
   CKey key;
   CreateMainKey(key, kKeyName);
-  UStringVector Empty;
 
   if (PathMode_Force)
     key.SetValue(kExtractMode, (UInt32)PathMode);
@@ -118,17 +113,12 @@ void CInfo::Save() const
 
   Key_Set_BoolPair(key, kSplitDest, SplitDest);
   Key_Set_BoolPair(key, kElimDup, ElimDup);
-  Key_Set_BoolPair(key, kDeleteArchive, DeleteArchive);
   // Key_Set_BoolPair(key, kAltStreams, AltStreams);
   Key_Set_BoolPair(key, kNtSecur, NtSecurity);
   Key_Set_BoolPair(key, kShowPassword, ShowPassword);
-  Key_Set_BoolPair(key, kOpnTrgFold, OpnTrgFold);
 
   key.RecurseDeleteKey(kPathHistory);
-  if (WantPathHistory())
-    key.SetValue_Strings(kPathHistory, Paths);
-  else
-    key.SetValue_Strings(kPathHistory, Empty);
+  key.SetValue_Strings(kPathHistory, Paths);
 }
 
 void Save_ShowPassword(bool showPassword)
@@ -179,11 +169,9 @@ void CInfo::Load()
   Key_Get_BoolPair_true(key, kSplitDest, SplitDest);
 
   Key_Get_BoolPair(key, kElimDup, ElimDup);
-  Key_Get_BoolPair(key, kDeleteArchive, DeleteArchive);
   // Key_Get_BoolPair(key, kAltStreams, AltStreams);
   Key_Get_BoolPair(key, kNtSecur, NtSecurity);
   Key_Get_BoolPair(key, kShowPassword, ShowPassword);
-  Key_Get_BoolPair(key, kOpnTrgFold, OpnTrgFold);
 }
 
 bool Read_ShowPassword()
@@ -266,7 +254,6 @@ static LPCWSTR const kMemUse = L"MemUse"
 
 void CInfo::Save() const
 {
-  UStringVector Empty;
   CS_LOCK
 
   CKey key;
@@ -284,40 +271,29 @@ void CInfo::Save() const
   key.SetValue(kShowPassword, ShowPassword);
   key.SetValue(kEncryptHeaders, EncryptHeaders);
   key.RecurseDeleteKey(kArcHistory);
+  key.SetValue_Strings(kArcHistory, ArcPaths);
 
-  if (WantArcHistory())
-    key.SetValue_Strings(kArcHistory, ArcPaths);
-  else
-    key.SetValue_Strings(kArcHistory, Empty);
-
+  key.RecurseDeleteKey(kOptionsKeyName);
   {
     CKey optionsKey;
     optionsKey.Create(key, kOptionsKeyName);
     FOR_VECTOR (i, Formats)
     {
       const CFormatOptions &fo = Formats[i];
-      CKey fk, fkm;
+      CKey fk;
       fk.Create(optionsKey, fo.FormatID);
-      fkm.Create(fk, fo.Method);
       
       SetRegString(fk, kMethod, fo.Method);
       SetRegString(fk, kOptions, fo.Options);
-      SetRegString(fkm, kOptions, fo.Options);
       SetRegString(fk, kEncryptionMethod, fo.EncryptionMethod);
       SetRegString(fk, kMemUse, fo.MemUse);
-      SetRegString(fkm, kMemUse, fo.MemUse);
 
       Key_Set_UInt32(fk, kLevel, fo.Level);
-      Key_Set_UInt32(fkm, kLevel, fo.Level);
       Key_Set_UInt32(fk, kDictionary, fo.Dictionary);
-      Key_Set_UInt32(fkm, kDictionary, fo.Dictionary);
       // Key_Set_UInt32(fk, kDictionaryChain, fo.DictionaryChain);
       Key_Set_UInt32(fk, kOrder, fo.Order);
-      Key_Set_UInt32(fkm, kOrder, fo.Order);
       Key_Set_UInt32(fk, kBlockSize, fo.BlockLogSize);
-      Key_Set_UInt32(fkm, kBlockSize, fo.BlockLogSize);
       Key_Set_UInt32(fk, kNumThreads, fo.NumThreads);
-      Key_Set_UInt32(fkm, kNumThreads, fo.NumThreads);
 
       Key_Set_UInt32(fk, kTimePrec, fo.TimePrec);
       Key_Set_BoolPair_Delete_IfNotDef (fk, kMTime, fo.MTime);
@@ -395,28 +371,6 @@ void CInfo::Load()
   key.GetValue_UInt32_IfOk(kLevel, Level);
   key.GetValue_bool_IfOk(kShowPassword, ShowPassword);
   key.GetValue_bool_IfOk(kEncryptHeaders, EncryptHeaders);
-}
-
-void CInfo::LoadAndUpdateFormatByMethod(CFormatOptions &fo)
-{
-  CS_LOCK
-  CKey key, optionsKey, fk, fkm;
-
-  if ( OpenMainKey(key, kKeyName) != ERROR_SUCCESS
-    || optionsKey.Open(key, kOptionsKeyName, KEY_READ) != ERROR_SUCCESS
-    || fk.Open(optionsKey, fo.FormatID, KEY_READ) != ERROR_SUCCESS
-    || fkm.Open(fk, fo.Method, KEY_READ) != ERROR_SUCCESS
-  ) {
-    return;
-  };
-
-  GetRegString(fkm, kOptions, fo.Options);
-  GetRegString(fkm, kMemUse, fo.MemUse);
-  Key_Get_UInt32(fkm, kLevel, fo.Level);
-  Key_Get_UInt32(fkm, kDictionary, fo.Dictionary);
-  Key_Get_UInt32(fkm, kOrder, fo.Order);
-  Key_Get_UInt32(fkm, kBlockSize, fo.BlockLogSize);
-  Key_Get_UInt32(fkm, kNumThreads, fo.NumThreads);
 }
 
 

@@ -15,9 +15,6 @@ Z7_PURE_INTERFACES_BEGIN
   Z7_DECL_IFACE_7ZIP_SUB(i, base, 3, n) \
   { Z7_IFACE_COM7_PURE(i) };
 
-#define Z7_IFACE_CONSTR_STREAM_WIMPL(i, n) \
-  Z7_DECL_IFACE_7ZIP_SUB(i, IUnknown, 3, n)
-
 #define Z7_IFACE_CONSTR_STREAM(i, n) \
         Z7_IFACE_CONSTR_STREAM_SUB(i, IUnknown, n)
 
@@ -70,17 +67,7 @@ ISequentialOutStream::Write()
 */
 #define Z7_IFACEM_ISequentialOutStream(x) \
   x(Write(const void *data, UInt32 size, UInt32 *processedSize))
-Z7_IFACE_CONSTR_STREAM_WIMPL(ISequentialOutStream, 0x02)
-{
-  Z7_IFACE_COM7_PURE(ISequentialOutStream)
-
-  bool Finalize = false;
-  /*
-  If set then the following write attempts are finalization.
-  So for instance AES wouldn't wait for AES_BLOCK_SIZE, rather simply does padding
-  and writes remaining part.
-  */
-};
+Z7_IFACE_CONSTR_STREAM(ISequentialOutStream, 0x02)
 
 
 #ifdef _WIN32

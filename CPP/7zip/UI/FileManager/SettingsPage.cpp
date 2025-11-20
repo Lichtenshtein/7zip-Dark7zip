@@ -24,6 +24,8 @@
 #include "SettingsPage.h"
 #include "SettingsPageRes.h"
 
+#include "../../../../DarkMode/src/DarkModeSubclass.h"
+
 using namespace NWindows;
 
 #ifdef Z7_LANG
@@ -37,11 +39,6 @@ static const UInt32 kLangIDs[] =
   IDX_SETTINGS_SINGLE_CLICK,
   IDX_SETTINGS_ALTERNATIVE_SELECTION,
   IDX_SETTINGS_LARGE_PAGES,
-  IDX_SETTINGS_WANT_ARC_HISTORY,
-  IDX_SETTINGS_WANT_PATH_HISTORY,
-  IDX_SETTINGS_WANT_COPY_HISTORY,
-  IDX_SETTINGS_WANT_FOLDER_HISTORY,
-  IDX_SETTINGS_LOWERCASE_HASHES,
   IDT_MEM_USAGE_EXTRACT
   // , IDT_COMPRESS_MEMORY
 };
@@ -122,6 +119,9 @@ bool CSettingsPage::OnInit()
   _wasChanged = false;
   _largePages_wasChanged = false;
   _memx_wasChanged = false;
+
+  _clrMode_wasChanged = false;
+
   /*
   _wasChanged_MemLimit = false;
   _memLimitStrings.Clear();
@@ -199,11 +199,6 @@ bool CSettingsPage::OnInit()
   }
   */
   
-  CheckButton(IDX_SETTINGS_WANT_ARC_HISTORY, st.ArcHistory);
-  CheckButton(IDX_SETTINGS_WANT_PATH_HISTORY, st.PathHistory);
-  CheckButton(IDX_SETTINGS_WANT_COPY_HISTORY, st.CopyHistory);
-  CheckButton(IDX_SETTINGS_WANT_FOLDER_HISTORY, st.FolderHistory);
-  CheckButton(IDX_SETTINGS_LOWERCASE_HASHES, st.LowercaseHashes);
   // EnableSubItems();
 
 
@@ -252,6 +247,30 @@ bool CSettingsPage::OnInit()
     SetItemText(IDE_SETTINGS_MEM_SPIN_EDIT, s);
   }
 
+  {
+    const bool isININotUsed = !DarkMode::doesConfigFileExist();
+    EnableItem(IDC_COLOR_MODE, isININotUsed);
+
+    _clrModeCombo.Attach(GetItem(IDC_COLOR_MODE));
+
+    if (isININotUsed)
+    {
+      _curClrMode = Read_ClrMode();
+      const wchar_t* modes[] = { L"classic", L"dark", L"system" };
+      for (const auto& mode : modes)
+      {
+        _clrModeCombo.AddString(mode);
+      }
+      _clrModeCombo.SetCurSel(_curClrMode);
+    }
+    else
+    {
+      const wchar_t* mode = L"INI used";
+      _clrModeCombo.AddString(mode);
+      _clrModeCombo.SetCurSel(0);
+    }
+  }
+
   _initMode = false;
   return CPropertyPage::OnInit();
 }
@@ -290,11 +309,6 @@ LONG CSettingsPage::OnApply()
     st.ShowGrid = IsButtonCheckedBool(IDX_SETTINGS_SHOW_GRID);
     st.SingleClick = IsButtonCheckedBool(IDX_SETTINGS_SINGLE_CLICK);
     st.AlternativeSelection = IsButtonCheckedBool(IDX_SETTINGS_ALTERNATIVE_SELECTION);
-    st.ArcHistory = IsButtonCheckedBool(IDX_SETTINGS_WANT_ARC_HISTORY);
-    st.PathHistory = IsButtonCheckedBool(IDX_SETTINGS_WANT_PATH_HISTORY);
-    st.CopyHistory = IsButtonCheckedBool(IDX_SETTINGS_WANT_COPY_HISTORY);
-    st.FolderHistory = IsButtonCheckedBool(IDX_SETTINGS_WANT_FOLDER_HISTORY);
-    st.LowercaseHashes = IsButtonCheckedBool(IDX_SETTINGS_LOWERCASE_HASHES);
     // st.Underline = IsButtonCheckedBool(IDX_SETTINGS_UNDERLINE);
     
     st.ShowSystemMenu = IsButtonCheckedBool(IDX_SETTINGS_SHOW_SYSTEM_MENU);
@@ -334,6 +348,47 @@ LONG CSettingsPage::OnApply()
     }
     NExtract::Save_LimitGB(val);
     _memx_wasChanged = false;
+  }
+
+  if (_clrMode_wasChanged)
+  {
+    _curClrMode = _clrModeCombo.GetCurSel();
+    Save_ClrMode(_curClrMode);
+    switch (_curClrMode)
+    {
+      case 0:
+      {
+        DarkMode::setDarkModeConfigEx(static_cast<UINT>(DarkMode::DarkModeType::classic));
+        break;
+      }
+
+      case 2:
+      {
+        DarkMode::setDarkModeConfig();
+        break;
+      }
+
+      //case 1:
+      default:
+      {
+        DarkMode::setDarkModeConfigEx(static_cast<UINT>(DarkMode::DarkModeType::dark));
+        break;
+      }
+    }
+
+    DarkMode::setDefaultColors(true);
+
+    HWND hOption = GetParent();
+    DarkMode::setChildCtrlsTheme(hOption);
+    DarkMode::setDarkTitleBarEx(hOption, true);
+    RedrawWindow(hOption, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_UPDATENOW | RDW_FRAME);
+
+    HWND hMain = ::GetParent(GetParent());
+    DarkMode::setChildCtrlsTheme(hMain);
+    DarkMode::setDarkTitleBarEx(hMain, true);
+    RedrawWindow(hMain, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_UPDATENOW | RDW_FRAME);
+
+    _clrMode_wasChanged = false;
   }
 
   /*
@@ -412,19 +467,26 @@ bool CSettingsPage::OnCommand(unsigned code, unsigned itemID, LPARAM param)
       _memx_wasChanged = true;
       Changed();
     }
-    /*
-  if (code == CBN_SELCHANGE)
-  {
-    switch (itemID)
+
+    if (code == CBN_SELCHANGE && itemID == IDC_COLOR_MODE)
     {
-      case IDC_SETTINGS_MEM:
+      _clrMode_wasChanged = true;
+      Changed();
+    }
+
+    /*
+    if (code == CBN_SELCHANGE)
+    {
+      switch (itemID)
       {
-        _wasChanged_MemLimit = true;
-        Changed();
-        break;
+        case IDC_SETTINGS_MEM:
+        {
+          _wasChanged_MemLimit = true;
+          Changed();
+          break;
+        }
       }
     }
-  }
     */
   }
   return CPropertyPage::OnCommand(code, itemID, param);
@@ -445,11 +507,6 @@ bool CSettingsPage::OnButtonClicked(unsigned buttonID, HWND buttonHWND)
     case IDX_SETTINGS_FULL_ROW:
     case IDX_SETTINGS_SHOW_GRID:
     case IDX_SETTINGS_ALTERNATIVE_SELECTION:
-    case IDX_SETTINGS_WANT_ARC_HISTORY:
-    case IDX_SETTINGS_WANT_PATH_HISTORY:
-    case IDX_SETTINGS_WANT_COPY_HISTORY:
-    case IDX_SETTINGS_WANT_FOLDER_HISTORY:
-    case IDX_SETTINGS_LOWERCASE_HASHES:
       _wasChanged = true;
       break;
 

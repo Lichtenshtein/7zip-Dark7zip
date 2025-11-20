@@ -586,12 +586,6 @@ struct ISzAlloc
 
 EXTERN_C_END
 
-#if defined(__GNUC__)
-#  define _CAST_FARPROC  (void**)
-#else
-#  define _CAST_FARPROC
-#endif
-
 #endif
 
 /*

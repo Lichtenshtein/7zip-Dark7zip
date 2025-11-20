@@ -20,7 +20,6 @@
 #include "../../../Common/StringConvert.h"
 
 #include "../../../Windows/FileDir.h"
-#include "../../../Windows/FileName.h"
 #include "../../../Windows/NtCheck.h"
 
 #include "../Common/ArchiveCommandLine.h"
@@ -100,7 +99,7 @@ DECLARE_AND_SET_CLIENT_VERSION_VAR
 static void ErrorMessage(LPCWSTR message)
 {
   if (!g_DisableUserQuestions)
-    MessageBoxW(NULL, message, L"7-Zip ZS", MB_ICONERROR | MB_OK);
+    MessageBoxW(NULL, message, L"7-Zip", MB_ICONERROR | MB_OK);
 }
 
 static void ErrorMessage(const char *s)
@@ -146,7 +145,7 @@ static int Main2()
   #endif
   if (commandStrings.Size() == 0)
   {
-    MessageBoxW(NULL, L"Specify command", L"7-Zip ZS", 0);
+    MessageBoxW(NULL, L"Specify command", L"7-Zip", 0);
     return 0;
   }
 
@@ -172,7 +171,7 @@ static int Main2()
     if (!s.IsEmpty())
     {
       if (!g_DisableUserQuestions)
-      MessageBoxW(NULL, s, L"7-Zip", MB_ICONERROR);
+        MessageBoxW(NULL, s, L"7-Zip", MB_ICONERROR);
     }
   
   }
@@ -326,49 +325,6 @@ static int Main2()
     }
     if (!ecs->IsOK())
       return NExitCode::kFatalError;
-
-    if (eo.DeleteArchive.Val && !eo.StdInMode)
-    {
-      UStringVector uniquePaths;
-      FOR_VECTOR (i, ArchivePathsFullSorted)
-      {
-        const UString &fullPath = ArchivePathsFullSorted[i];
-        bool already = false;
-        FOR_VECTOR (j, uniquePaths)
-          if (uniquePaths[j].IsEqualTo_NoCase(fullPath))
-          {
-            already = true;
-            break;
-          }
-        if (!already)
-          uniquePaths.Add(fullPath);
-      }
-
-      UStringVector failedPaths;
-      FOR_VECTOR (i, uniquePaths)
-      {
-        const FString fullPathFs = us2fs(uniquePaths[i]);
-        if (!NWindows::NFile::NDir::DeleteFileAlways(fullPathFs))
-        {
-          const DWORD error = ::GetLastError();
-          if (error != ERROR_FILE_NOT_FOUND && error != ERROR_PATH_NOT_FOUND)
-            failedPaths.Add(uniquePaths[i]);
-        }
-      }
-
-      if (!failedPaths.IsEmpty())
-      {
-        UString message = LangString(IDS_EXTRACT_DELETE_ARCHIVE_FAILED);
-        message.Add_LF();
-        FOR_VECTOR (i, failedPaths)
-        {
-          message += failedPaths[i];
-          if (i + 1 != failedPaths.Size())
-            message.Add_LF();
-        }
-        ErrorMessage(message);
-      }
-    }
   }
   else if (options.Command.IsFromUpdateGroup())
   {

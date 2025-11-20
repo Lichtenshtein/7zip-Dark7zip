@@ -35,7 +35,4 @@ struct CBoolPair
   }
 };
 
-/* CP_UNICODE - basically same as MY__CP_UTF16, but used srv-mode in console pipes only... */
-#define CP_UNICODE 1200
-
 #endif

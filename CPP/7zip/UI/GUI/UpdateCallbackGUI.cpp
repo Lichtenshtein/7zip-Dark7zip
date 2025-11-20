@@ -183,13 +183,6 @@ HRESULT CUpdateCallbackGUI::CryptoGetTextPassword(BSTR *password)
   return CryptoGetTextPassword2(NULL, password);
 }
 
-HRESULT CUpdateCallbackGUI::CryptoGetPasswordIfAny(bool& passwordIsDefined, UString& password)
-{
-  passwordIsDefined = PasswordIsDefined;
-  password = Password;
-  return S_OK;
-}
-
 /*
 It doesn't work, since main stream waits Dialog
 HRESULT CUpdateCallbackGUI::CloseProgress()
@@ -224,6 +217,7 @@ HRESULT CUpdateCallbackGUI::Open_CryptoGetTextPassword(BSTR *password)
   return CryptoGetTextPassword2(NULL, password);
 }
 
+/*
 HRESULT CUpdateCallbackGUI::Open_GetPasswordIfAny(bool &passwordIsDefined, UString &password)
 {
   passwordIsDefined = PasswordIsDefined;
@@ -231,7 +225,6 @@ HRESULT CUpdateCallbackGUI::Open_GetPasswordIfAny(bool &passwordIsDefined, UStri
   return S_OK;
 }
 
-/*
 bool CUpdateCallbackGUI::Open_WasPasswordAsked()
 {
   return PasswordWasAsked;

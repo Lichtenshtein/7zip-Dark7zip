@@ -26,7 +26,6 @@
 
 #include "../../../Windows/Control/ComboBox.h"
 #include "../../../Windows/Control/Edit.h"
-#include "../../../Windows/Control/ImageList.h"
 #include "../../../Windows/Control/ListView.h"
 #include "../../../Windows/Control/ReBar.h"
 #include "../../../Windows/Control/Static.h"
@@ -50,12 +49,7 @@
 #define NON_CE_VAR(_v_) _v_
 #endif
 
-enum
-{
-  kMoveBackwardID = 100,
-  kMoveForwardID,
-  kParentFolderID
-};
+const int kParentFolderID = 100;
 
 const unsigned kParentIndex = (unsigned)(int)-1;
 const UInt32 kParentIndex_UInt32 = (UInt32)(Int32)kParentIndex;
@@ -77,7 +71,7 @@ DECLARE_INTERFACE(CPanelCallback)
 {
   virtual void OnTab() = 0;
   virtual void SetFocusToPath(unsigned index) = 0;
-  virtual void OnCopy(bool move, bool copyToSame, bool _auto = false) = 0;
+  virtual void OnCopy(bool move, bool copyToSame) = 0;
   virtual void OnSetSameFolder() = 0;
   virtual void OnSetSubFolder() = 0;
   virtual void PanelWasFocused() = 0;
@@ -436,7 +430,6 @@ public:
 
   NWindows::NControl::CReBar _headerReBar;
   NWindows::NControl::CToolBar _headerToolBar;
-  NWindows::NControl::CImageList _headerImageList;
   NWindows::NControl::
     #ifdef UNDER_CE
     CComboBox
@@ -453,7 +446,6 @@ public:
   CBoolVector _selectedStatusVector;
   CSelectedState _selectedState;
 
-  UString _lastFolderPrefix;
   UString _currentFolderPrefix;
   
   CObjectVector<CFolderLink> _parentFolders;
@@ -466,15 +458,6 @@ public:
   CMyComPtr<IArchiveGetRawProps> _folderRawProps;
   CMyComPtr<IFolderAltStreams> _folderAltStreams;
   CMyComPtr<IFolderOperations> _folderOperations;
-
-  CFolderHistory _backwardHistory;
-  CFolderHistory _forwardHistory;
-  bool _IsNaviTriggered;
-  bool IsBackwardAvailable() { return _backwardHistory.Size() > 0; }
-  bool IsForwardAvailable() { return _forwardHistory.Size() > 0; }
-  void MoveBackward();
-  void MoveForward();
-  void UpdateNaviHistory();
 
   // for drag and drop highliting
   int m_DropHighlighted_SelectionIndex;
@@ -938,7 +921,7 @@ public:
 
   int FindDir_InOperatedList(const CRecordVector<UInt32> &indices) const;
   void GetFilePaths(const CRecordVector<UInt32> &indices, UStringVector &paths) const;
-  void ExtractArchives(bool _auto);
+  void ExtractArchives();
   void TestArchives();
 
   void Get_ZoneId_Stream_from_ParentFolders(CByteBuffer &buf);

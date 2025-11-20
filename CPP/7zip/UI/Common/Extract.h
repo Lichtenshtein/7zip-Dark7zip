@@ -17,7 +17,6 @@
 struct CExtractOptionsBase
 {
   CBoolPair ElimDup;
-  CBoolPair DeleteArchive;
 
   bool ExcludeDirItems;
   bool ExcludeFileItems;
@@ -81,12 +80,10 @@ struct CDecompressStat
   UInt64 NumFolders;
   UInt64 NumFiles;
   UInt64 NumAltStreams;
-  FString FirstExtractedPath;
 
   void Clear()
   {
     NumArchives = UnpackSize = AltStreams_UnpackSize = PackSize = NumFolders = NumFiles = NumAltStreams = 0;
-    FirstExtractedPath.Empty();
   }
 };
 

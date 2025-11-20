@@ -60,12 +60,8 @@ bool ParseVolumeSizes(const UString &s, CRecordVector<UInt64> &values)
 
 static const char * const k_Sizes[] =
 {
-    "8M"
-  , "10M"
-  , "25M"
-  , "50M"
+    "10M"
   , "100M"
-  , "500M"
   , "1000M"
   , "650M - CD"
   , "700M - CD"

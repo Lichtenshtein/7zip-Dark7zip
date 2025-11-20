@@ -1708,10 +1708,6 @@ SOURCE=..\..\Archive\IArchive.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\Archive\LzHandler.cpp
-# End Source File
-# Begin Source File
-
 SOURCE=..\..\Archive\LzmaHandler.cpp
 # End Source File
 # Begin Source File
@@ -3294,6 +3290,34 @@ SOURCE=..\..\..\..\C\Xxh64.c
 # Begin Source File
 
 SOURCE=..\..\..\..\C\Xxh64.h
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\..\..\C\ZstdDec.c
+
+!IF  "$(CFG)" == "Alone - Win32 Release"
+
+# ADD CPP /O2
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ELSEIF  "$(CFG)" == "Alone - Win32 Debug"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ELSEIF  "$(CFG)" == "Alone - Win32 ReleaseU"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ELSEIF  "$(CFG)" == "Alone - Win32 DebugU"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ENDIF 
+
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\..\..\C\ZstdDec.h
 # End Source File
 # End Group
 # End Target

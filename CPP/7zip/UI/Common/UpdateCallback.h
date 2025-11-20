@@ -47,9 +47,6 @@ Z7_PURE_INTERFACES_BEGIN
   /* virtual HRESULT SetPassword(const UString &password) x */ \
   virtual HRESULT CryptoGetTextPassword2(Int32 *passwordIsDefined, BSTR *password) x \
   virtual HRESULT CryptoGetTextPassword(BSTR *password) x \
-  virtual HRESULT CryptoGetNextPassword(BSTR *password) x /* by abc321 */ \
-  virtual HRESULT CryptoPasswordValid() x /* by abc321 */ \
-  virtual HRESULT CryptoGetPasswordIfAny(bool& passwordIsDefined, UString& password) x \
   virtual HRESULT ShowDeleteFile(const wchar_t *name, bool isDir) x \
 
   /*
@@ -87,8 +84,6 @@ class CArchiveUpdateCallback Z7_final:
   public IArchiveGetRootProps,
   public ICryptoGetTextPassword2,
   public ICryptoGetTextPassword,
-  //public ICryptoGetNextPassword, // by abc321
-  //public ICryptoPasswordValid, // by abc321
   public ICompressProgressInfo,
   public IInFileStream_Callback,
   public CMyUnknownImp
@@ -101,8 +96,6 @@ class CArchiveUpdateCallback Z7_final:
     Z7_COM_QI_ENTRY(IArchiveGetRootProps)
     Z7_COM_QI_ENTRY(ICryptoGetTextPassword2)
     Z7_COM_QI_ENTRY(ICryptoGetTextPassword)
-    //Z7_COM_QI_ENTRY(ICryptoGetNextPassword) // by abc321
-    //Z7_COM_QI_ENTRY(ICryptoPasswordValid) // by abc321
     Z7_COM_QI_ENTRY(ICompressProgressInfo)
   Z7_COM_QI_END
   Z7_COM_ADDREF_RELEASE
@@ -119,8 +112,6 @@ class CArchiveUpdateCallback Z7_final:
   Z7_IFACE_COM7_IMP(IArchiveGetRootProps)
   Z7_IFACE_COM7_IMP(ICryptoGetTextPassword2)
   Z7_IFACE_COM7_IMP(ICryptoGetTextPassword)
-  //Z7_IFACE_COM7_IMP(ICryptoGetNextPassword) // by abc321
-  //Z7_IFACE_COM7_IMP(ICryptoPasswordValid) // by abc321
 
 
   void UpdateProcessedItemStatus(unsigned dirIndex);
@@ -169,10 +160,6 @@ public:
   FString VolName;
   FString VolExt;
   UString ArcFileName; // without path prefix
-  FString VolPrefix;
-  FString VolPostfix;
-  bool VolNumberAfterExt;
-  UInt32 DigitCount;
 
   const UStringVector *NewNames;
   const UString *Comment;

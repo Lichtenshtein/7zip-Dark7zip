@@ -26,7 +26,6 @@ enum
 {
   kMenuCmdID_Toolbar_Add = kMenuCmdID_Toolbar_Start,
   kMenuCmdID_Toolbar_Extract,
-  kMenuCmdID_Toolbar_AutoExtract,
   kMenuCmdID_Toolbar_Test,
   kMenuCmdID_Toolbar_End
 };
@@ -43,7 +42,7 @@ public:
   }
   virtual void OnTab() Z7_override;
   virtual void SetFocusToPath(unsigned index) Z7_override;
-  virtual void OnCopy(bool move, bool copyToSame, bool _auto = false) Z7_override;
+  virtual void OnCopy(bool move, bool copyToSame) Z7_override;
   virtual void OnSetSameFolder() Z7_override;
   virtual void OnSetSubFolder() Z7_override;
   virtual void PanelWasFocused() Z7_override;
@@ -102,7 +101,7 @@ public:
   void DragBegin(unsigned panelIndex);
   void DragEnd();
   
-  void OnCopy(bool move, bool copyToSame, unsigned srcPanelIndex, bool _auto = false);
+  void OnCopy(bool move, bool copyToSame, unsigned srcPanelIndex);
   void OnSetSameFolder(unsigned srcPanelIndex);
   void OnSetSubFolder(unsigned srcPanelIndex);
 
@@ -166,10 +165,6 @@ public:
 
   void SortItemsWithPropID(PROPID propID) { GetFocusedPanel().SortItemsWithPropID(propID); }
 
-  bool IsBackwardAvailable() { return GetFocusedPanel().IsBackwardAvailable(); }
-  bool IsForwardAvailable() { return GetFocusedPanel().IsForwardAvailable(); }
-  void MoveBackward() { GetFocusedPanel().MoveBackward(); }
-  void MoveForward() { GetFocusedPanel().MoveForward(); }
   void OpenRootFolder() { GetFocusedPanel().OpenDrivesFolder(); }
   void OpenParentFolder() { GetFocusedPanel().OpenParentFolder(); }
   void FoldersHistory() { GetFocusedPanel().FoldersHistory(); }
@@ -303,7 +298,7 @@ public:
   }
 
   void AddToArchive() { GetFocusedPanel().AddToArchive(); }
-  void ExtractArchives(bool _auto = false) { GetFocusedPanel().ExtractArchives(_auto); }
+  void ExtractArchives() { GetFocusedPanel().ExtractArchives(); }
   void TestArchives() { GetFocusedPanel().TestArchives(); }
 
   void OnNotify(int ctrlID, LPNMHDR pnmh);

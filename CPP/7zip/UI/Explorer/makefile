@@ -21,7 +21,6 @@ COMMON_OBJS = \
   $O\Lang.obj \
   $O\MyString.obj \
   $O\MyVector.obj \
-  $O\MyWindows.obj \
   $O\NewHandler.obj \
   $O\Random.obj \
   $O\StringConvert.obj \
@@ -57,10 +56,6 @@ WIN_CTRL_OBJS = \
   $O\Dialog.obj \
   $O\ListView.obj \
 
-DARK_MODE_OBJS = \
-  $O\DarkMode.obj \
-  $O\DarkModeSubclass.obj \
-
 UI_COMMON_OBJS = \
   $O\ArchiveName.obj \
   $O\CompressCall.obj \
@@ -74,7 +69,6 @@ FM_OBJS = \
   $O\ProgramLocation.obj \
   $O\PropertyName.obj \
   $O\RegistryUtils.obj \
-  $O\StringUtils.obj \
 
 C_OBJS = \
   $O\CpuArch.obj \

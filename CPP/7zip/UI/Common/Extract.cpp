@@ -323,9 +323,6 @@ HRESULT Extract(
   CArchiveExtractCallback *ecs = new CArchiveExtractCallback;
   CMyComPtr<IArchiveExtractCallback> ec(ecs);
   
-  ecs->ExtrOffset = extractCallback->ExtrOffset;
-  ecs->ExtrLength = extractCallback->ExtrLength;
-  
   const bool multi = (numArcs > 1);
   
   ecs->InitForMulti(multi,
@@ -574,6 +571,5 @@ HRESULT Extract(
   st.AltStreams_UnpackSize = ecs->AltStreams_UnpackSize;
   st.NumArchives = arcPaths.Size();
   st.PackSize = ecs->LocalProgressSpec->InSize;
-  st.FirstExtractedPath = ecs->FirstExtractedPath;
   return S_OK;
 }

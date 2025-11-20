@@ -1123,7 +1123,6 @@ static const char * const k_Formats_with_simple_signuature[] =
   , "rar"
   , "bzip2"
   , "gzip"
-  , "lzip"
   , "cab"
   , "wim"
   , "rpm"
@@ -1180,14 +1179,6 @@ Z7_COM7F_IMF(CArchiveOpenCallback_Offset::CryptoGetTextPassword(BSTR *password))
   COM_TRY_BEGIN
   if (GetTextPassword)
     return GetTextPassword->CryptoGetTextPassword(password);
-  return E_NOTIMPL;
-  COM_TRY_END
-}
-Z7_COM7F_IMF(CArchiveOpenCallback_Offset::CryptoGetPasswordIfAny(bool& passwordIsDefined, UString& password))
-{
-  COM_TRY_BEGIN
-  if (GetTextPassword)
-    return GetTextPassword->CryptoGetPasswordIfAny(passwordIsDefined, password);
   return E_NOTIMPL;
   COM_TRY_END
 }

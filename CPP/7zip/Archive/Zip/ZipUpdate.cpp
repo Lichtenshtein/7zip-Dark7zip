@@ -839,7 +839,7 @@ static UInt32 SetZstdThreads(
     UInt64 numFilesToCompress,
     UInt64 numBytesToCompress)
 {
-  NCompress::NZSTD::CEncoderProps encoderProps;
+  NCompress::NZstd::CEncoderProps encoderProps;
   RINOK(encoderProps.SetFromMethodProps(*oneMethodMain));
   CZstdEncProps &zstdProps = encoderProps.EncProps;
   ZstdEncProps_NormalizeFull(&zstdProps);
@@ -1064,7 +1064,7 @@ static HRESULT Update2(
   {
     // if (oneMethodMain) {
     /*
-    if (method == NFileHeader::NCompressionMethod::kZstd)
+    if (method == NFileHeader::NCompressionMethod::kZstdWz)
     {
       if (oneMethodMain->FindProp(NCoderPropID::kNumThreads) < 0)
       {
@@ -1073,7 +1073,7 @@ static HRESULT Update2(
             && options._memUsage_WasSet
             && !options._numThreads_WasForced)
         {
-          NCompress::NZSTD::CEncoderProps encoderProps;
+          NCompress::NZstd::CEncoderProps encoderProps;
           RINOK(encoderProps.SetFromMethodProps(*oneMethodMain))
           CZstdEncProps &zstdProps = encoderProps.EncProps;
           ZstdEncProps_NormalizeFull(&zstdProps);
@@ -1083,7 +1083,7 @@ static HRESULT Update2(
         }
         oneMethodMain->AddProp_NumThreads(numThreads);
       }
-    } // kZstd
+    } // kZstdWz
     */
     // } // oneMethodMain
 
@@ -1149,7 +1149,7 @@ static HRESULT Update2(
       numThreads /= (unsigned)numXzThreads;
     }
     /*
-    else if (method == NFileHeader::NCompressionMethod::kZstd)
+    else if (method == NFileHeader::NCompressionMethod::kZstdWz)
     {
       numThreads = SetZstdThreads(options,
           oneMethodMain, numThreads,

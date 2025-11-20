@@ -1123,13 +1123,6 @@ UString::UString(const wchar_t *s)
   wmemcpy(_chars, s, len + 1);
 }
 
-UString::UString(const wchar_t *s, unsigned len)
-{
-  SetStartLen(len);
-  wmemcpy(_chars, s, len);
-  _chars[len] = 0;
-}
-
 UString::UString(const char *s)
 {
   const unsigned len = MyStringLen(s);
@@ -1203,16 +1196,6 @@ UString &UString::operator=(const UString &s)
   _len = len;
   wmemcpy(_chars, s._chars, len + 1);
   return *this;
-}
-
-void UString::AddFrom(const wchar_t *s, unsigned len) // no check
-{
-  if (len) {
-    Grow(len);
-    wmemcpy(_chars + _len, s, len);
-    _len += len;
-    _chars[_len] = 0;
-  }
 }
 
 void UString::SetFrom(const wchar_t *s, unsigned len) // no check
@@ -1405,7 +1388,7 @@ int UString::ReverseFind(wchar_t c) const throw()
       return (int)(p - _chars);
   }
   while (p != _chars);
-      return -1;
+  return -1;
 }
 
 int UString::ReverseFind_PathSepar() const throw()
@@ -1417,7 +1400,7 @@ int UString::ReverseFind_PathSepar() const throw()
     if (IS_PATH_SEPAR(c))
       return (int)(p - _chars);
   }
-      return -1;
+  return -1;
 }
 
 void UString::TrimLeft() throw()
@@ -1591,50 +1574,6 @@ void UString::DeleteFrontal(unsigned num) throw()
   }
 }
 
-unsigned UString::HexKeyToBytes(uint8_t phase)
-{
-  // hex, 2 chars = 1 byte, so we can convert in-place:
-  wchar_t c, *ch = GetBuf();
-  uint8_t *buf = (uint8_t*)ch;
-  unsigned len = Len();
-  uint8_t v = 0;
-  if (phase && *ch == PWD_IS_HEX_KEY_MARK) {
-    ch++; len--;
-  }
-  while (len >= 2) {
-    c = *ch;
-    if (c >= L'0' && c <= L'9') v = (uint8_t)(c - L'0');
-    else if (c >= L'A' && c <= L'F') v = (uint8_t)(10 + (c - L'A'));
-    else if (c >= L'a' && c <= L'f') v = (uint8_t)(10 + (c - L'a'));
-    else break;
-    if (phase)
-      *ch = L'\0'; // wipe
-    ch++;
-    v <<= 4;
-    c = *ch;
-    if (c >= L'0' && c <= L'9') v |= (uint8_t)(c - L'0');
-    else if (c >= L'A' && c <= L'F') v |= (uint8_t)(10 + (c - L'A'));
-    else if (c >= L'a' && c <= L'f') v |= (uint8_t)(10 + (c - L'a'));
-    else break;
-    if (phase)
-      *ch = L'\0'; // wipe
-    ch++;
-    if (phase)
-      *buf = v;
-    buf++;
-    len -= 2;
-  }
-  if (len) {
-    return 0;
-  }
-  len = (unsigned)(buf - (uint8_t*)GetBuf());
-  if (phase) {
-    ReleaseBuf_SetEnd(len / 2); // length in bytes -> length in wchar_t
-  } else {
-    InsertAtFront(PWD_IS_HEX_KEY_MARK); // artificial mark (PasswordIsKey) - GetBuf()+1 points to HEX of key(s)
-  }
-  return len;
-}
 
 // ---------- UString2 ----------
 
@@ -1900,48 +1839,4 @@ void SplitString(const UString &srcString, UStringVector &destStrings)
   }
   if (!s.IsEmpty())
     destStrings.Add(s);
-}
-
-// ----------------------------------------
-
-UString GetQuotedString(const UString &src)
-{
-  UString s2 ('\"');
-  unsigned bcount = 0;
-  wchar_t c; const wchar_t *f = src.Ptr(), *s = f, *b = f;
-  // add string considering backslashes before quote (escape them):
-  while (1)
-  {
-    c = *s++;
-    switch (c)
-    {
-      case L'\\':
-        // a backslash - save the position and count them up to quote-char or regular char
-        if (!bcount) b = s-1;
-        bcount++;
-      break;
-      case L'\0':
-        // end of string (it is always quoted, so need to escape backslashes too):
-      case L'"':
-        // add part before backslash (and unescaped backslashes if some are there):
-        s2.AddFrom(f, (unsigned)(s - f - 1));
-        f = s;
-        if (bcount) {
-          // escape backslashes before quote (same count of BS again):
-          s2.AddFrom(b, (unsigned)(s - b - 1));
-        }
-        // done if end of string
-        if (c == L'\0') goto done;
-        // escape this quote char:
-        s2 += L"\\\"";
-      break;
-      default:
-        // a regular character, reset backslash counter
-        bcount = 0;
-    }
-  }
-  s2.AddFrom(f, (unsigned)(s - f - 1));
-done:
-  s2.Add_Char('\"');
-  return s2;
 }

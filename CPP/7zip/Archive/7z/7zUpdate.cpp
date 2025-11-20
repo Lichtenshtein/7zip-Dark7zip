@@ -722,7 +722,7 @@ static int CompareEmptyItems(const unsigned *p1, const unsigned *p2, void *param
 }
 
 static const char *g_Exts =
-  " 7z xz lzma lzma2 ace arc arj bz tbz bz2 tbz2 cab deb gz tgz ha lha liz tliz lz tlz lz4 tlz4 lz5 tlz5 lzh lzo lzx pak rar rpm sit zoo zst tzst zstd tzstd"
+  " 7z xz lzma ace arc arj bz tbz bz2 tbz2 cab deb gz tgz ha lha lzh lzo lzx pak rar rpm sit zoo"
   " zip jar ear war msi"
   " 3gp avi mov mpeg mpg mpe wmv"
   " aac ape fla flac la mp3 m4a mp4 ofr ogg pac ra rm rka shn swa tta wv wma wav"
@@ -1784,7 +1784,6 @@ public:
   
   #ifndef Z7_NO_CRYPTO
   CMyComPtr<ICryptoGetTextPassword> getTextPassword;
-  CMyComPtr<ICryptoGetNextPassword> getNextPassword; // by abc321
   #endif
 
   DECL_EXTERNAL_CODECS_LOC_VARS_DECL
@@ -1870,41 +1869,9 @@ public:
   UString Password;
 };
 
-// by abc321 \/
-// not sure that this part is required
-Z7_CLASS_IMP_NOQIB_1(
-	CCryptoGetNextPassword
-	, ICryptoGetNextPassword
-)
-public:
-	UString Password;
-};
-// by abc321 /\~
-
 Z7_COM7F_IMF(CCryptoGetTextPassword::CryptoGetTextPassword(BSTR *password))
 {
   return StringToBstr(Password, password);
-}
-
-// by abc321 \/
-Z7_COM7F_IMF(CCryptoGetNextPassword::CryptoGetNextPassword(BSTR *password))
-{
-	// is not implemented correctly
-	return StringToBstr(Password, password);
-}
-
-Z7_COM7F_IMF(CCryptoGetNextPassword::CryptoPasswordValid())
-{
-	// is not implemented correctly
-	return S_OK;
-}
-// by abc321 /\~
-
-Z7_COM7F_IMF(CCryptoGetTextPassword::CryptoGetPasswordIfAny(bool& passwordIsDefined, UString& password))
-{
-  passwordIsDefined = !Password.Len();
-  password = Password;
-  return S_OK;
 }
 
 #endif
@@ -2213,7 +2180,6 @@ HRESULT Update(
 
   CCryptoGetTextPassword *getPasswordSpec = NULL;
   CMyComPtr<ICryptoGetTextPassword> getTextPassword;
-  CMyComPtr<ICryptoGetNextPassword> getNextPassword; // by abc321 - need impementation below
   if (needEncryptedRepack)
   {
     getPasswordSpec = new CCryptoGetTextPassword;

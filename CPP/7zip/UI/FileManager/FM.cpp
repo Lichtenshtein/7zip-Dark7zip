@@ -883,7 +883,6 @@ static void ExecuteCommand(UINT commandID)
   {
     case kMenuCmdID_Toolbar_Add: g_App.AddToArchive(); break;
     case kMenuCmdID_Toolbar_Extract: g_App.ExtractArchives(); break;
-    case kMenuCmdID_Toolbar_AutoExtract: g_App.ExtractArchives(true); break;
     case kMenuCmdID_Toolbar_Test: g_App.TestArchives(); break;
   }
 }
@@ -1067,21 +1066,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
       ::ReleaseCapture();
       break;
     }
-
-    case WM_APPCOMMAND:
-    {
-      switch (GET_APPCOMMAND_LPARAM(lParam))
-      {
-        case APPCOMMAND_BROWSER_BACKWARD:
-          g_App.Panels[g_App.LastFocusedPanel].MoveBackward();
-          return 0;
-        case APPCOMMAND_BROWSER_FORWARD:
-          g_App.Panels[g_App.LastFocusedPanel].MoveForward();
-          return 0;
-      }
-      break;
-    }
-
+    
     case WM_MOUSEMOVE:
     {
       if ((wParam & MK_LBUTTON) != 0 && ::GetCapture() == hWnd)

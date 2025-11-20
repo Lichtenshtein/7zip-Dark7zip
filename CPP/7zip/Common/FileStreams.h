@@ -7,8 +7,6 @@
 #define Z7_FILE_STREAMS_USE_WIN_FILE
 #endif
 
-#include <stdio.h>
-
 #include "../../Common/MyCom.h"
 #include "../../Common/MyString.h"
 
@@ -135,12 +133,6 @@ Z7_CLASS_IMP_NOQIB_1(
   CStdInFileStream
   , ISequentialInStream
 )
-  int infno;
-  HANDLE infh;
-
-public:
-  static FILE *defIn;
-  CStdInFileStream();
 };
 
 
@@ -205,13 +197,9 @@ Z7_CLASS_IMP_NOQIB_1(
   , ISequentialOutStream
 )
   UInt64 _size;
-  int outfno;
-  HANDLE outfh;
 public:
-  static FILE *defOut;
-  static int defOutAppendMode;
   UInt64 GetSize() const { return _size; }
-  CStdOutFileStream();
+  CStdOutFileStream(): _size(0) {}
 };
 
 #endif

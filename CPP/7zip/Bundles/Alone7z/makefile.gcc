@@ -223,7 +223,6 @@ COMPRESS_OBJS = \
 CRYPTO_OBJS = \
   $O/7zAes.o \
   $O/7zAesRegister.o \
-  $O/AesStream.o \
   $O/MyAes.o \
   $O/MyAesReg.o \
   $O/RandGen.o \

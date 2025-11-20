@@ -22,6 +22,8 @@
 #include "MenuPage.h"
 #include "MenuPageRes.h"
 
+#include "../../../../DarkMode/src/DarkModeSubclass.h"
+
 
 using namespace NWindows;
 using namespace NContextMenuFlags;
@@ -53,18 +55,12 @@ static const CContextMenuItem kMenuItems[] =
   { IDS_CONTEXT_EXTRACT, kExtract },
   { IDS_CONTEXT_EXTRACT_HERE, kExtractHere },
   { IDS_CONTEXT_EXTRACT_TO, kExtractTo },
-  { IDS_CONTEXT_EXTRACT_SMART, kExtractSmart },
-  { IDS_CONTEXT_EXTRACT_TO_SINGLE, kExtractToSingle },
 
   { IDS_CONTEXT_TEST, kTest },
 
   { IDS_CONTEXT_COMPRESS, kCompress },
   { IDS_CONTEXT_COMPRESS_TO, kCompressTo7z },
-  { IDS_CONTEXT_COMPRESS_TO, kCompressTo7zWithDate },
-  { IDS_CONTEXT_COMPRESS_TO_7Z_SEPARATE, kCompressTo7zSeparate },
   { IDS_CONTEXT_COMPRESS_TO, kCompressToZip },
-  { IDS_CONTEXT_COMPRESS_TO, kCompressToZipWithDate },
-  { IDS_CONTEXT_COMPRESS_TO_ZIP_SEPARATE, kCompressToZipSeparate },
 
   #ifndef UNDER_CE
   { IDS_CONTEXT_COMPRESS_EMAIL, kCompressEmail },
@@ -247,13 +243,13 @@ bool CMenuPage::OnInit()
 
     UString s = LangString(menuItem.ControlID);
     if (menuItem.Flag == kCRC)
-      s = "HASH";
+      s = "CRC SHA";
     else if (menuItem.Flag == kCRC_Cascaded)
-      s = "7-Zip > HASH";
+      s = "7-Zip > CRC SHA";
     if (menuItem.Flag == kOpenAs
         || menuItem.Flag == kCRC
         || menuItem.Flag == kCRC_Cascaded)
-       s += " >";
+      s += " >";
 
     switch (menuItem.ControlID)
     {
@@ -289,6 +285,8 @@ bool CMenuPage::OnInit()
   _listView.SetColumnWidthAuto(0);
   _initMode = false;
 
+  DarkMode::setDarkListViewCheckboxes(_listView);
+
   return CPropertyPage::OnInit();
 }
 
@@ -297,7 +295,7 @@ bool CMenuPage::OnInit()
 
 static void ShowMenuErrorMessage(const wchar_t *m, HWND hwnd)
 {
-  MessageBoxW(hwnd, m, L"7-Zip ZS", MB_ICONERROR);
+  MessageBoxW(hwnd, m, L"7-Zip", MB_ICONERROR);
 }
 
 #endif

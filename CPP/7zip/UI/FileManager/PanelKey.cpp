@@ -7,8 +7,6 @@
 
 #include "../../PropID.h"
 #include "App.h"
-#include "MyLoadMenu.h"
-#include "resource.h"
 
 using namespace NWindows;
 
@@ -195,16 +193,14 @@ bool CPanel::OnKeyDown(LPNMLVKEYDOWN keyDownInfo, LRESULT &result)
     }
     case VK_DOWN:
     {
-      if (alt)
-        _panelCallback->OnSetSameFolder();
-      else if (shift)
+      if (shift)
         OnArrowWithShift();
       return false;
     }
     case VK_UP:
     {
       if (alt)
-        OpenParentFolder();
+        _panelCallback->OnSetSameFolder();
       else if (shift)
         OnArrowWithShift();
       return false;
@@ -212,21 +208,17 @@ bool CPanel::OnKeyDown(LPNMLVKEYDOWN keyDownInfo, LRESULT &result)
     case VK_RIGHT:
     {
       if (alt)
-        MoveForward();
+        _panelCallback->OnSetSubFolder();
       else if (shift)
         OnArrowWithShift();
-      else if (ctrl)
-        _panelCallback->OnSetSameFolder();
       return false;
     }
     case VK_LEFT:
     {
       if (alt)
-        MoveBackward();
+        _panelCallback->OnSetSubFolder();
       else if (shift)
         OnArrowWithShift();
-      else if (ctrl)
-        _panelCallback->OnSetSameFolder();
       return false;
     }
     case VK_NEXT:
@@ -309,17 +301,6 @@ bool CPanel::OnKeyDown(LPNMLVKEYDOWN keyDownInfo, LRESULT &result)
         return true;
       }
       return false;
-  
-  
- //ctrl O is options dialog
- case 'O':
-      if (ctrl)
-      {
-        OnMenuCommand(g_HWND, IDM_OPTIONS);
-        return true;
-      }
-      return false;
- 
     case 'N':
       if (ctrl)
       {

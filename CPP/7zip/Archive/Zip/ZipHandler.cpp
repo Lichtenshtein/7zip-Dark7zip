@@ -861,7 +861,6 @@ class CZipDecoder
 
   CMyComPtr2<ISequentialInStream, CFilterCoder> filterStream;
   CMyComPtr<ICryptoGetTextPassword> getTextPassword;
-  CMyComPtr<ICryptoGetNextPassword> getNextPassword; // by abc321
   CObjectVector<CMethodItem> methodItems;
 
   CLzmaDecoder *lzmaDecoderSpec;
@@ -968,15 +967,7 @@ Z7_COM7F_IMF(COutStreamWithPadPKCS7::Write(const void *data, UInt32 size, UInt32
   return result;
 }
 
-// by abc321 - coppied from MyCom.h
-/*
-inline HRESULT StringToBstr(LPCOLESTR src, BSTR *bstr)
-{
-	*bstr = ::SysAllocString(src);
-	return (*bstr) ? S_OK : E_OUTOFMEMORY;
-}
-*/
-// by abc321
+
 
 HRESULT CZipDecoder::Decode(
     DECL_EXTERNAL_CODECS_LOC_VARS
@@ -1175,8 +1166,8 @@ HRESULT CZipDecoder::Decode(
       mi.Coder = new NCompress::NXz::CComDecoder;
     else if (id == NFileHeader::NCompressionMethod::kPPMd)
       mi.Coder = new NCompress::NPpmdZip::CDecoder(true);
-    else if (id == NFileHeader::NCompressionMethod::kZstd)
-      mi.Coder = new NCompress::NZSTD::CDecoder();
+    else if (id == NFileHeader::NCompressionMethod::kZstdWz)
+      mi.Coder = new NCompress::NZstd::CDecoder();
 #ifndef Z7_ZIP_LZFSE_DISABLE
     else if (id == NFileHeader::NCompressionMethod::kWzAES)
       mi.Coder = new NCompress::NLzfse::CDecoder;
@@ -1261,51 +1252,8 @@ HRESULT CZipDecoder::Decode(
 
   {
     HRESULT result = S_OK;
-
-	  // abc321 code \/
-	  /*
-	  if (true) {
-		  CMyComPtr<ICryptoSetPassword> cryptoSetPassword;
-		  RINOK(cryptoFilter.QueryInterface(IID_ICryptoSetPassword, &cryptoSetPassword))
-			  if (!cryptoSetPassword)
-				  return E_FAIL;
-		  CMyComBSTR_Wipe password;
-		  AString_Wipe charPassword;
-		  UString Password = L"1234";
-		  StringToBstr((LPCOLESTR)Password, &password);
-
-		  if (password) {
-			  UnicodeStringToMultiByte2(charPassword, (LPCOLESTR)password, CP_ACP);
-			  result =
-				  cryptoSetPassword->CryptoSetPassword(
-				  (const Byte *)(const char *)charPassword, charPassword.Len());
-			  if (result != S_OK)
-			  {
-				  res = NExtract::NOperationResult::kWrongPassword;
-				  return S_OK;
-			  }
-		  }
-		  else
-		  {
-			  res = NExtract::NOperationResult::kWrongPassword;
-			  return S_OK;
-		  }
-	  }
-	  */
-	  bool passwordTested = false;
-	  CMyComBSTR_Wipe password;
-	  while (!passwordTested) {
-		  passwordTested = true;
-		  password.Wipe_and_Free();
-		  // abc321 code /\~
-
     if (item.IsEncrypted())
     {
-			  // abc321 code \/
-			  if (!getNextPassword)
-				  extractCallback->QueryInterface(IID_ICryptoGetNextPassword, (void **)&getNextPassword);
-			  // abc321 code /\~
-
       if (!filterStream.IsDefined())
         filterStream.SetFromCls(new CFilterCoder(false));
      
@@ -1319,23 +1267,8 @@ HRESULT CZipDecoder::Decode(
         {
           if (!_wzAesDecoder->Init_and_CheckPassword())
           {
-						  // abc321 code \/
-						  if (getNextPassword)
-						  {
-							  //RINOK(getNextPassword->CryptoGetNextPassword(&password))
-							  if (getNextPassword->CryptoGetNextPassword(&password) == S_OK) {
-								  if (password && (&password != NULL) && (wcslen(&password[0]) > 0))
-									  passwordTested = false;
-							  }
-						  }
-						  if (passwordTested) {
-							  // abc321 code /\~
-
             res = NExtract::NOperationResult::kWrongPassword;
             return S_OK;
-							  // abc321 code \/
-						  }
-						  // abc321 code /\~
           }
         }
       }
@@ -1349,25 +1282,8 @@ HRESULT CZipDecoder::Decode(
           result = _pkAesDecoder->Init_and_CheckPassword(passwOK);
           if (result == S_OK && !passwOK)
           {
-						  // abc321 code \/
-						  // this part of code has not been tested yet
-						  if (getNextPassword)
-						  {
-							  //RINOK(getNextPassword->CryptoGetNextPassword(&password))
-							  if (getNextPassword->CryptoGetNextPassword(&password) == S_OK) {
-								  if (password && (&password != NULL) && (wcslen(&password[0]) > 0))
-									  passwordTested = false;
-							  }
-						  }
-						  if (passwordTested) {
-							  // abc321 code /\~
-
             res = NExtract::NOperationResult::kWrongPassword;
             return S_OK;
-						  // abc321 code \/
-						  }
-						  // abc321 code /\~
-
           }
         }
       }
@@ -1390,20 +1306,6 @@ HRESULT CZipDecoder::Decode(
           Byte v1 = _zipCryptoDecoder->_header[NCrypto::NZip::kHeaderSize - 1];
           Byte v2 = (Byte)(item.HasDescriptor() ? (item.Time >> 8) : (item.Crc >> 24));
 
-					  // abc321 code \/
-					  if (v1 != v2) {
-						  if (getNextPassword)
-						  {
-							  //RINOK(getNextPassword->CryptoGetNextPassword(&password))
-							  if (getNextPassword->CryptoGetNextPassword(&password) == S_OK) {
-								  if (password && (&password != NULL) && (wcslen(&password[0]) > 0))
-									  passwordTested = false;
-							  }
-						  }
-					  }
-					  if (passwordTested)
-						  // abc321 code /\~
-
           if (v1 != v2)
           {
             res = NExtract::NOperationResult::kWrongPassword;
@@ -1412,96 +1314,6 @@ HRESULT CZipDecoder::Decode(
         }
       }
     }
-
-		  // abc321 code \/
-
-		  if (!passwordTested) {
-			  AString_Wipe charPassword;
-			  // abc321 - below is duplicated part of code from the above, need to set position of inStream to the beginning
-			  {
-				  UInt64 packSize = item.PackSize;
-				  if (wzAesMode)
-				  {
-					  if (packSize < NCrypto::NWzAes::kMacSize)
-						  return S_OK;
-					  packSize -= NCrypto::NWzAes::kMacSize;
-				  }
-				  RINOK(archive.GetItemStream(item, true, packStream))
-					  if (!packStream)
-					  {
-						  res = NExtract::NOperationResult::kUnavailable;
-						  return S_OK;
-					  }
-				  inStream->SetStream(packStream);
-				  inStream->Init(packSize);
-			  }
-
-			  // abc321 - below is duplicated part of code from the above, though some modifications present
-			  CMyComPtr<ICryptoSetPassword> cryptoSetPassword;
-			  RINOK(cryptoFilter.QueryInterface(IID_ICryptoSetPassword, &cryptoSetPassword))
-				  if (!cryptoSetPassword)
-					  return E_FAIL;
-
-			  //if (!getTextPassword)
-			  //extractCallback->QueryInterface(IID_ICryptoGetTextPassword, (void **)&getTextPassword);
-
-			  //extractCallback->QueryInterface(IID_ICryptoGetTextPassword, (void **)&getTextPassword); // by abc321
-
-			  if (password && (&password != NULL) && (wcslen(&password[0]) > 0))
-			  {
-#if 0 && defined(_WIN32)
-				  // do we need UTF-8 passwords here ?
-				  if (item.GetHostOS() == NFileHeader::NHostOS::kUnix // 24.05
-																	  // || item.IsUtf8() // 22.00
-					  )
-				  {
-					  // throw 1;
-					  ConvertUnicodeToUTF8((LPCOLESTR)password, charPassword);
-				  }
-				  else
-#endif
-				  {
-					  UnicodeStringToMultiByte2(charPassword, (LPCOLESTR)password, CP_ACP);
-				  }
-				  /*
-				  if (wzAesMode || pkAesMode)
-				  {
-				  }
-				  else
-				  {
-				  // PASSWORD encoding for ZipCrypto:
-				  // pkzip25 / WinZip / Windows probably use ANSI
-				  // 7-Zip <  4.43 creates ZIP archives with OEM encoding in password
-				  // 7-Zip >= 4.43 creates ZIP archives only with ASCII characters in password
-				  // 7-Zip <  17.00 uses CP_OEMCP for password decoding
-				  // 7-Zip >= 17.00 uses CP_ACP   for password decoding
-				  }
-				  */
-			  }
-			  //HRESULT
-			  result =
-				  cryptoSetPassword->CryptoSetPassword(
-				  (const Byte *)(const char *)charPassword, charPassword.Len());
-			  if ((result == E_INVALIDARG) && (charPassword.Len() > 1) && !passwordTested) // abc321 on 20250619
-				  result = S_OK; // abc321
-			  if (result != S_OK)
-			  {
-				  res = NExtract::NOperationResult::kWrongPassword;
-				  return S_OK;
-			  }
-
-		  }
-
-
-	  }
-
-	  if (result == S_OK)
-	  {
-		  if (getNextPassword) {
-			  RINOK(getNextPassword->CryptoPasswordValid())
-		  }
-	  }
-	  // abc321 code /\~
 
     if (result == S_OK)
     {

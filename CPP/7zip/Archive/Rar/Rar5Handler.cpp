@@ -609,13 +609,8 @@ public:
     Position += addValue;
   }
 
-//  HRESULT Open(IInStream *inStream, const UInt64 *searchHeaderSizeLimit, ICryptoGetTextPassword *getTextPassword,
-//      CInArcInfo &info);
-
-  // by abc321 \/
   HRESULT Open(IInStream *inStream, const UInt64 *searchHeaderSizeLimit, ICryptoGetTextPassword *getTextPassword,
-	  ICryptoGetNextPassword *getNextPassword, CInArcInfo &info);
-  // by abc321 /\~
+      CInArcInfo &info);
 };
   
 
@@ -862,12 +857,8 @@ bool CInArcInfo::ParseExtra(const Byte *p, size_t size)
 
 
 
-//HRESULT CInArchive::Open(IInStream *stream, const UInt64 *searchHeaderSizeLimit, ICryptoGetTextPassword *getTextPassword,
-//    CInArcInfo &info)
-// by abc321 \/
 HRESULT CInArchive::Open(IInStream *stream, const UInt64 *searchHeaderSizeLimit, ICryptoGetTextPassword *getTextPassword,
-	ICryptoGetNextPassword *getNextPassword, CInArcInfo &info)
-// by abc321 /\~
+    CInArcInfo &info)
 {
   m_CryptoMode = false;
   
@@ -913,37 +904,12 @@ HRESULT CInArchive::Open(IInStream *stream, const UInt64 *searchHeaderSizeLimit,
     m_CryptoDecoder.Create_if_Empty();
     RINOK(m_CryptoDecoder->SetDecoderProps(
         Get_Buf_Data(), (unsigned)Get_Buf_RemainSize(), false, false))
-	// by abc321 \/
-	bool passwordTested = false;
-	while (!passwordTested) {
-		passwordTested = true;
-	// by abc321 /\~
-
     RINOK(MySetPassword(getTextPassword, m_CryptoDecoder.ClsPtr()))
     if (!m_CryptoDecoder->CalcKey_and_CheckPassword())
     {
-		// by abc321 \/
-		if (getTextPassword) {
-			CMyComBSTR_Wipe password;
-			//RINOK(getNextPassword->CryptoGetNextPassword(&password))
-			getNextPassword->CryptoGetNextPassword(&password);
-			if (password)
-				passwordTested = false;
-		}
-		if (passwordTested) {
-		// by abc321 /\~
-		      WrongPassword = True;
-		      return S_FALSE;
-		} // by abc321
+      WrongPassword = True;
+      return S_FALSE;
     }
-	// by abc321 \/
-	else {
-		if (getTextPassword)
-			getNextPassword->CryptoPasswordValid();
-	}
-	}
-	// by abc321 /\~
-
     RINOK(ReadBlockHeader(h))
   }
 
@@ -1060,7 +1026,6 @@ struct CUnpacker
   CMyComPtr<ISequentialInStream> filterStream;
   CMyComPtr2<ICompressFilter, NCrypto::NRar5::CDecoder> cryptoDecoder;
   CMyComPtr<ICryptoGetTextPassword> getTextPassword;
-  CMyComPtr<ICryptoGetNextPassword> getNextPassword; // by abc321
   CMyComPtr2<ISequentialOutStream, COutStreamWithHash> outStream;
 
   CByteBuffer _tempBuf;
@@ -1150,34 +1115,10 @@ HRESULT CUnpacker::Create(DECL_EXTERNAL_CODECS_LOC_VARS
       return E_NOTIMPL;
     }
 
-	// by abc321 \/
-	bool passwordTested = false;
-	while (!passwordTested) {
-		passwordTested = true;
-	// by abc321 /\~
-
     RINOK(MySetPassword(getTextPassword, cryptoDecoder.ClsPtr()))
       
     if (!cryptoDecoder->CalcKey_and_CheckPassword())
       wrongPassword = True;
-
-	// by abc321 \/
-	if (getNextPassword) {
-		if (wrongPassword) {
-			CMyComBSTR_Wipe password;
-			//RINOK(getNextPassword->CryptoGetNextPassword(&password))
-			getNextPassword->CryptoGetNextPassword(&password);
-			if (password) {
-				passwordTested = false;
-				wrongPassword = false;
-			}
-		}
-		else {
-			getNextPassword->CryptoPasswordValid();
-		}
-	}
-	}
-	// by abc321 /\~
   }
 
   return S_OK;
@@ -2309,7 +2250,6 @@ HRESULT CHandler::Open2(IInStream *stream,
   {
     openCallback->QueryInterface(IID_IArchiveOpenVolumeCallback, (void **)&openVolumeCallback);
     openCallback->QueryInterface(IID_ICryptoGetTextPassword, (void **)&unpacker.getTextPassword);
-    openCallback->QueryInterface(IID_ICryptoGetNextPassword, (void **)&unpacker.getNextPassword); // by abc321
   }
   // unpacker.getTextPassword = getTextPassword;
   
@@ -2366,8 +2306,7 @@ HRESULT CHandler::Open2(IInStream *stream,
     
     CInArcInfo arcInfo_Open;
     {
-      //const HRESULT res = arch.Open(inStream, maxCheckStartPosition, unpacker.getTextPassword, arcInfo_Open);
-      const HRESULT res = arch.Open(inStream, maxCheckStartPosition, unpacker.getTextPassword, unpacker.getNextPassword, arcInfo_Open); // by abc321
+      const HRESULT res = arch.Open(inStream, maxCheckStartPosition, unpacker.getTextPassword, arcInfo_Open);
       if (arch.IsArc && arch.UnexpectedEnd)
         _errorFlags |= kpv_ErrorFlags_UnexpectedEnd;
       if (_arcs.IsEmpty())
@@ -3345,12 +3284,6 @@ Z7_COM7F_IMF(CHandler::Extract(const UInt32 *indices, UInt32 numItems,
     if (item->IsEncrypted())
       if (!unpacker.getTextPassword)
         extractCallback->QueryInterface(IID_ICryptoGetTextPassword, (void **)&unpacker.getTextPassword);
-
-	// by abc321 \/
-    if (item->IsEncrypted())
-      if (!unpacker.getNextPassword)
-        extractCallback->QueryInterface(IID_ICryptoGetNextPassword, (void **)&unpacker.getNextPassword);
-	// by abc321 /\~
 
     bool wrongPassword;
     HRESULT result = unpacker.Create(EXTERNAL_CODECS_VARS *item, isSolid, wrongPassword);

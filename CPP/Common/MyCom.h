@@ -480,7 +480,6 @@ EXTERN_C_END
   Z7_COM_QI_ENTRY(i7) \
   Z7_COM_QI_ENTRY(i8) \
   )
-const HRESULT k_My_HRESULT_WritingDone = 0x20000011; /* partial extraction (length of -eoffs=$offs:$len reached) */
 
 
 #define Z7_IFACES_IMP_UNK_1(i1) \

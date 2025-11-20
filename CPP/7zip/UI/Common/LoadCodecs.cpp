@@ -413,7 +413,6 @@ HRESULT CCodecs::LoadFormats()
   Func_GetHandlerProperty getProp = NULL;
   MY_GET_FUNC_LOC (getProp2, Func_GetHandlerProperty2, lib, "GetHandlerProperty2")
   MY_GET_FUNC_LOC (getIsArc, Func_GetIsArc, lib, "GetIsArc")
-  MY_GET_FUNC_LOC (getFormatLevelMask, Func_GetFormatLevelMask, lib, "GetFormatLevelMask");
   
   UInt32 numFormats = 1;
 
@@ -472,7 +471,7 @@ HRESULT CCodecs::LoadFormats()
           item.Flags |= kArcFlagsPars[j + 1];
       }
     }
-    
+
     {
       bool defined = false;
       RINOK(GetProp_UInt32(getProp, getProp2, i, NArchive::NHandlerPropID::kTimeFlags, item.TimeFlags, defined))
@@ -496,9 +495,6 @@ HRESULT CCodecs::LoadFormats()
 
     if (getIsArc)
       getIsArc(i, &item.IsArcFunc);
-
-    if (getFormatLevelMask)
-      getFormatLevelMask(i, &item.LevelsMask);
 
     Formats.Add(item);
   }
@@ -605,8 +601,8 @@ HRESULT CCodecs::LoadDll(const FString &dllPath, bool needCheckDll, bool *loaded
   bool used = false;
   // HRESULT res = S_OK;
   
-  if (lib.Lib.Load(dllPath))
-  {
+ if (lib.Lib.Load(dllPath))
+ {
   if (!IsSupportedDll(lib))
   {
     CCodecError &error = Errors.AddNew();
@@ -698,7 +694,7 @@ HRESULT CCodecs::LoadDll(const FString &dllPath, bool needCheckDll, bool *loaded
     */
   }
  }
-  else
+ else
   {
     AddLastError(dllPath);
   }
@@ -707,17 +703,6 @@ HRESULT CCodecs::LoadDll(const FString &dllPath, bool needCheckDll, bool *loaded
     Libs.DeleteBack();
 
   return S_OK;
-}
-
-void CCodecs::UpdateCaseSensitive()
-{
-  FOR_VECTOR(i, Libs)
-  {
-    const CCodecLib &lib = Libs[i];
-    MY_GET_FUNC_LOC (setCaseSensitive, Func_SetCaseSensitive, lib.Lib, "SetCaseSensitive");
-    if (setCaseSensitive)
-      setCaseSensitive(CaseSensitive ? 1 : 0);
-  }
 }
 
 HRESULT CCodecs::LoadDllsFromFolder(const FString &folderPath)

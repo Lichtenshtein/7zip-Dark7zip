@@ -133,7 +133,7 @@ public:
 
   bool IsDir() const { return S_ISDIR(mode); }
   void SetAsDir()  { mode = S_IFDIR | 0777; }
-  void SetFrom_stat(const struct statx &st);
+  void SetFrom_stat(const struct stat &st);
 
   bool IsReadOnly() const
   {

@@ -36,7 +36,6 @@ struct CItem
   bool Recursive;
   bool ForFile;
   bool ForDir;
-  bool Reverse; // by abc321
   bool WildcardMatching;
   
   #ifdef _WIN32

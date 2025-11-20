@@ -66,7 +66,7 @@ CArchiveUpdateCallback::CArchiveUpdateCallback():
     StoreNtSecurity(false),
     StoreHardLinks(false),
     StoreSymLinks(false),
-    
+
    #ifndef _WIN32
     StoreOwnerId(false),
     StoreOwnerName(false),
@@ -79,10 +79,6 @@ CArchiveUpdateCallback::CArchiveUpdateCallback():
     Need_LatestMTime(false),
     LatestMTime_Defined(false),
     
-
-    VolNumberAfterExt(false),
-    DigitCount(2),
-
     Callback(NULL),
   
     DirItems(NULL),
@@ -163,6 +159,7 @@ Z7_COM7F_IMF(CArchiveUpdateCallback::GetUpdateItemInfo(UInt32 index,
   COM_TRY_END
 }
 
+
 Z7_COM7F_IMF(CArchiveUpdateCallback::GetRootProp(PROPID propID, PROPVARIANT *value))
 {
   NCOM::CPropVariant prop;
@@ -208,7 +205,7 @@ Z7_COM7F_IMF(CArchiveUpdateCallback::GetRootRawProp(PROPID
 {
   #ifndef Z7_USE_SECURITY_CODE
   UNUSED_VAR(propID)
-    #endif
+  #endif
 
   *data = NULL;
   *dataSize = 0;
@@ -526,7 +523,7 @@ Z7_COM7F_IMF(CArchiveUpdateCallback::GetProperty(UInt32 index, PROPID propID, PR
     #if defined(_WIN32)
       case kpidIsAltStream:  prop = di.IsAltStream; break;
       // case kpidShortName:  prop = di.ShortName; break;
-        #else
+    #else
 
         #if defined(__APPLE__)
         #pragma GCC diagnostic push
@@ -564,10 +561,10 @@ Z7_COM7F_IMF(CArchiveUpdateCallback::GetProperty(UInt32 index, PROPID propID, PR
         if (di.OwnerGroupIndex >= 0)
           prop = DirItems->OwnerGroupMap.Strings[(unsigned)di.OwnerGroupIndex];
         break;
-        #endif
+     #endif
       default: break;
-      }
     }
+  }
   prop.Detach(value);
   return S_OK;
   COM_TRY_END
@@ -701,7 +698,7 @@ Z7_COM7F_IMF(CArchiveUpdateCallback::GetStream2(UInt32 index, ISequentialInStrea
 
     inStreamSpec->SupportHardLinks = StoreHardLinks;
     const bool preserveATime = (PreserveATime
-        || mode == NUpdateNotifyOp::kAnalyze); // 22.00 : we don't change access time in Analyze pass.
+        || mode == NUpdateNotifyOp::kAnalyze);   // 22.00 : we don't change access time in Analyze pass.
     inStreamSpec->Set_PreserveATime(preserveATime);
 
     const FString path = DirItems->GetPhyPath((unsigned)up.DirIndex);
@@ -724,8 +721,8 @@ Z7_COM7F_IMF(CArchiveUpdateCallback::GetStream2(UInt32 index, ISequentialInStrea
       }
       if (!isOpen)
       {
-      const DWORD error = ::GetLastError();
-      const HRESULT hres = Callback->OpenFileError(path, error);
+        const DWORD error = ::GetLastError();
+        const HRESULT hres = Callback->OpenFileError(path, error);
         if (hres == S_OK || hres == S_FALSE)
         if (StopAfterOpenError ||
             // v23: we check also for some critical errors:
@@ -740,8 +737,8 @@ Z7_COM7F_IMF(CArchiveUpdateCallback::GetStream2(UInt32 index, ISequentialInStrea
             return E_FAIL;
           return HRESULT_FROM_WIN32(error);
         }
-      return hres;
-    }
+        return hres;
+      }
     }
 
     /*
@@ -988,31 +985,12 @@ Z7_COM7F_IMF(CArchiveUpdateCallback::GetVolumeStream(UInt32 index, ISequentialOu
   char temp[16];
   ConvertUInt32ToString(index + 1, temp);
   FString res (temp);
-  while (res.Len() < DigitCount)
+  while (res.Len() < 2)
     res.InsertAtFront(FTEXT('0'));
   FString fileName = VolName;
-  if (VolNumberAfterExt)
-  {
-    if (!VolPrefix.IsEmpty())
-      fileName += VolPrefix;
-    fileName += VolExt;
-    if (!VolPostfix.IsEmpty())
-      fileName += VolPostfix;
-    else
-      fileName.Add_Dot();
-    fileName += res;
-  }
-  else
-  {
-    if (!VolPrefix.IsEmpty())
-      fileName += VolPrefix;
-    else
-      fileName.Add_Dot();
-    fileName += res;
-    if (!VolPostfix.IsEmpty())
-      fileName += VolPostfix;
-    fileName += VolExt;
-  }
+  fileName.Add_Dot();
+  fileName += res;
+  fileName += VolExt;
   COutFileStream *streamSpec = new COutFileStream;
   CMyComPtr<ISequentialOutStream> streamLoc(streamSpec);
   if (!streamSpec->Create_NEW(fileName))
@@ -1033,13 +1011,6 @@ Z7_COM7F_IMF(CArchiveUpdateCallback::CryptoGetTextPassword(BSTR *password))
 {
   COM_TRY_BEGIN
   return Callback->CryptoGetTextPassword(password);
-  COM_TRY_END
-}
-
-Z7_COM7F_IMF(CArchiveUpdateCallback::CryptoGetPasswordIfAny(bool& passwordIsDefined, UString& password))
-{
-  COM_TRY_BEGIN
-  return Callback->CryptoGetPasswordIfAny(passwordIsDefined, password);
   COM_TRY_END
 }
 

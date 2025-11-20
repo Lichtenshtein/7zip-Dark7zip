@@ -209,11 +209,7 @@ enum Enum
 
   #ifndef Z7_NO_CRYPTO
   , kPassword
-  , kEncKey
-  , kPasswordFile // by abc321
   #endif
-
-  , kExtrOffsLen
 };
 
 }
@@ -364,11 +360,7 @@ static const CSwitchForm kSwitchForms[] =
 
   #ifndef Z7_NO_CRYPTO
   , { "p", SWFRM_STRING }
-  , { "fp", SWFRM_STRING } // by abc321
-  , { "ekey", SWFRM_STRING }
   #endif
-
-  , { "eoffs", SWFRM_STRING }
 };
 
 static const char * const kUniversalWildcard = "*";
@@ -694,7 +686,7 @@ static const char *ParseMapWithPaths(
     const wchar_t c = p[i];
     if (c == 0)
     {
-      // MessageBoxW(0, name, L"7-Zip ZS", 0);
+      // MessageBoxW(0, name, L"7-Zip", 0);
       AddNameToCensor(censor, nop, name);
       name.Empty();
     }
@@ -1051,8 +1043,8 @@ void CArcCmdLineParser::Parse1(const UStringVector &commandStrings,
   if (!parser.ParseStrings(kSwitchForms, Z7_ARRAY_SIZE(kSwitchForms), commandStrings))
     throw CArcCmdLineException(parser.ErrorMessage, parser.ErrorLine);
 
-  options.IsInTerminal = MY_IS_TERMINAL(CStdInFileStream::defIn);
-  options.IsStdOutTerminal = MY_IS_TERMINAL(CStdOutFileStream::defOut);
+  options.IsInTerminal = MY_IS_TERMINAL(stdin);
+  options.IsStdOutTerminal = MY_IS_TERMINAL(stdout);
   options.IsStdErrTerminal = MY_IS_TERMINAL(stderr);
 
   options.HelpMode = parser[NKey::kHelp1].ThereIs || parser[NKey::kHelp2].ThereIs  || parser[NKey::kHelp3].ThereIs;
@@ -1244,20 +1236,24 @@ struct CCodePagePair
   UInt32 CodePage;
 };
 
-static const unsigned kNumByteOnlyCodePages = 4;
+static const unsigned kNumByteOnlyCodePages = 3;
 
 static const CCodePagePair g_CodePagePairs[] =
 {
   { "utf-8", CP_UTF8 },
   { "win", CP_ACP },
   { "dos", CP_OEMCP },
-  { "unicode", CP_UNICODE },
   { "utf-16le", Z7_WIN_CP_UTF16 },
   { "utf-16be", Z7_WIN_CP_UTF16BE }
 };
 
-Int32 FindCharset(UString name, bool byteOnlyCodePages)
+static Int32 FindCharset(const NCommandLineParser::CParser &parser, unsigned keyIndex,
+    bool byteOnlyCodePages, Int32 defaultVal)
 {
+  if (!parser[keyIndex].ThereIs)
+    return defaultVal;
+
+  UString name (parser[keyIndex].PostStrings.Back());
   UInt32 v;
   if (StringToUInt32(name, v))
     if (v < ((UInt32)1 << 16))
@@ -1274,15 +1270,6 @@ Int32 FindCharset(UString name, bool byteOnlyCodePages)
   }
 }
 
-static Int32 FindCharset(const NCommandLineParser::CParser &parser, unsigned keyIndex,
-    bool byteOnlyCodePages, Int32 defaultVal)
-{
-  if (!parser[keyIndex].ThereIs)
-    return defaultVal;
-
-  UString name (parser[keyIndex].PostStrings.Back());
-  return FindCharset(name, byteOnlyCodePages);
-}
 
 static void SetBoolPair(NCommandLineParser::CParser &parser, unsigned switchID, CBoolPair &bp)
 {
@@ -1470,45 +1457,10 @@ void CArcCmdLineParser::Parse2(CArcCmdLineOptions &options)
       thereAreSwitchIncludes, codePage);
 
   #ifndef Z7_NO_CRYPTO
-  options.PasswordFileEnabled = parser[NKey::kPasswordFile].ThereIs;
-  if (options.PasswordFileEnabled)
-      options.PasswordFile = parser[NKey::kPasswordFile].PostStrings[0];
   options.PasswordEnabled = parser[NKey::kPassword].ThereIs;
-  if (options.PasswordEnabled) {
+  if (options.PasswordEnabled)
     options.Password = parser[NKey::kPassword].PostStrings[0];
-  } else {
-    options.PasswordEnabled = parser[NKey::kEncKey].ThereIs;
-    if (options.PasswordEnabled) {
-      options.Password = parser[NKey::kEncKey].PostStrings[0];
-      unsigned keyLen = options.Password.HexKeyToBytes(0);
-      if (!keyLen || (keyLen != 32 && keyLen != (32+16))) { /* kKeySize ?+ kIvSizeMax? */
-        throw CArcCmdLineException("Invalid key specified (must be hex, 32?+16? bytes)");
-      }
-    }
-  }
   #endif
-
-  if (parser[NKey::kExtrOffsLen].ThereIs) {
-    if (!isExtractGroupCommand) {
-      throw CArcCmdLineException("Offset/length only allowed for partial extraction");
-    }
-    const UString &s = parser[NKey::kExtrOffsLen].PostStrings[0];
-    const wchar_t *offs = s.Ptr();
-    if (*offs == L'=') offs++;
-    if (*offs != L':') {
-      options.ExtrOffset = ConvertStringToUInt64(offs, &offs);
-      if (*offs != L':' && *offs != L'\0') {
-        throw CArcCmdLineException("Invalid offset value specified (must be UInt64?:UInt64?)");
-      }
-    }
-    if (*offs == L':') {
-      offs++;
-      options.ExtrLength = ConvertStringToUInt64(offs, &offs);
-      if (*offs != L'\0') {
-        throw CArcCmdLineException("Invalid length value specified (must be UInt64?:UInt64?)");
-      }
-    }
-  }
 
   options.ShowDialog = parser[NKey::kShowDialog].ThereIs;
 

@@ -31,13 +31,6 @@ CAesCoder::CAesCoder(
   */
 }
 
-CAesCoder::~CAesCoder()
-{
-  // Wipe:
-  _aes.Wipe();
-  memset(_iv, 0, sizeof(_iv));
-}
-
 Z7_COM7F_IMF(CAesCoder::Init())
 {
   _ctrPos = 0;

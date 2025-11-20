@@ -170,12 +170,8 @@ public:
   bool HeaderErrorWarning;
 
   HRESULT Open(IInStream *inStream, const UInt64 *searchHeaderSizeLimit);
-  // by abc321 \/
-  //HRESULT GetNextItem(CItem &item, ICryptoGetTextPassword *getTextPassword,
-  //    bool &filled, EErrorType &error);
   HRESULT GetNextItem(CItem &item, ICryptoGetTextPassword *getTextPassword,
-	  ICryptoGetNextPassword *getNextPassword,  bool &filled, EErrorType &error);
-  // by abc321 /\~
+      bool &filled, EErrorType &error);
 };
   
 static bool CheckHeaderCrc(const Byte *header, size_t headerSize)
@@ -503,10 +499,7 @@ bool CInArchive::ReadHeaderReal(const Byte *p, unsigned size, CItem &item)
   return true;
 }
 
-// by abc321 \/
-//HRESULT CInArchive::GetNextItem(CItem &item, ICryptoGetTextPassword *getTextPassword, bool &filled, EErrorType &error)
-HRESULT CInArchive::GetNextItem(CItem &item, ICryptoGetTextPassword *getTextPassword, ICryptoGetNextPassword *getNextPassword, bool &filled, EErrorType &error)
-// by abc321 /\~
+HRESULT CInArchive::GetNextItem(CItem &item, ICryptoGetTextPassword *getTextPassword, bool &filled, EErrorType &error)
 {
   filled = false;
   error = k_ErrorType_OK;
@@ -514,15 +507,6 @@ HRESULT CInArchive::GetNextItem(CItem &item, ICryptoGetTextPassword *getTextPass
   {
     RINOK(InStream_SeekSet(m_Stream, m_Position))
     ArcInfo.EndPos = m_Position;
-
-	// by abc321 \/
-	size_t processed = 7;
-	bool passwordTested = false;
-	UInt64 streamPosition = m_Position;
-	while (!passwordTested) {
-		passwordTested = true;
-		// by abc321 /\~
-
     if (!m_CryptoMode && (ArcInfo.Flags &
         NHeader::NArchive::kBlockHeadersAreEncrypted) != 0)
     {
@@ -589,8 +573,7 @@ HRESULT CInArchive::GetNextItem(CItem &item, ICryptoGetTextPassword *getTextPass
     }
 
     m_FileHeaderData.AllocAtLeast(7);
-    //size_t processed = 7; // by abc321
-		processed = 7; // by abc321
+    size_t processed = 7;
     RINOK(ReadBytesSpec((Byte *)m_FileHeaderData, &processed))
     if (processed != 7)
     {
@@ -613,25 +596,6 @@ HRESULT CInArchive::GetNextItem(CItem &item, ICryptoGetTextPassword *getTextPass
       // ThrowExceptionWithCode(CInArchiveException::kIncorrectArchive);
     }
 
-		// by abc321 \/
-		if (m_CryptoMode && getNextPassword)
-			if (m_BlockHeader.Type < NHeader::NBlockType::kFileHeader ||
-				m_BlockHeader.Type > NHeader::NBlockType::kEndOfArchive) {
-
-				CMyComBSTR_Wipe password;
-				//RINOK(getNextPassword->CryptoGetNextPassword(&password))
-				getNextPassword->CryptoGetNextPassword(&password);
-
-				if (password) {
-					RINOK(InStream_SeekSet(m_Stream, streamPosition))
-					m_Position = streamPosition;
-					passwordTested = false;
-					m_CryptoMode = false;
-				}
-			}
-		if (passwordTested) {
-		// by abc321 /\~
-
     if (m_BlockHeader.Type < NHeader::NBlockType::kFileHeader ||
         m_BlockHeader.Type > NHeader::NBlockType::kEndOfArchive)
     {
@@ -640,11 +604,6 @@ HRESULT CInArchive::GetNextItem(CItem &item, ICryptoGetTextPassword *getTextPass
           k_ErrorType_Corrupted;
       return S_OK;
     }
-
-		// by abc321 \/
-		}
-	}
-	// by abc321 /\~
 
     if (m_BlockHeader.Type == NHeader::NBlockType::kEndOfArchive)
     {
@@ -723,12 +682,6 @@ HRESULT CInArchive::GetNextItem(CItem &item, ICryptoGetTextPassword *getTextPass
       m_Position += processed;
       FinishCryptoBlock();
       ArcInfo.EndPos = m_Position;
-
-	  // by abc321 \/
-	  // code was commented due to CryptoPasswordValid is called in the code below
-	  //if (getNextPassword)
-		  //RINOK(getNextPassword->CryptoPasswordValid())
-	  // by abc321 /\~
       return S_OK;
     }
 
@@ -1004,7 +957,7 @@ static void RarTimeToProp(const CRarTime &rarTime, NCOM::CPropVariant &prop)
 {
   FILETIME localFileTime, utc;
   if (RarTimeToFileTime(rarTime, localFileTime)
-      && LocalFileTimeToFileTime2(&localFileTime, &utc))
+      && LocalFileTimeToFileTime(&localFileTime, &utc))
     prop.SetAsTimeFrom_FT_Prec(utc, k_PropVar_TimePrec_100ns);
   /*
   else
@@ -1100,7 +1053,6 @@ HRESULT CHandler::Open2(IInStream *stream,
   {
     CMyComPtr<IArchiveOpenVolumeCallback> openVolumeCallback;
     CMyComPtr<ICryptoGetTextPassword> getTextPassword;
-    CMyComPtr<ICryptoGetNextPassword> getNextPassword; // by abc321
     
     CVolumeName seqName;
 
@@ -1111,7 +1063,6 @@ HRESULT CHandler::Open2(IInStream *stream,
     {
       openCallback->QueryInterface(IID_IArchiveOpenVolumeCallback, (void **)&openVolumeCallback);
       openCallback->QueryInterface(IID_ICryptoGetTextPassword, (void **)&getTextPassword);
-      openCallback->QueryInterface(IID_ICryptoGetNextPassword, (void **)&getNextPassword); // by abc321
     }
 
     bool nextVol_is_Required = false;
@@ -1189,8 +1140,7 @@ HRESULT CHandler::Open2(IInStream *stream,
         // bool decryptionError;
         // AString errorMessageLoc;
         bool filled;
-        //HRESULT result = archive.GetNextItem(item, getTextPassword, filled, error); // by abc321
-        HRESULT result = archive.GetNextItem(item, getTextPassword, getNextPassword, filled, error); // by abc321
+        HRESULT result = archive.GetNextItem(item, getTextPassword, filled, error);
         
         if (error != k_ErrorType_OK)
         {
@@ -1444,7 +1394,6 @@ Z7_COM7F_IMF(CHandler::Extract(const UInt32 *indices, UInt32 numItems,
 {
   COM_TRY_BEGIN
   CMyComPtr<ICryptoGetTextPassword> getTextPassword;
-  CMyComPtr<ICryptoGetNextPassword> getNextPassword; // by abc321
   UInt64 // censoredTotalUnPacked = 0,
         // censoredTotalPacked = 0,
         importantTotalUnPacked = 0;
@@ -1607,13 +1556,6 @@ Z7_COM7F_IMF(CHandler::Extract(const UInt32 *indices, UInt32 numItems,
     outStreamSpec->Init();
     realOutStream.Release();
     
-	  // abc321 code \/
-	  HRESULT result = S_FALSE;
-	  bool passwordTested = false;
-	  while (!passwordTested) {
-		  passwordTested = true;
-	  // abc321 code /\~
-
     if (!volsInStream)
     {
       volsInStreamSpec = new CVolsInStream;
@@ -1799,39 +1741,11 @@ Z7_COM7F_IMF(CHandler::Extract(const UInt32 *indices, UInt32 numItems,
         continue;
     }
     
-    //HRESULT result = commonCoder->Code(inStream, outStream, &packSize, &outSize, progress);// commented by abc321
-    result = commonCoder->Code(inStream, outStream, &packSize, &outSize, progress); // by abc321
+    HRESULT result = commonCoder->Code(inStream, outStream, &packSize, &outSize, progress);
     
     if (item.IsEncrypted())
       filterStreamSpec->ReleaseInStream();
     
-	  // abc321 code \/
-	  if (item.IsEncrypted()) {
-		  if (result == S_OK || result == S_FALSE) {
-			  if (!getNextPassword)
-				  extractCallback->QueryInterface(IID_ICryptoGetNextPassword, (void **)&getNextPassword);
-		  }
-
-		  if (result == S_OK) {
-			  if (getNextPassword) {
-				  RINOK(getNextPassword->CryptoPasswordValid())
-			  }
-		  } else if (result == S_FALSE) {
-			  if (getNextPassword) {
-				  CMyComBSTR_Wipe password;
-				  //RINOK(getNextPassword->CryptoGetNextPassword(&password))
-				  getNextPassword->CryptoGetNextPassword(&password);
-				  //AString_Wipe charPassword;
-
-				  if (password)
-					  passwordTested = false;
-			  }
-		  }
-	  }
-
-	  }
-	  // abc321 code /\~
-
     if (outSize == (UInt64)(Int64)-1)
       currentUnPackSize = outStreamSpec->GetSize();
 

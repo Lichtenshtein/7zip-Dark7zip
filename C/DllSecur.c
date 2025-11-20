@@ -49,7 +49,7 @@ static const char * const g_Dlls =
     if ((UInt16)GetVersion() != 6) { \
       const \
        Func_SetDefaultDllDirectories setDllDirs = \
-      (Func_SetDefaultDllDirectories) _CAST_FARPROC Z7_CAST_FUNC_C GetProcAddress(GetModuleHandle(TEXT("kernel32.dll")), \
+      (Func_SetDefaultDllDirectories) Z7_CAST_FUNC_C GetProcAddress(GetModuleHandle(TEXT("kernel32.dll")), \
            "SetDefaultDllDirectories"); \
       if (setDllDirs) if (setDllDirs(MY_LOAD_LIBRARY_SEARCH_SYSTEM32 | MY_LOAD_LIBRARY_SEARCH_USER_DIRS)) return; }
 

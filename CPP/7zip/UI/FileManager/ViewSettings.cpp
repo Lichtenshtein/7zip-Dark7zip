@@ -10,13 +10,12 @@
 #include "../../../Windows/Registry.h"
 #include "../../../Windows/Synchronization.h"
 
-#include "RegistryUtils.h"
 #include "ViewSettings.h"
 
 using namespace NWindows;
 using namespace NRegistry;
 
-#define REG_PATH_FM TEXT("Software") TEXT(STRING_PATH_SEPARATOR) TEXT("7-Zip-Zstandard") TEXT(STRING_PATH_SEPARATOR) TEXT("FM")
+#define REG_PATH_FM TEXT("Software") TEXT(STRING_PATH_SEPARATOR) TEXT("7-Zip") TEXT(STRING_PATH_SEPARATOR) TEXT("FM")
 
 static LPCTSTR const kCUBasePath = REG_PATH_FM;
 static LPCTSTR const kCulumnsKeyName = REG_PATH_FM TEXT(STRING_PATH_SEPARATOR) TEXT("Columns");
@@ -291,15 +290,7 @@ static void ReadStringList(LPCTSTR valueName, UStringVector &folders)
 }
 
 void SaveFolderHistory(const UStringVector &folders)
-{
-  if (WantFolderHistory())
-    SaveStringList(kFolderHistoryValueName, folders);
-  else {
-    UStringVector Empty;
-    SaveStringList(kFolderHistoryValueName, Empty);
-  }
-}
-
+  { SaveStringList(kFolderHistoryValueName, folders); }
 void ReadFolderHistory(UStringVector &folders)
   { ReadStringList(kFolderHistoryValueName, folders); }
 
@@ -309,15 +300,7 @@ void ReadFastFolders(UStringVector &folders)
   { ReadStringList(kFastFoldersValueName, folders); }
 
 void SaveCopyHistory(const UStringVector &folders)
-{
-  if (WantCopyHistory())
-    SaveStringList(kCopyHistoryValueName, folders);
-  else {
-    UStringVector Empty;
-    SaveStringList(kCopyHistoryValueName, Empty);
-  }
-}
-
+  { SaveStringList(kCopyHistoryValueName, folders); }
 void ReadCopyHistory(UStringVector &folders)
   { ReadStringList(kCopyHistoryValueName, folders); }
 
