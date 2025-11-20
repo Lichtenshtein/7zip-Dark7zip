@@ -36,15 +36,9 @@ BEGIN
   BEGIN
     MENUITEM "&Open\tEnter",                IDM_OPEN
     MENUITEM "Open &Inside\tCtrl+PgDn",     IDM_OPEN_INSIDE
-    MENUITEM "Open VS Code\tCtrl+Enter",    IDM_OPEN_VSCODE
-    MENUITEM "Open Terminal\tAlt+Shift+Enter", IDM_OPEN_TERMINAL
-    MENUITEM "Open Explorer\tShift+Enter",  IDM_OPEN_EXPLORER
-    MENUITEM "Copy Path\tAlt+Shift+C",      IDM_COPY_PATH
     MENUITEM "Open Inside *",               IDM_OPEN_INSIDE_ONE
     MENUITEM "Open Inside #",               IDM_OPEN_INSIDE_PARSER
     MENUITEM "Open O&utside\tShift+Enter",  IDM_OPEN_OUTSIDE
-    MENUITEM "Find (fzf)\tCtrl+F",          IDM_FIND_FZF
-    MENUITEM "Find (igrep)\tCtrl+Shift+F",  IDM_FIND_IGREP
     MENUITEM "&View\tF3",                   IDM_FILE_VIEW
     MENUITEM "&Edit\tF4",                   IDM_FILE_EDIT
     MY_MENUITEM_SEPARATOR
@@ -63,8 +57,14 @@ BEGIN
     BEGIN
       MENUITEM "CRC-32",                    IDM_CRC32
       MENUITEM "CRC-64",                    IDM_CRC64
+      MENUITEM "XXH64",                     IDM_XXH64
+      MENUITEM "MD5",                       IDM_MD5
       MENUITEM "SHA-1",                     IDM_SHA1
       MENUITEM "SHA-256",                   IDM_SHA256
+      MENUITEM "SHA-384",                   IDM_SHA384
+      MENUITEM "SHA-512",                   IDM_SHA512
+      MENUITEM "SHA3-256",                  IDM_SHA3_256
+      MENUITEM "BLAKE2sp",                  IDM_BLAKE2SP
       MENUITEM "*",                         IDM_HASH_ALL
     END
     MENUITEM "Di&ff",                       IDM_DIFF
@@ -147,6 +147,8 @@ BEGIN
   #ifdef UNDER_CE
     MENUITEM "Benchmark 2",                 IDM_BENCHMARK2
   #endif
+    MY_MENUITEM_SEPARATOR
+    MENUITEM "Delete Temporary Files...",   IDM_TEMP_DIR
   #ifndef UNDER_CE
   END
   POPUP "&Help" MY_MENUITEM_ID(IDM_HELP)
@@ -204,7 +206,7 @@ BEGIN
   IDS_COPY_TO   "Copy to:"
   IDS_MOVE_TO   "Move to:"
   IDS_COPYING   "Copying..."
-  IDS_MOVING    "Moving..."
+//  IDS_MOVING    "Moving..."
   IDS_RENAMING  "Renaming..."
 
   IDS_OPERATION_IS_NOT_SUPPORTED  "Operation is not supported."
@@ -221,7 +223,7 @@ BEGIN
   IDS_DELETING              "Deleting..."
   IDS_ERROR_DELETING        "Error Deleting File or Folder"
   IDS_ERROR_LONG_PATH_TO_RECYCLE  "The system cannot move a file with long path to the Recycle Bin"
-
+  
   IDS_CREATE_FOLDER       "Create Folder"
   IDS_CREATE_FILE         "Create File"
   IDS_CREATE_FOLDER_NAME  "Folder name:"
@@ -269,6 +271,7 @@ END
 
 #include "AboutDialog.rc"
 #include "BrowseDialog.rc"
+#include "BrowseDialog2.rc"
 #include "ComboDialog.rc"
 #include "CopyDialog.rc"
 #include "EditDialog.rc"
@@ -277,6 +280,7 @@ END
 #include "LangPage.rc"
 #include "LinkDialog.rc"
 #include "ListViewDialog.rc"
+#include "MemDialog.rc"
 #include "MenuPage.rc"
 #include "MessagesDialog.rc"
 #include "OverwriteDialog.rc"

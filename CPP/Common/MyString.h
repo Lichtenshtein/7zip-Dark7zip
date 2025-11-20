@@ -14,14 +14,12 @@
 #include "MyWindows.h"
 #include "MyTypes.h"
 #include "MyVector.h"
-#include <pathcch.h>
 
-// #pragma comment(lib, "pathcch.lib")
 
 /* if (DEBUG_FSTRING_INHERITS_ASTRING is defined), then
      FString inherits from AString, so we can find bugs related to FString at compile time.
    DON'T define DEBUG_FSTRING_INHERITS_ASTRING in release code */
-
+   
 // #define DEBUG_FSTRING_INHERITS_ASTRING
 
 #ifdef DEBUG_FSTRING_INHERITS_ASTRING
@@ -277,12 +275,14 @@ class AString
   {
     memmove(_chars + dest, _chars + src, (size_t)(_len - src + 1) * sizeof(char));
   }
-
+  
   void InsertSpace(unsigned &index, unsigned size);
-
+  
   void ReAlloc(unsigned newLimit);
   void ReAlloc2(unsigned newLimit);
   void SetStartLen(unsigned len);
+  
+  Z7_NO_INLINE
   void Grow_1();
   void Grow(unsigned n);
 
@@ -375,6 +375,8 @@ public:
   void SetFromWStr_if_Ascii(const wchar_t *s);
   // void SetFromBstr_if_Ascii(BSTR s);
 
+// private:
+  Z7_FORCE_INLINE
   AString &operator+=(char c)
   {
     if (_limit == _len)
@@ -386,14 +388,16 @@ public:
     _len = len;
     return *this;
   }
-
+public:
   void Add_Space();
   void Add_Space_if_NotEmpty();
   void Add_OptSpaced(const char *s);
+  void Add_Char(char c);
   void Add_LF();
   void Add_Slash();
   void Add_Dot();
   void Add_Minus();
+  void Add_Colon();
   void Add_PathSepar() { operator+=(CHAR_PATH_SEPARATOR); }
 
   AString &operator+=(const char *s);
@@ -404,6 +408,7 @@ public:
 
   void AddFrom(const char *s, unsigned len); // no check
   void SetFrom(const char *s, unsigned len); // no check
+  void SetFrom_Chars_SizeT(const char* s, size_t len); // no check
   void SetFrom(const char* s, int len) // no check
   {
     SetFrom(s, (unsigned)len); // no check
@@ -424,11 +429,11 @@ public:
   // int CompareNoCase(const char *s) const { return MyStringCompareNoCase(_chars, s); }
   // int CompareNoCase(const AString &s) const { return MyStringCompareNoCase(_chars, s._chars); }
   bool IsPrefixedBy(const char *s) const { return IsString1PrefixedByString2(_chars, s); }
-  bool IsPrefixedBy_Ascii_NoCase(const char *s) const throw();
-
+  bool IsPrefixedBy_Ascii_NoCase(const char *s) const { return IsString1PrefixedByString2_NoCase_Ascii(_chars, s); }
+ 
   bool IsAscii() const
   {
-    unsigned len = Len();
+    const unsigned len = Len();
     const char *s = _chars;
     for (unsigned i = 0; i < len; i++)
       if ((unsigned char)s[i] >= 0x80)
@@ -445,14 +450,14 @@ public:
   {
     return Find(c, (unsigned)startIndex);
   }
-
+  
   int ReverseFind(char c) const throw();
   int ReverseFind_Dot() const throw() { return ReverseFind('.'); }
   int ReverseFind_PathSepar() const throw();
 
   int Find(const char *s) const { return Find(s, 0); }
   int Find(const char *s, unsigned startIndex) const throw();
-
+  
   void TrimLeft() throw();
   void TrimRight() throw();
   void Trim()
@@ -467,7 +472,7 @@ public:
   void Insert(unsigned index, const AString &s);
 
   void RemoveChar(char ch) throw();
-
+  
   void Replace(char oldChar, char newChar) throw();
   void Replace(const AString &oldString, const AString &newString);
 
@@ -488,7 +493,7 @@ public:
     DeleteFrom((unsigned)index);
   }
 
-
+  
   void Wipe_and_Empty()
   {
     if (_chars)
@@ -558,9 +563,9 @@ class UString
   {
     memmove(_chars + dest, _chars + src, (size_t)(_len - src + 1) * sizeof(wchar_t));
   }
-
+  
   void InsertSpace(unsigned index, unsigned size);
-
+  
   void ReAlloc(unsigned newLimit);
   void ReAlloc2(unsigned newLimit);
   void SetStartLen(unsigned len);
@@ -580,11 +585,11 @@ class UString
   friend UString operator+(const wchar_t *s1, const UString &s2);
 
   // ---------- forbidden functions ----------
-
+  
   FORBID_STRING_OPS_UString(signed char)
   FORBID_STRING_OPS_UString(unsigned char)
   FORBID_STRING_OPS_UString(short)
-
+  
   #ifdef MY_NATIVE_WCHAR_T_DEFINED
   FORBID_STRING_OPS_UString(unsigned short)
   #endif
@@ -627,7 +632,6 @@ public:
   void ReplaceOneCharAtPos(unsigned pos, wchar_t c) { _chars[pos] = c; }
 
   wchar_t *GetBuf() { return _chars; }
-  const wchar_t *GetBuf() const { return _chars; }
 
   /*
   wchar_t *GetBuf_GetMaxAvail(unsigned &availBufLen)
@@ -671,6 +675,8 @@ public:
   UString &operator=(const char *s);
   UString &operator=(const AString &s) { return operator=(s.Ptr()); }
 
+// private:
+  Z7_FORCE_INLINE
   UString &operator+=(wchar_t c)
   {
     if (_limit == _len)
@@ -683,12 +689,17 @@ public:
     return *this;
   }
 
-  UString &operator+=(char c) { return (*this)+=((wchar_t)(unsigned char)c); }
-
+private:
+  UString &operator+=(char c); //  { return (*this)+=((wchar_t)(unsigned char)c); }
+public:
+  void Add_Char(char c);
+  // void Add_WChar(wchar_t c);
   void Add_Space();
   void Add_Space_if_NotEmpty();
   void Add_LF();
   void Add_Dot();
+  void Add_Minus();
+  void Add_Colon();
   void Add_PathSepar() { operator+=(WCHAR_PATH_SEPARATOR); }
 
   UString &operator+=(const wchar_t *s);
@@ -716,22 +727,23 @@ public:
   // int CompareNoCase(const wchar_t *s) const { return MyStringCompareNoCase(_chars, s); }
   // int CompareNoCase(const UString &s) const { return MyStringCompareNoCase(_chars, s._chars); }
   bool IsPrefixedBy(const wchar_t *s) const { return IsString1PrefixedByString2(_chars, s); }
+  bool IsPrefixedBy(const char *s) const { return IsString1PrefixedByString2(_chars, s); }
   bool IsPrefixedBy_NoCase(const wchar_t *s) const { return IsString1PrefixedByString2_NoCase(_chars, s); }
-  bool IsPrefixedBy_Ascii_NoCase(const char *s) const throw();
+  bool IsPrefixedBy_Ascii_NoCase(const char *s) const { return IsString1PrefixedByString2_NoCase_Ascii(_chars, s); }
 
   bool IsAscii() const
   {
-    unsigned len = Len();
+    const unsigned len = Len();
     const wchar_t *s = _chars;
     for (unsigned i = 0; i < len; i++)
-      if (s[i] >= 0x80)
+      if ((unsigned)(int)s[i] >= 0x80)
         return false;
     return true;
   }
   int Find(wchar_t c) const { return FindCharPosInString(_chars, c); }
   int Find(wchar_t c, unsigned startIndex) const
   {
-    int pos = FindCharPosInString(_chars + startIndex, c);
+    const int pos = FindCharPosInString(_chars + startIndex, c);
     return pos < 0 ? -1 : (int)startIndex + pos;
   }
 
@@ -744,7 +756,6 @@ public:
 
   void TrimLeft() throw();
   void TrimRight() throw();
-  void TrimPathSepar() throw();
   void Trim()
   {
     TrimRight();
@@ -757,7 +768,7 @@ public:
   void Insert(unsigned index, const UString &s);
 
   void RemoveChar(wchar_t ch) throw();
-
+  
   void Replace(wchar_t oldChar, wchar_t newChar) throw();
   void Replace(const UString &oldString, const UString &newString);
 
@@ -775,7 +786,7 @@ public:
       _chars[index] = 0;
     }
   }
-
+  
   void Wipe_and_Empty()
   {
     if (_chars)
@@ -783,36 +794,6 @@ public:
       memset(_chars, 0, (_limit + 1) * sizeof(*_chars));
       _len = 0;
     }
-
-  }
-
-  UString GetFileName() const
-  {
-    int slashPos = this->ReverseFind_PathSepar();
-    if (slashPos >= 0 && (unsigned int)slashPos == this->Len() - 1)
-    {
-      slashPos = this->Left(slashPos).ReverseFind_PathSepar();
-    }
-
-    if (slashPos >= 0)
-    {
-      UString filename = UString(*this);
-      filename.DeleteFrontal((unsigned)(slashPos + 1));
-      if (filename[filename.Len() - 1] == WCHAR_PATH_SEPARATOR)
-      {
-        filename.DeleteBack();
-      }
-
-      return filename;
-    }
-    return L"";
-  }
-
-  UString GetDirectory() const
-  {
-    auto copy = UString(*this);
-    PathCchRemoveFileSpec(copy._chars, copy._len);
-    return copy;
   }
 };
 
@@ -885,7 +866,7 @@ class UString2
   void SetStartLen(unsigned len);
 
   // ---------- forbidden functions ----------
-
+  
   FORBID_STRING_OPS_UString2(char)
   FORBID_STRING_OPS_UString2(signed char)
   FORBID_STRING_OPS_UString2(unsigned char)

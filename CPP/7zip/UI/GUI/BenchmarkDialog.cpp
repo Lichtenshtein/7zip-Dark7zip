@@ -23,6 +23,7 @@
 #include "../FileManager/DialogSize.h"
 #include "../FileManager/HelpUtils.h"
 #include "../FileManager/LangUtils.h"
+#include "../FileManager/resourceGui.h"
 
 #include "../../MyVersion.h"
 
@@ -60,9 +61,9 @@ struct CBenchPassResult
 {
   CTotalBenchRes Enc;
   CTotalBenchRes Dec;
-  #ifdef PRINT_ITER_TIME
+#ifdef PRINT_ITER_TIME
   DWORD Ticks;
-  #endif
+#endif
   // CBenchInfo EncInfo; // for debug
   // CBenchPassResult() {};
 };
@@ -96,21 +97,9 @@ struct CTotalBenchRes2: public CTotalBenchRes
 struct CSyncData
 {
   UInt32 NumPasses_Finished;
-
-  // UInt64 NumEncProgress; // for debug
-  // UInt64 NumDecProgress; // for debug
-  // CBenchInfo EncInfo; // for debug
-
-  CTotalBenchRes2 Enc_BenchRes_1;
-  CTotalBenchRes2 Enc_BenchRes;
-
-  CTotalBenchRes2 Dec_BenchRes_1;
-  CTotalBenchRes2 Dec_BenchRes;
-
-  #ifdef PRINT_ITER_TIME
+#ifdef PRINT_ITER_TIME
   DWORD TotalTicks;
-  #endif
-
+#endif
   int RatingVector_DeletedIndex;
   // UInt64 RatingVector_NumDeleted;
 
@@ -122,6 +111,16 @@ struct CSyncData
   bool NeedPrint_Dec_1;
   bool NeedPrint_Dec;
   bool NeedPrint_Tot; // intermediate Total was updated after current pass
+
+  // UInt64 NumEncProgress; // for debug
+  // UInt64 NumDecProgress; // for debug
+  // CBenchInfo EncInfo; // for debug
+
+  CTotalBenchRes2 Enc_BenchRes_1;
+  CTotalBenchRes2 Enc_BenchRes;
+
+  CTotalBenchRes2 Dec_BenchRes_1;
+  CTotalBenchRes2 Dec_BenchRes;
 
   void Init();
 };
@@ -160,30 +159,30 @@ void CSyncData::Init()
 struct CBenchProgressSync
 {
   bool Exit; // GUI asks BenchThread to Exit, and BenchThread reads that variable
+  bool TextWasChanged;
+
   UInt32 NumThreads;
   UInt64 DictSize;
   UInt32 NumPasses_Limit;
   int Level;
-  
-  // must be written by benchmark thread, read by GUI thread */
-  CSyncData sd;
-  CRecordVector<CBenchPassResult> RatingVector;
-
-  NWindows::NSynchronization::CCriticalSection CS;
 
   AString Text;
-  bool TextWasChanged;
 
   /* BenchFinish_Task_HRESULT    - for result from benchmark code
      BenchFinish_Thread_HRESULT  - for Exceptions and service errors
              these arreos must be shown even if user escapes benchmark */
-
   HRESULT BenchFinish_Task_HRESULT;
   HRESULT BenchFinish_Thread_HRESULT;
 
   UInt32 NumFreqThreadsPrev;
   UString FreqString_Sync;
   UString FreqString_GUI;
+
+  // must be written by benchmark thread, read by GUI thread */
+  CRecordVector<CBenchPassResult> RatingVector;
+  CSyncData sd;
+
+  NWindows::NSynchronization::CCriticalSection CS;
 
   CBenchProgressSync()
   {
@@ -257,6 +256,19 @@ struct CThreadBenchmark
 class CBenchmarkDialog:
   public NWindows::NControl::CModalDialog
 {
+  bool _finishTime_WasSet;
+  
+  bool WasStopped_in_GUI;
+  bool ExitWasAsked_in_GUI;
+  bool NeedRestart;
+
+  bool RamSize_Defined;
+
+public:
+  bool TotalMode;
+
+private:
+
   NWindows::NControl::CComboBox m_Dictionary;
   NWindows::NControl::CComboBox m_NumThreads;
   NWindows::NControl::CComboBox m_NumPasses;
@@ -265,17 +277,11 @@ class CBenchmarkDialog:
 
   UInt32 _startTime;
   UInt32 _finishTime;
-  bool _finishTime_WasSet;
-  
-  bool WasStopped_in_GUI;
-  bool ExitWasAsked_in_GUI;
-  bool NeedRestart;
 
   CMyFont _font;
 
-  UInt64 RamSize;
-  UInt64 RamSize_Limit;
-  bool RamSize_Defined;
+  size_t RamSize;
+  size_t RamSize_Limit;
 
   UInt32 NumPasses_Finished_Prev;
 
@@ -329,7 +335,6 @@ class CBenchmarkDialog:
 public:
   CBenchProgressSync Sync;
 
-  bool TotalMode;
   CObjectVector<CProperty> Props;
 
   CSysString Bench2Text;
@@ -338,11 +343,11 @@ public:
   CThreadBenchmark _threadBenchmark;
 
   CBenchmarkDialog():
-      _timer(0),
       WasStopped_in_GUI(false),
       ExitWasAsked_in_GUI(false),
       NeedRestart(false),
-      TotalMode(false)
+      TotalMode(false),
+      _timer(0)
       {}
 
   ~CBenchmarkDialog() Z7_DESTRUCTOR_override;
@@ -503,7 +508,8 @@ bool CBenchmarkDialog::OnInit()
         SetItemTextA(IDT_BENCH_SYS2, s2);
     }
     {
-      GetCpuName_MultiLine(s);
+      AString registers;
+      GetCpuName_MultiLine(s, registers);
       SetItemTextA(IDT_BENCH_CPU, s);
     }
     {
@@ -884,9 +890,15 @@ void CBenchmarkDialog::StartBenchmark()
       false); // totalBench
   if (!IsMemoryUsageOK(memUsage))
   {
-    UString s2 = LangString(IDT_BENCH_MEMORY);
+    UString s2;
+    LangString_OnlyFromLangFile(IDS_MEM_REQUIRED_MEM_SIZE, s2);
     if (s2.IsEmpty())
-      GetItemText(IDT_BENCH_MEMORY, s2);
+    {
+      s2 = LangString(IDT_BENCH_MEMORY);
+      if (s2.IsEmpty())
+        GetItemText(IDT_BENCH_MEMORY, s2);
+      s2.RemoveChar(L':');
+    }
     UString s;
     SetErrorMessage_MemUsage(s, memUsage, RamSize, RamSize_Limit, s2);
     MessageBoxError_Status(s);
@@ -1081,7 +1093,7 @@ static void Add_Dot3String(UString &s, UInt64 val)
 static void AddRatingString(UString &s, const CTotalBenchRes &info)
 {
   // AddUsageString(s, info);
-  // s += " ";
+  // s.Add_Space();
   // s.Add_UInt32(GetRating(info));
   Add_Dot3String(s, GetRating(info));
 }
@@ -1093,7 +1105,7 @@ static void AddRatingsLine(UString &s, const CTotalBenchRes &enc, const CTotalBe
     #endif
     )
 {
-  // AddUsageString(s, enc); s += " ";
+  // AddUsageString(s, enc); s.Add_Space();
 
   AddRatingString(s, enc);
   s += "  ";
@@ -1105,11 +1117,11 @@ static void AddRatingsLine(UString &s, const CTotalBenchRes &enc, const CTotalBe
   s += "  ";
   AddRatingString(s, tot_BenchRes);
   
-  s += " "; AddUsageString(s, tot_BenchRes);
+  s.Add_Space();  AddUsageString(s, tot_BenchRes);
 
   
   #ifdef PRINT_ITER_TIME
-  s += " ";
+  s.Add_Space();
   {
     Add_Dot3String(s, ticks;
     s += " s";
@@ -1342,7 +1354,7 @@ void CBenchmarkDialog::UpdateGui()
       /*
         s += "g:"; s.Add_UInt32((UInt32)pair.EncInfo.GlobalTime);
         s += " u:"; s.Add_UInt32((UInt32)pair.EncInfo.UserTime);
-        s += " ";
+        s.Add_Space();
       */
       AddRatingsLine(s, pair.Enc, pair.Dec
             #ifdef PRINT_ITER_TIME
@@ -1547,11 +1559,11 @@ HRESULT CFreqCallback::AddCpuFreq(unsigned numThreads, UInt64 freq, UInt64 usage
       s += "T Frequency (MHz):";
       s.Add_LF();
     }
-    s += " ";
+    s.Add_Space();
     if (numThreads != 1)
     {
       s.Add_UInt64(GetUsagePercents(usage));
-      s += '%';
+      s.Add_Char('%');
       s.Add_Space();
     }
     s.Add_UInt64(GetMips(freq));
@@ -1668,7 +1680,7 @@ HRESULT CThreadBenchmark::Process()
             CProperty prop;
             prop.Name = 'd';
             prop.Name.Add_UInt32((UInt32)(dictionarySize >> 10));
-            prop.Name += 'k';
+            prop.Name.Add_Char('k');
             props.Add(prop);
           }
         }
@@ -1844,7 +1856,7 @@ HRESULT Benchmark(
     const CProperty &prop = props[i];
     UString name = prop.Name;
     name.MakeLower_Ascii();
-    if (name.IsEqualTo_Ascii_NoCase("m") && prop.Value == L"*")
+    if (name.IsEqualTo_Ascii_NoCase("m") && prop.Value.IsEqualTo("*"))
     {
       bd.TotalMode = true;
       continue;
@@ -1853,7 +1865,7 @@ HRESULT Benchmark(
     NCOM::CPropVariant propVariant;
     if (!prop.Value.IsEmpty())
       ParseNumberString(prop.Value, propVariant);
-    if (name.IsPrefixedBy(L"mt"))
+    if (name.IsPrefixedBy("mt"))
     {
       #ifndef Z7_ST
       RINOK(ParseMtProp(name.Ptr(2), propVariant, numCPUs, numThreads))
@@ -1879,7 +1891,7 @@ HRESULT Benchmark(
   {
     // bd.Bench2Text.Empty();
     bd.Bench2Text = "7-Zip " MY_VERSION_CPU;
-    bd.Bench2Text += (char)0xD;
+    // bd.Bench2Text.Add_Char((char)0xD);
     bd.Bench2Text.Add_LF();
   }
 

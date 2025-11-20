@@ -61,7 +61,6 @@ static void MyGetFileTime(IFolderFolder *folder, UInt32 itemIndex,
 }
 
 #define kDotsReplaceString "[[..]]"
-#define kDotsReplaceStringU L"[[..]]"
   
 static void CopyStrLimited(char *dest, const AString &src, unsigned len)
 {
@@ -84,7 +83,7 @@ void CPlugin::ReadPluginPanelItem(PluginPanelItem &panelItem, UInt32 itemIndex)
     throw 272340;
 
   AString oemString (UnicodeStringToMultiByte(prop.bstrVal, CP_OEMCP));
-  if (oemString == "..")
+  if (oemString.IsEqualTo(".."))
     oemString = kDotsReplaceString;
 
   COPY_STR_LIMITED(panelItem.FindData.cFileName, oemString);
@@ -193,7 +192,7 @@ void CPlugin::EnterToDirectory(const UString &dirName)
 {
   CMyComPtr<IFolderFolder> newFolder;
   UString s = dirName;
-  if (dirName == kDotsReplaceStringU)
+  if (dirName.IsEqualTo(kDotsReplaceString))
     s = "..";
   _folder->BindToFolder(s, &newFolder);
   if (!newFolder)
@@ -209,12 +208,12 @@ void CPlugin::EnterToDirectory(const UString &dirName)
 int CPlugin::SetDirectory(const char *aszDir, int /* opMode */)
 {
   UString path = MultiByteToUnicodeString(aszDir, CP_OEMCP);
-  if (path == WSTRING_PATH_SEPARATOR)
+  if (path.IsEqualTo(STRING_PATH_SEPARATOR))
   {
     _folder.Release();
     m_ArchiveHandler->BindToRootFolder(&_folder);
   }
-  else if (path == L"..")
+  else if (path.IsEqualTo(".."))
   {
     CMyComPtr<IFolderFolder> newFolder;
     _folder->BindToParentFolder(&newFolder);
@@ -509,7 +508,7 @@ void CPlugin::GetOpenPluginInfo(struct OpenPluginInfo *info)
 
   m_PannelTitle = ' ';
   m_PannelTitle += _archiveTypeName;
-  m_PannelTitle += ':';
+  m_PannelTitle.Add_Colon();
   m_PannelTitle += name;
   m_PannelTitle.Add_Space();
   if (!m_CurrentDir.IsEmpty())
@@ -686,14 +685,9 @@ struct CArchiveItemProperty
   VARTYPE Type;
 };
 
-static inline char GetHex_Upper(unsigned v)
+static inline char GetHex_A_minus10(unsigned v, unsigned a10)
 {
-  return (char)((v < 10) ? ('0' + v) : ('A' + (v - 10)));
-}
-
-static inline char GetHex_Lower(unsigned v)
-{
-  return (char)((v < 10) ? ('0' + v) : ('a' + (v - 10)));
+  return (char)(v < 10 ? v + '0' : v + a10);
 }
 
 HRESULT CPlugin::ShowAttributesWindow()
@@ -815,21 +809,14 @@ HRESULT CPlugin::ShowAttributesWindow()
           }
           else
           {
-            const bool needUpper = (dataSize <= 8)
-                && (property.ID == kpidCRC || property.ID == kpidChecksum);
+            const unsigned a = dataSize <= 8
+                && (property.ID == kpidCRC || property.ID == kpidChecksum)
+                ? 'A' - 10 : 'a' - 10;
             for (UInt32 k = 0; k < dataSize; k++)
             {
-              unsigned b = ((const Byte *)data)[k];
-              if (needUpper)
-              {
-                s += GetHex_Upper((b >> 4) & 0xF);
-                s += GetHex_Upper(b & 0xF);
-              }
-              else
-              {
-                s += GetHex_Lower((b >> 4) & 0xF);
-                s += GetHex_Lower(b & 0xF);
-              }
+              const unsigned b = ((const Byte *)data)[k];
+              s += GetHex_A_minus10(b >> 4, a);
+              s += GetHex_A_minus10(b & 15, a);
             }
           }
         }
@@ -866,7 +853,7 @@ HRESULT CPlugin::ShowAttributesWindow()
   const unsigned numDialogItems = initDialogItems.Size();
   
   CObjArray<FarDialogItem> dialogItems(numDialogItems);
-  g_StartupInfo.InitDialogItems(&initDialogItems.Front(), dialogItems, numDialogItems);
+  g_StartupInfo.InitDialogItems(initDialogItems.ConstData(), dialogItems, numDialogItems);
   
   unsigned maxLen = 0;
   
@@ -900,7 +887,7 @@ HRESULT CPlugin::ShowAttributesWindow()
   return S_OK;
 }
 
-int CPlugin::ProcessKey(int key, unsigned int controlState)
+int CPlugin::ProcessKey(int key, unsigned controlState)
 {
   if (key == VK_F7 && controlState == 0)
   {

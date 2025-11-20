@@ -979,7 +979,7 @@ void CInArchive::GetNsisString_Unicode_Raw(const Byte *p)
         break;
       if (c < 0x80)
       {
-        Raw_UString += (char)c;
+        Raw_UString.Add_Char((char)c);
         continue;
       }
       
@@ -2623,7 +2623,7 @@ void CInArchive::DetectNsisType(const CBlockHeader &bh, const Byte *p)
       
     for (UInt32 kkk = 0; kkk < bh.Num; kkk++, p2 += kCmdSize)
     {
-      UInt32 cmd = Get32(p2); // we use original (not converted) command
+      const UInt32 cmd = Get32(p2); // we use original (not converted) command
 
       if (cmd < EW_WRITEUNINSTALLER ||
           cmd > EW_WRITEUNINSTALLER + numInsertMax)
@@ -2639,7 +2639,7 @@ void CInArchive::DetectNsisType(const CBlockHeader &bh, const Byte *p)
           params[3] <= 1)
         continue;
 
-      UInt32 altParam = params[3];
+      const UInt32 altParam = params[3];
       if (!IsGoodString(params[0]) ||
           !IsGoodString(altParam))
         continue;
@@ -2649,8 +2649,8 @@ void CInArchive::DetectNsisType(const CBlockHeader &bh, const Byte *p)
         continue;
       if (AreTwoParamStringsEqual(altParam + additional, params[0]))
       {
-        unsigned numInserts = cmd - EW_WRITEUNINSTALLER;
-        mask |= (1 << numInserts);
+        const unsigned numInserts = cmd - EW_WRITEUNINSTALLER;
+        mask |= ((unsigned)1 << numInserts);
       }
     }
 
@@ -4005,7 +4005,7 @@ HRESULT CInArchive::ReadEntries(const CBlockHeader &bh)
         AddParam_Var(params[0]);
         AString temp;
         ReadString2(temp, params[1]);
-        if (temp != "$TEMP")
+        if (!temp.IsEqualTo("$TEMP"))
           SpaceQuStr(temp);
         break;
       }
@@ -4410,7 +4410,7 @@ HRESULT CInArchive::ReadEntries(const CBlockHeader &bh)
         }
         else
         {
-          if (func == "DllUnregisterServer")
+          if (func.IsEqualTo("DllUnregisterServer"))
           {
             s += "UnRegDLL";
             printFunc = false;
@@ -4418,7 +4418,7 @@ HRESULT CInArchive::ReadEntries(const CBlockHeader &bh)
           else
           {
             s += "RegDLL";
-            if (func == "DllRegisterServer")
+            if (func.IsEqualTo("DllRegisterServer"))
               printFunc = false;
           }
           AddParam(params[0]);
@@ -4886,7 +4886,7 @@ HRESULT CInArchive::ReadEntries(const CBlockHeader &bh)
             AddParam_Var(params[1]);
             AddParam(params[2]);
             AddParam(params[4]);
-            // if (params[2] == "0") AddCommentAndString("GetWinVer");
+            // if (params[2].IsEqualTo("0")) AddCommentAndString("GetWinVer");
           }
           else
             s += "GetOsInfo";

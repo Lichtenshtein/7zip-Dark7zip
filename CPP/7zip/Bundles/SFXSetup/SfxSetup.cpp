@@ -33,6 +33,9 @@ using namespace NDir;
 extern
 HINSTANCE g_hInstance;
 HINSTANCE g_hInstance;
+extern
+bool g_DisableUserQuestions;
+bool g_DisableUserQuestions;
 
 static CFSTR const kTempDirPrefix = FTEXT("7zS");
 
@@ -226,7 +229,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE /* hPrevInstance */,
   }
 
   const FString tempDirPath = tempDir.GetPath();
-  // tempDirPath = L"M:\\1\\"; // to test low disk space
+  // tempDirPath = "M:\\1\\"; // to test low disk space
   {
     bool isCorrupt = false;
     UString errorMessage;
@@ -305,7 +308,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE /* hPrevInstance */,
   {
     if (appLaunched.IsEmpty())
     {
-      appLaunched = L"setup.exe";
+      appLaunched = "setup.exe";
       if (!NFind::DoesFileExist_FollowLink(us2fs(appLaunched)))
       {
         if (!assumeYes)

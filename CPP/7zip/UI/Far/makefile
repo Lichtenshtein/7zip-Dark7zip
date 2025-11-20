@@ -4,7 +4,8 @@ CFLAGS = $(CFLAGS)  \
   -DZ7_EXTERNAL_CODECS \
 
 !IFNDEF UNDER_CE
-CFLAGS = $(CFLAGS) -DZ7_LONG_PATH
+# CFLAGS = $(CFLAGS) -DZ7_LONG_PATH
+# -DZ7_NO_LARGE_PAGES
 !ENDIF
 
 CURRENT_OBJS = \
@@ -98,9 +99,9 @@ COMPRESS_OBJS = \
 C_OBJS = \
   $O\Alloc.obj \
   $O\CpuArch.obj \
-  $O\Sort.obj \
   $O\Threads.obj \
 
 !include "../../Crc.mak"
+!include "../../Sort.mak"
 
 !include "../../7zip.mak"

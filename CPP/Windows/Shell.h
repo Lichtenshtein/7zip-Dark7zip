@@ -3,9 +3,7 @@
 #ifndef ZIP7_WINDOWS_SHELL_H
 #define ZIP7_WINDOWS_SHELL_H
 
-#include "../Common/Common.h"
 #include "../Common/MyWindows.h"
-// https://learn.microsoft.com/en-gb/windows/win32/winprog/using-the-windows-headers?redirectedfrom=MSDN
 #if defined(__MINGW32__) || defined(__MINGW64__)
 #include <shlobj.h>
 #else
@@ -15,7 +13,6 @@
 #include "../Common/MyString.h"
 
 #include "Defs.h"
-#include "com.h"
 
 namespace NWindows {
 namespace NShell {
@@ -115,8 +112,7 @@ struct CFileAttribs
 /* read pathnames from HDROP or SHELLIDLIST.
    The parser can return E_INVALIDARG, if there is some unexpected data in dataObject */
 HRESULT DataObject_GetData_HDROP_or_IDLIST_Names(IDataObject *dataObject, UStringVector &names);
-HRESULT DataObject_GetData_HGLOBAL(IDataObject *dataObject, CLIPFORMAT cf, NCOM::CStgMedium &medium);
-HRESULT DataObject_SetData_HGLOBAL(IDataObject *dataObject, CLIPFORMAT cf, NCOM::CStgMedium &medium);
+
 HRESULT DataObject_GetData_FILE_ATTRS(IDataObject *dataObject, CFileAttribs &attribs);
 
 bool GetPathFromIDList(LPCITEMIDLIST itemIDList, CSysString &path);

@@ -170,7 +170,7 @@ void CArcInfoEx::AddExts(const UString &ext, const UString &addExt)
     if (i < addExts.Size())
     {
       extInfo.AddExt = addExts[i];
-      if (extInfo.AddExt == L"*")
+      if (extInfo.AddExt.IsEqualTo("*"))
         extInfo.AddExt.Empty();
     }
     Exts.Add(extInfo);
@@ -261,6 +261,10 @@ static HRESULT GetMethodBoolProp(Func_GetMethodProperty getMethodProperty, UInt3
 
 #if defined(__clang__)
 #pragma GCC diagnostic ignored "-Wc++98-compat-pedantic"
+#endif
+
+#ifdef _WIN32
+Z7_DIAGNOSTIC_IGNORE_CAST_FUNCTION
 #endif
 
 #define MY_GET_FUNC(dest, type, lib, func)  \
@@ -927,8 +931,8 @@ bool CCodecs::FindFormatForArchiveType(const UString &arcType, CIntVector &forma
     const UString name = arcType.Mid(pos, (unsigned)pos2 - pos);
     if (name.IsEmpty())
       return false;
-    int index = FindFormatForArchiveType(name);
-    if (index < 0 && name != L"*")
+    const int index = FindFormatForArchiveType(name);
+    if (index < 0 && !name.IsEqualTo("*"))
     {
       formatIndices.Clear();
       return false;

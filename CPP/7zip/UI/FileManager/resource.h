@@ -25,7 +25,12 @@
 #define IDM_CRC64                103
 #define IDM_SHA1                 104
 #define IDM_SHA256               105
-
+#define IDM_SHA384               106
+#define IDM_SHA512               107
+#define IDM_SHA3_256             108
+#define IDM_XXH64                120
+#define IDM_BLAKE2SP             121
+#define IDM_MD5                  122
 
 #define IDM_FILE                 500
 #define IDM_EDIT                 501
@@ -54,8 +59,6 @@
 // #define IDM_EXIT                 557
 #define IDM_LINK                 558
 #define IDM_ALT_STREAMS          559
-#define IDM_FIND_FZF            560
-#define IDM_FIND_IGREP          561
 
 #define IDM_VER_EDIT             580
 #define IDM_VER_COMMIT           581
@@ -64,11 +67,6 @@
 
 #define IDM_OPEN_INSIDE_ONE      590
 #define IDM_OPEN_INSIDE_PARSER   591
-
-#define IDM_OPEN_VSCODE          592
-#define IDM_OPEN_TERMINAL        593
-#define IDM_OPEN_EXPLORER        594
-#define IDM_COPY_PATH            595
 
 #define IDM_SELECT_ALL           600
 #define IDM_DESELECT_ALL         601
@@ -107,6 +105,7 @@
 
 #define IDM_VIEW_TIME_POPUP      760
 #define IDM_VIEW_TIME            761
+#define IDM_VIEW_TIME_UTC        799
 
 #define IDM_ADD_TO_FAVORITES     800
 #define IDS_BOOKMARK             801
@@ -114,6 +113,7 @@
 #define IDM_OPTIONS              900
 #define IDM_BENCHMARK            901
 #define IDM_BENCHMARK2           902
+#define IDM_TEMP_DIR             910
 
 #define IDM_HELP_CONTENTS        960
 #define IDM_ABOUT                961
@@ -137,7 +137,7 @@
 #define IDS_COPY_TO                     6002
 #define IDS_MOVE_TO                     6003
 #define IDS_COPYING                     6004
-#define IDS_MOVING                      6005
+// #define IDS_MOVING                      6005
 #define IDS_RENAMING                    6006
 
 #define IDS_OPERATION_IS_NOT_SUPPORTED  6008
