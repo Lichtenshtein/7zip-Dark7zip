@@ -40,6 +40,8 @@ static LPCTSTR const kLargePages = TEXT("LargePages");
 static LPCTSTR const kFlatViewName = TEXT("FlatViewArc");
 // static LPCTSTR const kShowDeletedFiles = TEXT("ShowDeleted");
 
+static LPCTSTR const kPanelMode = TEXT("PanelMode");
+
 static void SaveCuString(LPCTSTR keyPath, LPCWSTR valuePath, LPCWSTR value)
 {
   CKey key;
@@ -80,22 +82,40 @@ static void SaveOption(LPCTSTR value, bool enabled)
   key.SetValue(value, enabled);
 }
 
+static void SaveOption(LPCTSTR value, UInt32 data)
+{
+  CKey key;
+  key.Create(HKEY_CURRENT_USER, kCU_FMPath);
+  key.SetValue(value, data);
+}
+
 static bool Read7ZipOption(LPCTSTR value, bool defaultValue)
 {
   CKey key;
   if (key.Open(HKEY_CURRENT_USER, kCUBasePath, KEY_READ) == ERROR_SUCCESS)
   {
     bool enabled;
-    if (key.GetValue_bool_IfOk(value, enabled) == ERROR_SUCCESS)
+    if (key.QueryValue(value, enabled) == ERROR_SUCCESS)
       return enabled;
   }
   return defaultValue;
 }
 
-static void ReadOption(CKey &key, LPCTSTR name, bool &dest)
+static void ReadOption(CKey &key, LPCTSTR value, bool &dest)
 {
-  key.GetValue_bool_IfOk(name, dest);
+  bool enabled = false;
+  if (key.QueryValue(value, enabled) == ERROR_SUCCESS)
+    dest = enabled;
 }
+
+[[maybe_unused]]
+static void ReadOption(CKey &key, LPCTSTR value, UInt32 &dest)
+{
+  UInt32 data = false;
+  if (key.QueryValue(value, data) == ERROR_SUCCESS)
+    dest = data;
+}
+
 
 /*
 static void SaveLmOption(LPCTSTR value, bool enabled)
@@ -139,8 +159,9 @@ void CFmSettings::Load()
      to select group of files. We need to implement additional
      way to select files in any column as in Explorer.
      Then we can enable (FullRow == true) default mode. */
-  // FullRow = true;
-  FullRow = false;
+  FullRow = true;
+  // We default to true to prevent flickering in find mode when we draw the custom background for find result.
+  // FullRow = false;
   ShowGrid = false;
   SingleClick = false;
   AlternativeSelection = false;
@@ -186,6 +207,16 @@ bool ReadFlatView(UInt32 panelIndex)
   if (key.Open(HKEY_CURRENT_USER, kCU_FMPath, KEY_READ) == ERROR_SUCCESS)
     ReadOption(key, GetFlatViewName(panelIndex), enabled);
   return enabled;
+}
+
+void SavePanelMode(UInt32 mode) { SaveOption(kPanelMode, mode); }
+UInt32 ReadPanelMode()
+{
+  bool data = false;
+  CKey key;
+  if (key.Open(HKEY_CURRENT_USER, kCU_FMPath, KEY_READ) == ERROR_SUCCESS)
+    ReadOption(key, kPanelMode, data);
+  return data;
 }
 
 /*

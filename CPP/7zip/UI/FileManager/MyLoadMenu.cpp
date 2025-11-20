@@ -2,7 +2,6 @@
 
 #include "StdAfx.h"
 
-#include "../../../Windows/FileDir.h"
 #include "../../../Windows/Menu.h"
 #include "../../../Windows/TimeUtils.h"
 #include "../../../Windows/Control/Dialog.h"
@@ -13,7 +12,6 @@
 
 #include "AboutDialog.h"
 #include "App.h"
-#include "BrowseDialog2.h"
 #include "HelpUtils.h"
 #include "LangUtils.h"
 #include "MyLoadMenu.h"
@@ -28,10 +26,6 @@ static const UINT k_MenuID_OpenBookmark = 830;
 static const UINT k_MenuID_SetBookmark = 810;
 static const UINT k_MenuID_TimePopup = IDM_VIEW_TIME_POPUP;
 static const UINT k_MenuID_Time = IDM_VIEW_TIME;
-
-#if 0
-// static const UINT k_MenuID_Bookmark_Temp = 850;
-#endif
 
 extern HINSTANCE g_hInstance;
 
@@ -141,7 +135,7 @@ static void MyChangeMenu(HMENU menuLoc, unsigned menuID, unsigned level, unsigne
 {
   CMenu menu;
   menu.Attach(menuLoc);
-  
+
   for (unsigned i = 0;; i++)
   {
     CMenuItem item;
@@ -334,7 +328,7 @@ void MyLoadMenu(bool needResetMenu)
   if (!g_LangID.IsEmpty())
     MyChangeMenu(baseMenu, 0, 0);
   g_App._commandBar.DrawMenuBar(0);
- 
+
   #else // UNDER_CE
 
   const HWND hWnd = g_HWND;
@@ -391,10 +385,10 @@ void OnMenuActivating(HWND /* hWnd */, HMENU hMenu, int position)
     ::GetMenu(g_HWND)
     #endif
     ;
-  
+
   if (::GetSubMenu(mainMenu, position) != hMenu)
     return;
-  
+
   if (position == k_MenuIndex_File)
   {
     CMenu menu;
@@ -426,7 +420,7 @@ void OnMenuActivating(HWND /* hWnd */, HMENU hMenu, int position)
         IDM_VIEW_ARANGE_NO_SORT,
         GetSortControlID(g_App.GetSortID()),
         MF_BYCOMMAND);
-    
+
     menu.CheckItemByID(IDM_VIEW_TWO_PANELS, g_App.NumPanels == 2);
     menu.CheckItemByID(IDM_VIEW_FLAT_VIEW, g_App.GetFlatMode());
     menu.CheckItemByID(IDM_VIEW_ARCHIVE_TOOLBAR, g_App.ShowArchiveToolbar);
@@ -464,7 +458,7 @@ void OnMenuActivating(HWND /* hWnd */, HMENU hMenu, int position)
         CMenu subMenu;
         subMenu.Attach(menu.GetSubMenu((int)i));
         subMenu.RemoveAllItems();
-        
+
         const int k_TimeLevels[] =
         {
           kTimestampPrintLevel_DAY,
@@ -479,7 +473,7 @@ void OnMenuActivating(HWND /* hWnd */, HMENU hMenu, int position)
         unsigned selectedCommand = 0;
         g_App._timestampLevels.Clear();
         unsigned id = k_MenuID_Time;
-        
+
         for (unsigned k = 0; k < Z7_ARRAY_SIZE(k_TimeLevels); k++)
         {
           wchar_t s[64];
@@ -499,9 +493,6 @@ void OnMenuActivating(HWND /* hWnd */, HMENU hMenu, int position)
         }
         if (selectedCommand != 0)
           menu.CheckRadioItem(k_MenuID_Time, last, selectedCommand, MF_BYCOMMAND);
-
-        if (subMenu.AppendItem(MF_STRING, IDM_VIEW_TIME_UTC, L"UTC"))
-          subMenu.CheckItemByID(IDM_VIEW_TIME_UTC, g_Timestamp_Show_UTC);
       }
     }
   }
@@ -514,15 +505,15 @@ void OnMenuActivating(HWND /* hWnd */, HMENU hMenu, int position)
     subMenu.Attach(menu.GetSubMenu(0));
     subMenu.RemoveAllItems();
     unsigned i;
-    
+
     for (i = 0; i < 10; i++)
     {
       UString s = LangString(IDS_BOOKMARK);
       s.Add_Space();
       const char c = (char)(L'0' + i);
-      s.Add_Char(c);
+      s += c;
       s += "\tAlt+Shift+";
-      s.Add_Char(c);
+      s += c;
       subMenu.AppendItem(MF_STRING, k_MenuID_SetBookmark + i, s);
     }
 
@@ -541,22 +532,9 @@ void OnMenuActivating(HWND /* hWnd */, HMENU hMenu, int position)
       if (s.IsEmpty())
         s = '-';
       s += "\tAlt+";
-      s.Add_Char((char)('0' + i));
+      s += (char)('0' + i);
       menu.AppendItem(MF_STRING, k_MenuID_OpenBookmark + i, s);
     }
-#if 0
-    {
-      FString tempPathF;
-      if (NFile::NDir::MyGetTempPath(tempPathF))
-      {
-        menu.AppendItem(MF_SEPARATOR, 0, (LPCTSTR)NULL);
-        UString s;
-        s = "Temp : ";
-        s  += fs2us(tempPathF);
-        menu.AppendItem(MF_STRING, k_MenuID_Bookmark_Temp, s);
-      }
-    }
-#endif
   }
 }
 
@@ -596,17 +574,17 @@ void CFileMenu::Load(HMENU hMenu, unsigned startPos)
   unsigned numRealItems = startPos;
 
   const bool isBigScreen = NControl::IsDialogSizeOK(40, 200, g_HWND);
-  
+
   for (unsigned i = 0;; i++)
   {
     CMenuItem item;
 
     item.fMask = MIIM_SUBMENU | MIIM_STATE | MIIM_ID | Get_fMask_for_FType_and_String();
     item.fType = MFT_STRING;
-    
+
     if (!g_FileMenu.GetItem(i, true, item))
       break;
-    
+
     {
       if (!programMenu && item.wID == IDCLOSE)
         continue;
@@ -646,7 +624,7 @@ void CFileMenu::Load(HMENU hMenu, unsigned startPos)
             disable = true;
         }
       }
-      
+
       if (isHashFolder)
       {
         switch (item.wID)
@@ -697,7 +675,7 @@ void CFileMenu::Load(HMENU hMenu, unsigned startPos)
   UString vercPath;
   if (!diffPath.IsEmpty() && isFsFolder && allAreFiles && numItems == 1)
     ReadReg_VerCtrlPath(vercPath);
-  
+
   if (!vercPath.IsEmpty())
   {
     NFile::NFind::CFileInfo fi;
@@ -718,7 +696,7 @@ void CFileMenu::Load(HMENU hMenu, unsigned startPos)
           if (id == IDM_VER_EDIT)
             continue;
         }
-        
+
         CMenuItem item;
         UString s (g_Zvc_Strings[k]);
         if (destMenu.AppendItem(MF_STRING, id, s))
@@ -729,7 +707,7 @@ void CFileMenu::Load(HMENU hMenu, unsigned startPos)
       }
     }
   }
-  
+
   destMenu.RemoveAllItemsFrom(numRealItems);
 }
 
@@ -747,10 +725,16 @@ bool ExecuteFileCommand(unsigned id)
   {
     // File
     case IDM_OPEN: g_App.OpenItem(); break;
-    
+
     case IDM_OPEN_INSIDE:        g_App.OpenItemInside(NULL); break;
     case IDM_OPEN_INSIDE_ONE:    g_App.OpenItemInside(L"*"); break;
     case IDM_OPEN_INSIDE_PARSER: g_App.OpenItemInside(L"#"); break;
+    case IDM_OPEN_VSCODE: g_App.OpenItemVscode(); break;
+    case IDM_OPEN_TERMINAL: g_App.OpenItemTerminal(); break;
+    case IDM_OPEN_EXPLORER: g_App.OpenItemExplorer(); break;
+    case IDM_COPY_PATH: g_App.CopyItemPath(); break;
+    case IDM_FIND_FZF: g_App.FindFzf(); break;
+    // case IDM_FIND_IGREP: g_App.FindIgrep(); break;
 
     case IDM_OPEN_OUTSIDE: g_App.OpenItemOutside(); break;
     case IDM_FILE_VIEW: g_App.EditItem(false); break;
@@ -759,19 +743,13 @@ bool ExecuteFileCommand(unsigned id)
     case IDM_COPY_TO: g_App.CopyTo(); break;
     case IDM_MOVE_TO: g_App.MoveTo(); break;
     case IDM_DELETE: g_App.Delete(!IsKeyDown(VK_SHIFT)); break;
-    
+
     case IDM_HASH_ALL: g_App.CalculateCrc("*"); break;
     case IDM_CRC32: g_App.CalculateCrc("CRC32"); break;
     case IDM_CRC64: g_App.CalculateCrc("CRC64"); break;
-    case IDM_XXH64: g_App.CalculateCrc("XXH64"); break;
-    case IDM_MD5: g_App.CalculateCrc("MD5"); break;
     case IDM_SHA1: g_App.CalculateCrc("SHA1"); break;
     case IDM_SHA256: g_App.CalculateCrc("SHA256"); break;
-    case IDM_SHA384: g_App.CalculateCrc("SHA384"); break;
-    case IDM_SHA512: g_App.CalculateCrc("SHA512"); break;
-    case IDM_SHA3_256: g_App.CalculateCrc("SHA3-256"); break;
-    case IDM_BLAKE2SP: g_App.CalculateCrc("BLAKE2sp"); break;
-    
+
     case IDM_DIFF: g_App.DiffFiles(); break;
 
     case IDM_VER_EDIT:
@@ -811,11 +789,11 @@ bool OnMenuCommand(HWND hWnd, unsigned id)
   {
     // File
     case IDCLOSE:
-      // SendMessage(hWnd, WM_ACTIVATE, MAKEWPARAM(WA_INACTIVE, 0), (LPARAM)hWnd);
-      // g_ExitEventLauncher.Exit(false);
+      SendMessage(hWnd, WM_ACTIVATE, MAKEWPARAM(WA_INACTIVE, 0), (LPARAM)hWnd);
+      g_ExitEventLauncher.Exit(false);
       SendMessage(hWnd, WM_CLOSE, 0, 0);
       break;
-    
+
     // Edit
     /*
     case IDM_EDIT_CUT:
@@ -898,7 +876,7 @@ bool OnMenuCommand(HWND hWnd, unsigned id)
       Save_ShowDeleted(isChecked);
     }
     */
-    
+
     case IDM_VIEW_TWO_PANELS:       g_App.SwitchOnOffOnePanel(); break;
     case IDM_VIEW_STANDARD_TOOLBAR: g_App.SwitchStandardToolbar(); break;
     case IDM_VIEW_ARCHIVE_TOOLBAR:  g_App.SwitchArchiveToolbar(); break;
@@ -906,14 +884,9 @@ bool OnMenuCommand(HWND hWnd, unsigned id)
     case IDM_VIEW_TOOLBARS_SHOW_BUTTONS_TEXT: g_App.SwitchButtonsLables(); break;
     case IDM_VIEW_TOOLBARS_LARGE_BUTTONS:     g_App.SwitchLargeButtons(); break;
 
-    case IDM_VIEW_TIME_UTC:
-      g_Timestamp_Show_UTC = !g_Timestamp_Show_UTC;
-      g_App.RedrawListItems_InPanels();
-      break;
-
     // Tools
     case IDM_OPTIONS: OptionsDialog(hWnd, g_hInstance); break;
-          
+
     case IDM_BENCHMARK: MyBenchmark(false); break;
     case IDM_BENCHMARK2: MyBenchmark(true); break;
 
@@ -927,19 +900,6 @@ bool OnMenuCommand(HWND hWnd, unsigned id)
       dialog.Create(hWnd);
       break;
     }
-
-    case IDM_TEMP_DIR:
-    {
-      /*
-      CPanel &panel = g_App.GetFocusedPanel();
-      FString tempPathF;
-      if (NFile::NDir::MyGetTempPath(tempPathF))
-        panel.BindToPathAndRefresh(tempPathF);
-      */
-      MyBrowseForTempFolder(g_HWND);
-      break;
-    }
-
     default:
     {
       if (id >= k_MenuID_OpenBookmark && id <= k_MenuID_OpenBookmark + 9)

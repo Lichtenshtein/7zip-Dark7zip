@@ -23,6 +23,9 @@
 #include "ViewSettings.h"
 
 #include "resource.h"
+#include "Path.h"
+
+#include <shlwapi.h>
 
 using namespace NWindows;
 using namespace NFile;
@@ -39,7 +42,7 @@ void CPanel::ReleaseFolder()
   _folderRawProps.Release();
   _folderAltStreams.Release();
   _folderOperations.Release();
-  
+
   _thereAreDeletedItems = false;
 }
 
@@ -61,7 +64,7 @@ void CPanel::SetToRootFolder()
 {
   ReleaseFolder();
   _library.Free();
-  
+
   CRootFolder *rootFolderSpec = new CRootFolder;
   SetNewFolder(rootFolderSpec);
   rootFolderSpec->Init();
@@ -82,7 +85,17 @@ HRESULT CPanel::BindToPath(const UString &fullPath, const UString &arcFormat, CO
 
   openRes.ArchiveIsOpened = false;
   openRes.Encrypted = false;
-  
+
+  if (_panelCallback != nullptr)
+  {
+    bool shouldReturn{};
+    _panelCallback->OnBind(shouldReturn);
+    if (shouldReturn)
+    {
+      return S_OK;
+    }
+  }
+
   CDisableTimerProcessing disableTimerProcessing(*this);
   CDisableNotify disableNotify(*this);
 
@@ -102,7 +115,7 @@ HRESULT CPanel::BindToPath(const UString &fullPath, const UString &arcFormat, CO
       else
         relatPath.Delete(0);
     }
-    
+
     UString relatPath2 = relatPath;
     if (!relatPath2.IsEmpty() && !IS_PATH_SEPAR(relatPath2.Back()))
       relatPath2.Add_PathSepar();
@@ -138,7 +151,7 @@ HRESULT CPanel::BindToPath(const UString &fullPath, const UString &arcFormat, CO
     const unsigned prefixSize = NName::GetRootPrefixSize(sysPath);
     if (prefixSize == 0 || sysPath[prefixSize] == 0)
       sysPath.Empty();
-    
+
     #if defined(_WIN32) && !defined(UNDER_CE)
     if (!sysPath.IsEmpty() && sysPath.Back() == ':' &&
       (sysPath.Len() != 2 || !NName::IsDrivePath2(sysPath)))
@@ -150,9 +163,9 @@ HRESULT CPanel::BindToPath(const UString &fullPath, const UString &arcFormat, CO
         sysPath.Empty();
     }
     #endif
-    
+
     CFileInfo fileInfo;
-    
+
     while (!sysPath.IsEmpty())
     {
       if (sysPath.Len() <= prefixSize)
@@ -202,11 +215,11 @@ HRESULT CPanel::BindToPath(const UString &fullPath, const UString &arcFormat, CO
         sysPath.DeleteFrom((unsigned)pos);
       }
     }
-    
+
     SetToRootFolder();
 
     CMyComPtr<IFolderFolder> newFolder;
-  
+
     if (sysPath.IsEmpty())
     {
       _folder->BindToFolder(path, &newFolder);
@@ -230,11 +243,11 @@ HRESULT CPanel::BindToPath(const UString &fullPath, const UString &arcFormat, CO
     else
     {
       FString dirPrefix, fileName;
-      
+
       NDir::GetFullPathAndSplit(us2fs(sysPath), dirPrefix, fileName);
 
       HRESULT res = S_OK;
-      
+
       #ifdef _WIN32
       if (DoesNameContainWildcard_SkipRoot(fs2us(dirPrefix)))
         return E_INVALIDARG;
@@ -250,7 +263,7 @@ HRESULT CPanel::BindToPath(const UString &fullPath, const UString &arcFormat, CO
         tfi.FilePath = us2fs(sysPath);
         res = OpenAsArc(NULL, tfi, sysPath, arcFormat, openRes);
       }
-      
+
       if (res == S_FALSE)
         _folder->BindToFolder(fs2us(dirPrefix), &newFolder);
       else
@@ -263,7 +276,7 @@ HRESULT CPanel::BindToPath(const UString &fullPath, const UString &arcFormat, CO
           path.Delete(0);
       }
     }
-    
+
     if (newFolder)
     {
       SetNewFolder(newFolder);
@@ -271,7 +284,7 @@ HRESULT CPanel::BindToPath(const UString &fullPath, const UString &arcFormat, CO
       return S_OK;
     }
   }
-  
+
   {
     // ---------- we open folder remPath in archive and sub archives ----------
 
@@ -301,7 +314,7 @@ HRESULT CPanel::BindToPath(const UString &fullPath, const UString &arcFormat, CO
             curPos += (unsigned)pos + 1;
         }
       }
-      
+
       if (!newFolder)
         break;
 
@@ -318,7 +331,7 @@ HRESULT CPanel::BindToPathAndRefresh(const UString &path)
   CDisableNotify disableNotify(*this);
   COpenResult openRes;
   UString s = path;
-  
+
   #ifdef _WIN32
     if (!s.IsEmpty() && s[0] == '\"' && s.Back() == '\"')
     {
@@ -340,6 +353,7 @@ void CPanel::SetBookmark(unsigned index)
 void CPanel::OpenBookmark(unsigned index)
 {
   BindToPathAndRefresh(_appState->FastFolders.GetString(index));
+  _panelCallback->OnOpenFolder();
 }
 
 UString GetFolderPath(IFolderFolder *folder)
@@ -368,143 +382,53 @@ void CPanel::LoadFullPath()
     _currentFolderPrefix += GetFolderPath(_folder);
 }
 
-
-
-static int GetRealIconIndex_for_DirPath(CFSTR path, DWORD attrib)
+static int GetRealIconIndex(CFSTR path, DWORD attributes)
 {
-  attrib |= FILE_ATTRIBUTE_DIRECTORY; // optional
   int index = -1;
-  if (Shell_GetFileInfo_SysIconIndex_for_Path_attrib_iconIndexRef(path, attrib, index))
-    if (index >= 0)
-      return index;
-  return g_Ext_to_Icon_Map.GetIconIndex_DIR(attrib);
+  if (GetRealIconIndex(path, attributes, index) != 0)
+    return index;
+  return -1;
 }
-
-
-extern UString RootFolder_GetName_Computer(int &iconIndex);
-extern UString RootFolder_GetName_Network(int &iconIndex);
-extern UString RootFolder_GetName_Documents(int &iconIndex);
-
-
-static int Find_FileExtension_DotPos_in_path(const wchar_t *path)
-{
-  int dotPos = -1;
-  unsigned i;
-  for (i = 0;; i++)
-  {
-    const wchar_t c = path[i];
-    if (c == 0)
-      return dotPos;
-    if (c == '.')
-      dotPos = (int)i;
-    else if (IS_PATH_SEPAR(c) || c == ':')
-      dotPos = -1;
-  }
-}
-
 
 void CPanel::LoadFullPathAndShow()
 {
   LoadFullPath();
-  _appState->FolderHistory.AddString(_currentFolderPrefix);
+  // _panelCallback might not be initialized yet..
+  if (_panelCallback == NULL || !_panelCallback->IsMultiPanelMode())
+  {
+    _appState->FolderHistory.AddString(_currentFolderPrefix);
+  }
 
-  _headerComboBox.SetText(_currentFolderPrefix);
+  SetComboText(_currentFolderPrefix);
 
   #ifndef UNDER_CE
 
   COMBOBOXEXITEM item;
   item.mask = 0;
-  item.iImage = -1;
 
   UString path = _currentFolderPrefix;
-  // path = "\\\\.\\PhysicalDrive1\\"; // for debug
-  // path = "\\\\.\\y:\\"; // for debug
-  if (!path.IsEmpty())
+  if (path.Len() >
+      #ifdef _WIN32
+      3
+      #else
+      1
+      #endif
+      && IS_PATH_SEPAR(path.Back()))
+    path.DeleteBack();
+
+  DWORD attrib = FILE_ATTRIBUTE_DIRECTORY;
+
+  // GetRealIconIndex is slow for direct DVD/UDF path. So we use dummy path
+  if (path.IsPrefixedBy(L"\\\\.\\"))
+    path = "_TestFolder_";
+  else
   {
-    const unsigned rootPrefixSize = NName::GetRootPrefixSize(path);
-    if (rootPrefixSize == 0 && path[0] != '\\')
-    {
-      int iconIndex = -1;
-      UString name_Computer = RootFolder_GetName_Computer(iconIndex);
-      name_Computer.Add_PathSepar();
-      if (path == name_Computer
-          || path.IsEqualTo("\\\\?\\"))
-        item.iImage = iconIndex;
-      else
-      {
-        UString name = RootFolder_GetName_Network(iconIndex);
-        name.Add_PathSepar();
-        if (path == name)
-          item.iImage = iconIndex;
-      }
-    }
-
-    if (item.iImage < 0)
-    {
-      if (rootPrefixSize == 0 || rootPrefixSize == path.Len())
-      {
-        DWORD attrib = FILE_ATTRIBUTE_DIRECTORY;
-        CFileInfo info;
-        if (info.Find(us2fs(path)))
-          attrib = info.Attrib;
-        NName::If_IsSuperPath_RemoveSuperPrefix(path);
-        item.iImage = GetRealIconIndex_for_DirPath(us2fs(path), attrib);
-      }
-      else if (rootPrefixSize == NName::kDevicePathPrefixSize
-          && NName::IsDevicePath(us2fs(path.Left(path.Len() - 1))))
-      {
-        if (path.IsPrefixedBy_Ascii_NoCase("\\\\.\\"))
-          path.DeleteFrontal(4);
-        if (path.Len() > 3) // is not "c:\\"
-        {
-          // PhysicalDrive
-          if (path.Back() == '\\')
-            path.DeleteBack();
-        }
-        item.iImage = Shell_GetFileInfo_SysIconIndex_for_Path(us2fs(path), FILE_ATTRIBUTE_ARCHIVE);
-      }
-      else
-      {
-        if (path.Back() == '\\')
-          path.DeleteBack();
-        bool need_Fs_Check = true;
-        bool is_File = false;
-        if (!_parentFolders.IsEmpty())
-        {
-          const CFolderLink &link = _parentFolders.Back();
-          if (link.VirtualPath == path)
-          {
-            is_File = true;
-            if (_parentFolders.Size() != 1)
-              need_Fs_Check = false;
-          }
-          else
-            need_Fs_Check = false;
-        }
-        if (need_Fs_Check)
-        {
-          CFileInfo info;
-          const bool finded = info.Find(us2fs(path));
-          DWORD attrib = FILE_ATTRIBUTE_DIRECTORY;
-          if (finded)
-            attrib = info.Attrib;
-          item.iImage = Shell_GetFileInfo_SysIconIndex_for_Path(us2fs(path), attrib);
-        }
-        if (item.iImage <= 0 && is_File)
-        {
-          int dotPos = Find_FileExtension_DotPos_in_path(path);
-          if (dotPos < 0)
-            dotPos = (int)path.Len();
-          item.iImage = g_Ext_to_Icon_Map.GetIconIndex(FILE_ATTRIBUTE_ARCHIVE, path.Ptr(dotPos));
-        }
-      }
-    }
+    CFileInfo fi;
+    if (fi.Find(us2fs(path)))
+      attrib = fi.Attrib;
   }
+  item.iImage = GetRealIconIndex(us2fs(path), attrib);
 
-  if (item.iImage < 0)
-    item.iImage = g_Ext_to_Icon_Map.GetIconIndex_DIR();
-  // if (item.iImage < 0) item.iImage = 0;
-  // item.iImage = -1; // for debug
   if (item.iImage >= 0)
   {
     item.iSelectedImage = item.iImage;
@@ -512,7 +436,7 @@ void CPanel::LoadFullPathAndShow()
   }
   item.iItem = -1;
   _headerComboBox.SetItem(&item);
-  
+
   #endif
 
   RefreshTitle();
@@ -521,8 +445,62 @@ void CPanel::LoadFullPathAndShow()
 #ifndef UNDER_CE
 LRESULT CPanel::OnNotifyComboBoxEnter(const UString &s)
 {
-  if (BindToPathAndRefresh(GetUnicodeString(s)) == S_OK)
+  auto path = ExpandEnvironmentStringsWrapper(std::wstring(s == L"~" ? L"%USERPROFILE%" : (const wchar_t *)s));
+  if (!path)
   {
+    return FALSE;
+  }
+
+  if (BindToPathAndRefresh(GetUnicodeString(UString((*path).data()))) == S_OK)
+  {
+    bool shouldReturn;
+    _panelCallback->OnOpenFolder(shouldReturn, UString((*path).data()));
+    if (shouldReturn)
+    {
+      return TRUE;
+    }
+
+    PostMsg(kSetFocusToListView);
+    return TRUE;
+  }
+  return FALSE;
+}
+
+template<typename T, typename F>
+auto map_optional(std::optional<T>& opt, F func) {
+    if (opt.has_value()) {
+        return std::optional<std::invoke_result_t<F, T>>(func(opt.value()));
+    } else {
+        return std::optional<std::invoke_result_t<F, T>>();
+    }
+}
+
+LRESULT CPanel::OnNotifyComboBoxEnterShowInDirectory(const UString &s)
+{
+  auto pathStdStr = ExpandEnvironmentStringsWrapper(std::wstring(s == L"~" ? L"%USERPROFILE%" : (const wchar_t *)s));
+  auto path = map_optional(pathStdStr, [](std::wstring s) { return UString(s.data()); });
+  if (!path)
+  {
+    return FALSE;
+  }
+
+  auto dir = path->GetDirectory();
+  if (!PathIsDirectory(dir))
+  {
+    dir = dir.GetDirectory();
+  }
+  auto name = path->GetFileName();
+  name.TrimRight();
+
+  if (BindToPathAndRefresh(GetUnicodeString(dir)) == S_OK)
+  {
+    bool shouldReturn;
+    _panelCallback->OnOpenFolder(shouldReturn, *path);
+    if (shouldReturn)
+    {
+      return TRUE;
+    }
+
     PostMsg(kSetFocusToListView);
     return TRUE;
   }
@@ -533,7 +511,7 @@ bool CPanel::OnNotifyComboBoxEndEdit(PNMCBEENDEDITW info, LRESULT &result)
 {
   if (info->iWhy == CBENF_ESCAPE)
   {
-    _headerComboBox.SetText(_currentFolderPrefix);
+    SetComboText(_currentFolderPrefix);
     PostMsg(kSetFocusToListView);
     result = FALSE;
     return true;
@@ -552,7 +530,7 @@ bool CPanel::OnNotifyComboBoxEndEdit(PNMCBEENDEDITW info, LRESULT &result)
     // When we use Edit control and press Enter.
     UString s;
     _headerComboBox.GetText(s);
-    result = OnNotifyComboBoxEnter(s);
+    result = OnNotifyComboBoxEnterShowInDirectory(s);
     return true;
   }
   return false;
@@ -564,7 +542,7 @@ bool CPanel::OnNotifyComboBoxEndEdit(PNMCBEENDEDIT info, LRESULT &result)
 {
   if (info->iWhy == CBENF_ESCAPE)
   {
-    _headerComboBox.SetText(_currentFolderPrefix);
+    SetComboText(_currentFolderPrefix);
     PostMsg(kSetFocusToListView);
     result = FALSE;
     return true;
@@ -589,40 +567,37 @@ bool CPanel::OnNotifyComboBoxEndEdit(PNMCBEENDEDIT info, LRESULT &result)
 }
 #endif
 
-void CPanel::AddComboBoxItem(const UString &name, int iconIndex, unsigned indent, bool addToList)
+void CPanel::AddComboBoxItem(const UString &name, int iconIndex, int indent, bool addToList)
 {
   #ifdef UNDER_CE
 
   UString s;
   iconIndex = iconIndex;
-  for (unsigned i = 0; i < indent; i++)
+  for (int i = 0; i < indent; i++)
     s += "  ";
   _headerComboBox.AddString(s + name);
-  
+
   #else
-  
+
   COMBOBOXEXITEMW item;
   item.mask = CBEIF_TEXT | CBEIF_INDENT;
-  if (iconIndex < 0)
-    iconIndex = g_Ext_to_Icon_Map.GetIconIndex_DIR();
   item.iSelectedImage = item.iImage = iconIndex;
   if (iconIndex >= 0)
     item.mask |= (CBEIF_IMAGE | CBEIF_SELECTEDIMAGE);
   item.iItem = -1;
-  item.iIndent = (int)indent;
+  item.iIndent = indent;
   item.pszText = name.Ptr_non_const();
   _headerComboBox.InsertItem(&item);
-  
+
   #endif
 
   if (addToList)
-  {
-    UString s = name;
-    s.Add_PathSepar();
-    ComboBoxPaths.Add(s);
-  }
+    ComboBoxPaths.Add(name);
 }
 
+extern UString RootFolder_GetName_Computer(int &iconIndex);
+extern UString RootFolder_GetName_Network(int &iconIndex);
+extern UString RootFolder_GetName_Documents(int &iconIndex);
 
 bool CPanel::OnComboBoxCommand(UINT code, LPARAM /* param */, LRESULT &result)
 {
@@ -633,170 +608,58 @@ bool CPanel::OnComboBoxCommand(UINT code, LPARAM /* param */, LRESULT &result)
     {
       ComboBoxPaths.Clear();
       _headerComboBox.ResetContent();
-      
-      UString sumPath;
+
+      unsigned i;
       UStringVector pathParts;
-      unsigned indent = 0;
+
+      SplitPathToParts(_currentFolderPrefix, pathParts);
+      UString sumPass;
+      if (!pathParts.IsEmpty())
+        pathParts.DeleteBack();
+      for (i = 0; i < pathParts.Size(); i++)
       {
-        UString path = _currentFolderPrefix;
-        // path = "\\\\.\\y:\\"; // for debug
-        UString prefix0;
-        if (path.IsPrefixedBy_Ascii_NoCase("\\\\"))
-        {
-          const int separ = FindCharPosInString(path.Ptr(2), '\\');
-          if (separ > 0
-            && (separ > 1 || path[2] != '.')) // "\\\\.\\" will be processed later
-          {
-            const UString s = path.Left(2 + separ);
-            prefix0 = s;
-            prefix0.Add_PathSepar();
-            AddComboBoxItem(s,
-                GetRealIconIndex_for_DirPath(us2fs(prefix0), FILE_ATTRIBUTE_DIRECTORY),
-                indent++,
-                false); // addToList
-            ComboBoxPaths.Add(prefix0);
-          }
-        }
-        
-        unsigned rootPrefixSize = NName::GetRootPrefixSize(path);
-
-        sumPath = path;
-        
-        if (rootPrefixSize <= prefix0.Len())
-        {
-          rootPrefixSize = prefix0.Len();
-          sumPath.DeleteFrom(rootPrefixSize);
-        }
-        else
-        {
-          // rootPrefixSize > prefix0.Len()
-          sumPath.DeleteFrom(rootPrefixSize);
-          
-          CFileInfo info;
-          DWORD attrib = FILE_ATTRIBUTE_DIRECTORY;
-          if (info.Find(us2fs(sumPath)) && info.IsDir())
-            attrib = info.Attrib;
-          UString s = sumPath.Ptr(prefix0.Len());
-          if (!s.IsEmpty())
-          {
-            const wchar_t c = s.Back();
-            if (IS_PATH_SEPAR(c))
-              s.DeleteBack();
-          }
-          UString path_for_icon = sumPath;
-          NName::If_IsSuperPath_RemoveSuperPrefix(path_for_icon);
-          
-          AddComboBoxItem(s,
-              GetRealIconIndex_for_DirPath(us2fs(path_for_icon), attrib),
-              indent++,
-              false); // addToList
-          ComboBoxPaths.Add(sumPath);
-        }
-          
-        path.DeleteFrontal(rootPrefixSize);
-        SplitPathToParts(path, pathParts);
-      }
-
-      // it's expected that pathParts.Back() is empty, because _currentFolderPrefix has PathSeparator.
-      unsigned next_Arc_index = 0;
-      int iconIndex_Computer;
-      const UString name_Computer = RootFolder_GetName_Computer(iconIndex_Computer);
-
-      // const bool is_devicePrefix = (sumPath.IsEqualTo("\\\\.\\"));
-
-      if (pathParts.Size() > 1)
-      if (!sumPath.IsEmpty()
-          || pathParts.Size() != 2
-          || pathParts[0] != name_Computer)
-      for (unsigned i = 0; i + 1 < pathParts.Size(); i++)
-      {
-        UString name = pathParts[i];
-        sumPath += name;
-
-        bool isRootDir_inLink = false;
-        if (next_Arc_index < _parentFolders.Size())
-        {
-          const CFolderLink &link = _parentFolders[next_Arc_index];
-          if (link.VirtualPath == sumPath)
-          {
-            isRootDir_inLink = true;
-            next_Arc_index++;
-          }
-        }
-        
-        int iconIndex = -1;
-        DWORD attrib = isRootDir_inLink ?
-            FILE_ATTRIBUTE_ARCHIVE:
-            FILE_ATTRIBUTE_DIRECTORY;
-        if (next_Arc_index == 0
-            || (next_Arc_index == 1 && isRootDir_inLink))
-        {
-          if (i == 0 && NName::IsDevicePath(us2fs(sumPath)))
-          {
-            UString path = name;
-            path.Add_PathSepar();
-            attrib = FILE_ATTRIBUTE_ARCHIVE;
-              // FILE_ATTRIBUTE_DIRECTORY;
-          }
-          else
-          {
-            CFileInfo info;
-            if (info.Find(us2fs(sumPath)))
-              attrib = info.Attrib;
-          }
-          iconIndex = Shell_GetFileInfo_SysIconIndex_for_Path(us2fs(sumPath), attrib);
-        }
-        
-        if (iconIndex < 0)
-          iconIndex = g_Ext_to_Icon_Map.GetIconIndex(attrib, name);
-        // iconIndex = -1; // for debug
-        if (iconIndex < 0 && isRootDir_inLink)
-          iconIndex = 0; // default file
-
-        sumPath.Add_PathSepar();
-
-        ComboBoxPaths.Add(sumPath);
-        if (name.IsEmpty())
-          name.Add_PathSepar();
-        AddComboBoxItem(name, iconIndex, indent++,
+        const UString name = pathParts[i];
+        sumPass += name;
+        sumPass.Add_PathSepar();
+        CFileInfo info;
+        DWORD attrib = FILE_ATTRIBUTE_DIRECTORY;
+        if (info.Find(us2fs(sumPass)))
+          attrib = info.Attrib;
+        AddComboBoxItem(
+            name.IsEmpty() ? L"\\" : (const wchar_t *)name,
+            GetRealIconIndex(us2fs(sumPass), attrib),
+            (int)i, // iIndent
             false); // addToList
+        ComboBoxPaths.Add(sumPass);
       }
 
-#ifndef UNDER_CE
+      #ifndef UNDER_CE
 
+      int iconIndex;
+      UString name;
+      name = RootFolder_GetName_Documents(iconIndex);
+      AddComboBoxItem(name, iconIndex, 0, true);
+
+      name = RootFolder_GetName_Computer(iconIndex);
+      AddComboBoxItem(name, iconIndex, 0, true);
+
+      FStringVector driveStrings;
+      MyGetLogicalDriveStrings(driveStrings);
+      for (i = 0; i < driveStrings.Size(); i++)
       {
-        int iconIndex;
-        const UString name = RootFolder_GetName_Documents(iconIndex);
-        // iconIndex = -1; // for debug
-        AddComboBoxItem(name, iconIndex, 0, true);
-      }
-      AddComboBoxItem(name_Computer, iconIndex_Computer, 0, true);
-      {
-        FStringVector driveStrings;
-        MyGetLogicalDriveStrings(driveStrings);
-        FOR_VECTOR (i, driveStrings)
-        {
-          FString s = driveStrings[i];
-          ComboBoxPaths.Add(fs2us(s));
-          int iconIndex2 = GetRealIconIndex_for_DirPath(s, FILE_ATTRIBUTE_DIRECTORY);
-          if (!s.IsEmpty())
-          {
-            const FChar c = s.Back();
-            if (IS_PATH_SEPAR(c))
-              s.DeleteBack();
-          }
-          // iconIndex2 = -1; // for debug
-          AddComboBoxItem(fs2us(s), iconIndex2, 1, false);
-        }
-      }
-      {
-        int iconIndex;
-        const UString name = RootFolder_GetName_Network(iconIndex);
-        AddComboBoxItem(name, iconIndex, 0, true);
+        FString s = driveStrings[i];
+        ComboBoxPaths.Add(fs2us(s));
+        int iconIndex2 = GetRealIconIndex(s, 0);
+        if (s.Len() > 0 && s.Back() == FCHAR_PATH_SEPARATOR)
+          s.DeleteBack();
+        AddComboBoxItem(fs2us(s), iconIndex2, 1, false);
       }
 
-#endif
-    
+      name = RootFolder_GetName_Network(iconIndex);
+      AddComboBoxItem(name, iconIndex, 0, true);
+
+      #endif
+
       return false;
     }
 
@@ -805,10 +668,10 @@ bool CPanel::OnComboBoxCommand(UINT code, LPARAM /* param */, LRESULT &result)
       int index = _headerComboBox.GetCurSel();
       if (index >= 0)
       {
-        const UString path = ComboBoxPaths[index];
+        UString pass = ComboBoxPaths[index];
         _headerComboBox.SetCurSel(-1);
-        // _headerComboBox.SetText(pass); // it's fix for selecting by mouse.
-        if (BindToPathAndRefresh(path) == S_OK)
+        // SetComboText(pass); // it's fix for seclecting by mouse.
+        if (BindToPathAndRefresh(pass) == S_OK)
         {
           PostMsg(kSetFocusToListView);
           #ifdef UNDER_CE
@@ -887,7 +750,10 @@ void CPanel::FoldersHistory()
       selectString = listViewDialog.Strings[listViewDialog.FocusedItemIndex];
   }
   if (listViewDialog.FocusedItemIndex >= 0)
+  {
     BindToPathAndRefresh(selectString);
+    _panelCallback->OnOpenFolder();
+  }
 }
 
 
@@ -901,8 +767,8 @@ UString CPanel::GetParentDirPrefix() const
     {
       s = _currentFolderPrefix;
       s.DeleteBack();
-      if (!s.IsEqualTo("\\\\.") &&
-          !s.IsEqualTo("\\\\?"))
+      if (s != L"\\\\." &&
+          s != L"\\\\?")
       {
         int pos = s.ReverseFind_PathSepar();
         if (pos >= 0)
@@ -917,10 +783,10 @@ UString CPanel::GetParentDirPrefix() const
 void CPanel::OpenParentFolder()
 {
   LoadFullPath(); // Maybe we don't need it ??
-  
+
   UString parentFolderPrefix;
   UString focusedName;
-  
+
   if (!_currentFolderPrefix.IsEmpty())
   {
     wchar_t c = _currentFolderPrefix.Back();
@@ -935,8 +801,8 @@ void CPanel::OpenParentFolder()
       }
       else
       */
-      if (!focusedName.IsEqualTo("\\\\.") &&
-          !focusedName.IsEqualTo("\\\\?"))
+      if (focusedName != L"\\\\." &&
+          focusedName != L"\\\\?")
       {
         const int pos = focusedName.ReverseFind_PathSepar();
         if (pos >= 0)
@@ -951,12 +817,12 @@ void CPanel::OpenParentFolder()
 
   CDisableTimerProcessing disableTimerProcessing(*this);
   CDisableNotify disableNotify(*this);
-  
+
   CMyComPtr<IFolderFolder> newFolder;
   _folder->BindToParentFolder(&newFolder);
 
   // newFolder.Release(); // for test
-  
+
   if (newFolder)
     SetNewFolder(newFolder);
   else
@@ -972,7 +838,7 @@ void CPanel::OpenParentFolder()
       CloseOneLevel();
       needSetFolder = (!_folder);
     }
-    
+
     if (needSetFolder)
     {
       {
@@ -981,7 +847,7 @@ void CPanel::OpenParentFolder()
       }
     }
   }
-    
+
   CSelectedState state;
   state.FocusedName = focusedName;
   state.FocusedName_Defined = true;
@@ -993,6 +859,8 @@ void CPanel::OpenParentFolder()
   // ::SetCurrentDirectory(::_currentFolderPrefix);
   RefreshListCtrl(state);
   // _listView.EnsureVisible(_listView.GetFocusedItem(), false);
+
+  _panelCallback->OnOpenParentFolder();
 }
 
 
@@ -1077,6 +945,8 @@ void CPanel::OpenFolder(unsigned index)
   // 17.02: fixed : now we don't select first item
   // _listView.SetItemState_Selected(_listView.GetFocusedItem());
   _listView.EnsureVisible(_listView.GetFocusedItem(), false);
+
+  _panelCallback->OnOpenFolder();
 }
 
 void CPanel::OpenAltStreams()
@@ -1103,7 +973,7 @@ void CPanel::OpenAltStreams()
     }
     return;
   }
-  
+
   #if defined(_WIN32) && !defined(UNDER_CE)
   UString path;
   if (realIndex >= 0)
@@ -1116,7 +986,20 @@ void CPanel::OpenAltStreams()
         path.DeleteBack();
   }
 
-  path.Add_Colon();
+  path += ':';
   BindToPathAndRefresh(path);
   #endif
+}
+
+void CPanel::SetComboText(UString const& text)
+{
+  auto newText = _panelCallback->OnSetComboText(text);
+  if (newText.Len() > 0)
+  {
+    _headerComboBox.SetText(newText);
+  }
+  else
+  {
+    _headerComboBox.SetText(text);
+  }
 }

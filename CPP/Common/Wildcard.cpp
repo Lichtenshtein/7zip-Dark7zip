@@ -255,8 +255,7 @@ ForDir   nonrec         [0, M)                   same as ForBoth-File
 
 bool CItem::AreAllAllowed() const
 {
-  return ForFile && ForDir && WildcardMatching
-      && PathParts.Size() == 1 && PathParts.Front().IsEqualTo("*");
+  return ForFile && ForDir && WildcardMatching && PathParts.Size() == 1 && PathParts.Front() == L"*";
 }
 
 bool CItem::CheckPath(const UStringVector &pathParts, bool isFile) const
@@ -543,7 +542,7 @@ unsigned GetNumPrefixParts_if_DrivePath(UStringVector &pathParts)
   {
     if (pathParts.Size() < 4
         || !pathParts[1].IsEmpty()
-        || !pathParts[2].IsEqualTo("?"))
+        || pathParts[2] != L"?")
       return 0;
     testIndex = 3;
   }
@@ -575,11 +574,11 @@ static unsigned GetNumPrefixParts(const UStringVector &pathParts)
     return 1;
   if (pathParts.Size() == 2)
     return 2;
-  if (pathParts[2].IsEqualTo("."))
+  if (pathParts[2] == L".")
     return 3;
 
   unsigned networkParts = 2;
-  if (pathParts[2].IsEqualTo("?"))
+  if (pathParts[2] == L"?")
   {
     if (pathParts.Size() == 3)
       return 3;
@@ -643,7 +642,7 @@ void CCensor::AddItem(ECensorPathMode pathMode, bool include, const UString &pat
   if (pathParts.Size() >= 3
       && pathParts[0].IsEmpty()
       && pathParts[1].IsEmpty()
-      && pathParts[2].IsEqualTo("?"))
+      && pathParts[2] == L"?")
     ignoreWildcardIndex = 2;
   // #endif
 
@@ -666,7 +665,7 @@ void CCensor::AddItem(ECensorPathMode pathMode, bool include, const UString &pat
       for (unsigned i = numPrefixParts; i < pathParts.Size(); i++)
       {
         const UString &part = pathParts[i];
-        if (part.IsEqualTo("..") || part.IsEqualTo("."))
+        if (part == L".." || part == L".")
           dotsIndex = (int)i;
       }
 

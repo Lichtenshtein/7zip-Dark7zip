@@ -15,15 +15,6 @@ BOOL WINAPI DllMain(
   #else
   HINSTANCE
   #endif
-  /* hInstance */, DWORD /* dwReason */, LPVOID /*lpReserved*/);
-
-extern "C"
-BOOL WINAPI DllMain(
-  #ifdef UNDER_CE
-  HANDLE
-  #else
-  HINSTANCE
-  #endif
   /* hInstance */, DWORD /* dwReason */, LPVOID /*lpReserved*/)
 {
   return TRUE;
@@ -31,7 +22,6 @@ BOOL WINAPI DllMain(
 
 STDAPI CreateCoder(const GUID *clsid, const GUID *iid, void **outObject);
 
-STDAPI CreateObject(const GUID *clsid, const GUID *iid, void **outObject);
 STDAPI CreateObject(const GUID *clsid, const GUID *iid, void **outObject)
 {
   return CreateCoder(clsid, iid, outObject);

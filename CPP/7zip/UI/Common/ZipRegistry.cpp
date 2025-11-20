@@ -45,8 +45,8 @@ static void Key_Set_UInt32(CKey &key, LPCTSTR name, UInt32 value)
 
 static void Key_Get_UInt32(CKey &key, LPCTSTR name, UInt32 &value)
 {
-  value = (UInt32)(Int32)-1;
-  key.GetValue_UInt32_IfOk(name, value);
+  if (key.QueryValue(name, value) != ERROR_SUCCESS)
+    value = (UInt32)(Int32)-1;
 }
 
 
@@ -59,7 +59,7 @@ static void Key_Set_BoolPair(CKey &key, LPCTSTR name, const CBoolPair &b)
 static void Key_Set_bool_if_Changed(CKey &key, LPCTSTR name, bool val)
 {
   bool oldVal = false;
-  if (key.GetValue_bool_IfOk(name, oldVal) == ERROR_SUCCESS)
+  if (key.GetValue_IfOk(name, oldVal) == ERROR_SUCCESS)
     if (val == oldVal)
       return;
   key.SetValue(name, val);
@@ -76,13 +76,13 @@ static void Key_Set_BoolPair_Delete_IfNotDef(CKey &key, LPCTSTR name, const CBoo
 static void Key_Get_BoolPair(CKey &key, LPCTSTR name, CBoolPair &b)
 {
   b.Val = false;
-  b.Def = (key.GetValue_bool_IfOk(name, b.Val) == ERROR_SUCCESS);
+  b.Def = (key.GetValue_IfOk(name, b.Val) == ERROR_SUCCESS);
 }
 
 static void Key_Get_BoolPair_true(CKey &key, LPCTSTR name, CBoolPair &b)
 {
   b.Val = true;
-  b.Def = (key.GetValue_bool_IfOk(name, b.Val) == ERROR_SUCCESS);
+  b.Def = (key.GetValue_IfOk(name, b.Val) == ERROR_SUCCESS);
 }
 
 namespace NExtract
@@ -98,7 +98,6 @@ static LPCTSTR const kSplitDest = TEXT("SplitDest");
 static LPCTSTR const kElimDup = TEXT("ElimDup");
 // static LPCTSTR const kAltStreams = TEXT("AltStreams");
 static LPCTSTR const kNtSecur = TEXT("Security");
-static LPCTSTR const kMemLimit = TEXT("MemLimit");
 
 void CInfo::Save() const
 {
@@ -129,14 +128,6 @@ void Save_ShowPassword(bool showPassword)
   key.SetValue(kShowPassword, showPassword);
 }
 
-void Save_LimitGB(UInt32 limit_GB)
-{
-  CS_LOCK
-  CKey key;
-  CreateMainKey(key, kKeyName);
-  Key_Set_UInt32(key, kMemLimit, limit_GB);
-}
-
 void CInfo::Load()
 {
   PathMode = NPathMode::kCurPaths;
@@ -155,12 +146,12 @@ void CInfo::Load()
   
   key.GetValue_Strings(kPathHistory, Paths);
   UInt32 v;
-  if (key.GetValue_UInt32_IfOk(kExtractMode, v) == ERROR_SUCCESS && v <= NPathMode::kAbsPaths)
+  if (key.QueryValue(kExtractMode, v) == ERROR_SUCCESS && v <= NPathMode::kAbsPaths)
   {
     PathMode = (NPathMode::EEnum)v;
     PathMode_Force = true;
   }
-  if (key.GetValue_UInt32_IfOk(kOverwriteMode, v) == ERROR_SUCCESS && v <= NOverwriteMode::kRenameExisting)
+  if (key.QueryValue(kOverwriteMode, v) == ERROR_SUCCESS && v <= NOverwriteMode::kRenameExisting)
   {
     OverwriteMode = (NOverwriteMode::EEnum)v;
     OverwriteMode_Force = true;
@@ -181,18 +172,8 @@ bool Read_ShowPassword()
   bool showPassword = false;
   if (OpenMainKey(key, kKeyName) != ERROR_SUCCESS)
     return showPassword;
-  key.GetValue_bool_IfOk(kShowPassword, showPassword);
+  key.GetValue_IfOk(kShowPassword, showPassword);
   return showPassword;
-}
-
-UInt32 Read_LimitGB()
-{
-  CS_LOCK
-  CKey key;
-  UInt32 v = (UInt32)(Int32)-1;
-  if (OpenMainKey(key, kKeyName) == ERROR_SUCCESS)
-    key.GetValue_UInt32_IfOk(kMemLimit, v);
-  return v;
 }
 
 }
@@ -368,9 +349,9 @@ void CInfo::Load()
   UString a;
   if (key.QueryValue(kArchiver, a) == ERROR_SUCCESS)
     ArcType = a;
-  key.GetValue_UInt32_IfOk(kLevel, Level);
-  key.GetValue_bool_IfOk(kShowPassword, ShowPassword);
-  key.GetValue_bool_IfOk(kEncryptHeaders, EncryptHeaders);
+  key.GetValue_IfOk(kLevel, Level);
+  key.GetValue_IfOk(kShowPassword, ShowPassword);
+  key.GetValue_IfOk(kEncryptHeaders, EncryptHeaders);
 }
 
 
@@ -514,7 +495,7 @@ void CInfo::Load()
     return;
 
   UInt32 dirType;
-  if (key.GetValue_UInt32_IfOk(kWorkDirType, dirType) != ERROR_SUCCESS)
+  if (key.QueryValue(kWorkDirType, dirType) != ERROR_SUCCESS)
     return;
   switch (dirType)
   {
@@ -532,7 +513,7 @@ void CInfo::Load()
     if (Mode == NMode::kSpecified)
       Mode = NMode::kSystem;
   }
-  key.GetValue_bool_IfOk(kTempRemovableOnly, ForRemovableOnly);
+  key.GetValue_IfOk(kTempRemovableOnly, ForRemovableOnly);
 }
 
 }
@@ -595,5 +576,5 @@ void CContextMenuInfo::Load()
 
   Key_Get_UInt32(key, kWriteZoneId, WriteZone);
 
-  Flags_Def = (key.GetValue_UInt32_IfOk(kContextMenu, Flags) == ERROR_SUCCESS);
+  Flags_Def = (key.GetValue_IfOk(kContextMenu, Flags) == ERROR_SUCCESS);
 }

@@ -1450,7 +1450,7 @@ void CAgentFolder::GetRealIndices(const UInt32 *indices, UInt32 numItems, bool i
     realIndices.Add(arcIndex);
   }
   
-  HeapSort(realIndices.NonConstData(), realIndices.Size());
+  HeapSort(&realIndices.Front(), realIndices.Size());
 }
 
 Z7_COM7F_IMF(CAgentFolder::Extract(const UInt32 *indices,
@@ -1496,8 +1496,8 @@ Z7_COM7F_IMF(CAgentFolder::Extract(const UInt32 *indices,
   if (path)
   {
     pathU = us2fs(path);
-    if (!pathU.IsEmpty()
-      && !NFile::NName::IsAltStreamPrefixWithColon(path))
+    if (!pathU.IsEmpty())
+    if (!NFile::NName::IsAltStreamPrefixWithColon(pathU))
     {
       NFile::NName::NormalizeDirPathPrefix(pathU);
       NFile::NDir::CreateComplexDir(pathU);
@@ -1516,8 +1516,6 @@ Z7_COM7F_IMF(CAgentFolder::Extract(const UInt32 *indices,
     if (_zoneMode != NExtract::NZoneIdMode::kNone)
     {
       ReadZoneFile_Of_BaseFile(us2fs(_agentSpec->_archiveFilePath), extractCallbackSpec->ZoneBuf);
-      if (_zoneBuf.Size() != 0)
-        extractCallbackSpec->ZoneBuf = _zoneBuf;
     }
   #endif
 
@@ -1554,10 +1552,10 @@ Z7_COM7F_IMF(CAgentFolder::Extract(const UInt32 *indices,
   {
     CArchiveExtractCallback_Closer ecsCloser(extractCallbackSpec);
     
-    HRESULT res = _agentSpec->GetArchive()->Extract(realIndices.ConstData(),
+    HRESULT res = _agentSpec->GetArchive()->Extract(&realIndices.Front(),
         realIndices.Size(), testMode, extractCallback);
     
-    const HRESULT res2 = ecsCloser.Close();
+    HRESULT res2 = ecsCloser.Close();
     if (res == S_OK)
       res = res2;
     return res;

@@ -29,14 +29,14 @@ public:
   CRecordVector<UInt32> Indices;
   CExtractCallbackImp *ExtractCallbackSpec;
   CMyComPtr<IFolderOperationsExtractCallback> ExtractCallback;
-  
+
   CHashBundle Hash;
   // UString FirstFilePath;
 
   // HRESULT Result2;
 
   void ShowFinalResults(HWND hwnd);
-  
+
   CPanelCopyThread():
     ResultsWereShown(false),
     NeedShowRes(false),
@@ -54,7 +54,7 @@ void CPanelCopyThread::ShowFinalResults(HWND hwnd)
     ShowHashResults(Hash, hwnd);
   }
 }
-  
+
 void CPanelCopyThread::ProcessWasFinished_GuiVirt()
 {
   ShowFinalResults(*this);
@@ -75,21 +75,11 @@ HRESULT CPanelCopyThread::ProcessVirt()
 
   if (FolderOperations)
   {
+    CMyComPtr<IFolderSetZoneIdMode> setZoneMode;
+    FolderOperations.QueryInterface(IID_IFolderSetZoneIdMode, &setZoneMode);
+    if (setZoneMode)
     {
-      CMyComPtr<IFolderSetZoneIdMode> setZoneMode;
-      FolderOperations.QueryInterface(IID_IFolderSetZoneIdMode, &setZoneMode);
-      if (setZoneMode)
-      {
-        RINOK(setZoneMode->SetZoneIdMode(options->ZoneIdMode))
-      }
-    }
-    {
-      CMyComPtr<IFolderSetZoneIdFile> setZoneFile;
-      FolderOperations.QueryInterface(IID_IFolderSetZoneIdFile, &setZoneFile);
-      if (setZoneFile)
-      {
-        RINOK(setZoneFile->SetZoneIdFile(options->ZoneBuf, (UInt32)options->ZoneBuf.Size()))
-      }
+      RINOK(setZoneMode->SetZoneIdMode(options->ZoneIdMode))
     }
   }
 
@@ -112,7 +102,7 @@ HRESULT CPanelCopyThread::ProcessVirt()
     NExtract::NPathMode::EEnum pathMode =
         NExtract::NPathMode::kCurPaths;
         // NExtract::NPathMode::kFullPathnames;
-    result2 = archiveFolder->Extract(Indices.ConstData(), Indices.Size(),
+    result2 = archiveFolder->Extract(&Indices.Front(), Indices.Size(),
         BoolToInt(options->includeAltStreams),
         BoolToInt(options->replaceAltStreamChars),
         pathMode, NExtract::NOverwriteMode::kAsk,
@@ -121,7 +111,7 @@ HRESULT CPanelCopyThread::ProcessVirt()
   else
     result2 = FolderOperations->CopyTo(
       BoolToInt(options->moveMode),
-      Indices.ConstData(), Indices.Size(),
+      &Indices.Front(), Indices.Size(),
       BoolToInt(options->includeAltStreams),
       BoolToInt(options->replaceAltStreamChars),
       options->folder, ExtractCallback);
@@ -153,32 +143,6 @@ static void ThrowException_if_Error(HRESULT res)
 #endif
 */
 
-void CPanel::Get_ZoneId_Stream_from_ParentFolders(CByteBuffer &buf)
-{
-  // we suppose that ZoneId of top parent has priority over ZoneId from childs.
-  FOR_VECTOR (i, _parentFolders)
-  {
-    // _parentFolders[0] = is top level archive
-    // _parentFolders[1 ... ].isVirtual == true is possible
-    //           if extracted size meets size conditions derived from g_RAM_Size.
-    const CFolderLink &fl = _parentFolders[i];
-    if (fl.IsVirtual)
-    {
-      if (fl.ZoneBuf.Size() != 0)
-      {
-        buf = fl.ZoneBuf;
-        return;
-      }
-    }
-    else if (!fl.FilePath.IsEmpty())
-    {
-      ReadZoneFile_Of_BaseFile(fl.FilePath, buf);
-      if (buf.Size() != 0)
-        return;
-    }
-  }
-}
-
 HRESULT CPanel::CopyTo(CCopyToOptions &options,
     const CRecordVector<UInt32> &indices,
     UStringVector *messages,
@@ -193,16 +157,12 @@ HRESULT CPanel::CopyTo(CCopyToOptions &options,
       options.ZoneIdMode = (NExtract::NZoneIdMode::EEnum)(int)(Int32)ci.WriteZone;
   }
 
-  if (options.ZoneBuf.Size() == 0
-      && options.ZoneIdMode != NExtract::NZoneIdMode::kNone)
-    Get_ZoneId_Stream_from_ParentFolders(options.ZoneBuf);
-
   if (IsHashFolder())
   {
     if (!options.testMode)
       return E_NOTIMPL;
   }
-  
+
   if (!filePaths)
   if (!_folderOperations)
   {
@@ -229,9 +189,7 @@ HRESULT CPanel::CopyTo(CCopyToOptions &options,
 
   extracter.ExtractCallbackSpec = new CExtractCallbackImp;
   extracter.ExtractCallback = extracter.ExtractCallbackSpec;
-  extracter.ExtractCallbackSpec->Src_Is_IO_FS_Folder =
-      IsFSFolder() || IsAltStreamsFolder();
-      // options.src_Is_IO_FS_Folder;
+
   extracter.options = &options;
   extracter.ExtractCallbackSpec->ProgressDialog = &extracter;
   extracter.CompressingMode = false;
@@ -245,9 +203,9 @@ HRESULT CPanel::CopyTo(CCopyToOptions &options,
     extracter.Hash.MainName = extracter.Hash.FirstFileName;
   }
 
-  if (options.VirtFileSystemSpec)
+  if (options.VirtFileSystem)
   {
-    extracter.ExtractCallbackSpec->VirtFileSystem = options.VirtFileSystemSpec;
+    extracter.ExtractCallbackSpec->VirtFileSystem = options.VirtFileSystem;
     extracter.ExtractCallbackSpec->VirtFileSystemSpec = options.VirtFileSystemSpec;
   }
   extracter.ExtractCallbackSpec->ProcessAltStreams = options.includeAltStreams;
@@ -284,7 +242,7 @@ HRESULT CPanel::CopyTo(CCopyToOptions &options,
       if (options.hashMethods.Size() == 1)
       {
         const UString &s = options.hashMethods[0];
-        if (!s.IsEqualTo("*"))
+        if (s != L"*")
           title = s;
       }
     }
@@ -296,14 +254,14 @@ HRESULT CPanel::CopyTo(CCopyToOptions &options,
   }
 
   const UString progressWindowTitle ("7-Zip"); // LangString(IDS_APP_TITLE);
-  
+
   extracter.MainWindow = GetParent();
   extracter.MainTitle = progressWindowTitle;
   extracter.MainAddTitle = title + L' ';
-    
+
   extracter.ExtractCallbackSpec->OverwriteMode = NExtract::NOverwriteMode::kAsk;
   extracter.ExtractCallbackSpec->Init();
-  
+
   extracter.CopyFrom_Paths = filePaths;
   if (!filePaths)
   {
@@ -313,9 +271,9 @@ HRESULT CPanel::CopyTo(CCopyToOptions &options,
 
   extracter.ExtractCallbackSpec->PasswordIsDefined = usePassword;
   extracter.ExtractCallbackSpec->Password = password;
-  
+
   RINOK(extracter.Create(title, GetParent()))
-  
+
 
   if (messages)
     *messages = extracter.Sync.Messages;
@@ -332,7 +290,7 @@ HRESULT CPanel::CopyTo(CCopyToOptions &options,
   extracter.ShowFinalResults(_window);
 
   }
-  
+
   RefreshTitleAlways();
   return res;
 }
@@ -349,7 +307,7 @@ struct CThreadUpdate
   CUpdateCallback100Imp *UpdateCallbackSpec;
   HRESULT Result;
   bool MoveMode;
-  
+
   void Process()
   {
     try
@@ -358,7 +316,7 @@ struct CThreadUpdate
       Result = FolderOperations->CopyFrom(
         MoveMode,
         FolderPrefix,
-        FileNamePointers.ConstData(),
+        &FileNamePointers.Front(),
         FileNamePointers.Size(),
         UpdateCallback);
     }
@@ -401,7 +359,7 @@ HRESULT CPanel::CopyFrom(bool moveMode, const UString &folderPrefix, const UStri
   updater.ProgressDialog.MainWindow = GetParent();
   updater.ProgressDialog.MainTitle = progressWindowTitle;
   updater.ProgressDialog.MainAddTitle = title + L' ';
-  
+
   {
     if (!_parentFolders.IsEmpty())
     {
@@ -459,6 +417,123 @@ void CPanel::CopyFromNoAsk(bool moveMode, const UStringVector &filePaths)
   CDisableNotify disableNotify(*this);
 
   const HRESULT result = CopyFrom(moveMode, L"", filePaths, true, NULL);
+
+  if (result != S_OK)
+  {
+    disableNotify.Restore();
+    // For Password:
+    SetFocusToList();
+    if (result != E_ABORT)
+      MessageBox_Error_HRESULT(result);
+    return;
+  }
+
+  RefreshListCtrl(srcSelState);
+
+  disableNotify.Restore();
+  SetFocusToList();
+}
+
+struct CPanelCopyFromThread : public CPanelCopyThread
+{
+  UString FolderPrefix;
+  UStringVector FileNames;
+  CRecordVector<const wchar_t *> FileNamePointers;
+  CProgressDialog ProgressDialog;
+  HRESULT Result;
+  bool MoveMode;
+
+};
+
+HRESULT CPanel::CopyFromFolder(bool moveMode, const UString &folderPrefix, const UStringVector &filePaths,
+    bool showErrorMessages, UStringVector *messages)
+{
+  if (IsHashFolder())
+  {
+    if (moveMode)
+      return E_NOTIMPL;
+  }
+  // CDisableNotify disableNotify(*this);
+
+  HRESULT res;
+  if (!_folderOperations)
+    res = E_NOINTERFACE;
+  else
+  {
+  CPanelCopyFromThread updater;
+
+  updater.MoveMode = moveMode;
+
+  updater.ExtractCallbackSpec = new CExtractCallbackImp;
+  updater.ExtractCallback = updater.ExtractCallbackSpec;
+  updater.ExtractCallbackSpec->ProgressDialog = &updater;
+
+
+  const UString title = LangString(IDS_COPYING);
+  const UString progressWindowTitle ("7-Zip"); // LangString(IDS_APP_TITLE);
+
+  updater.ProgressDialog.MainWindow = GetParent();
+  updater.ProgressDialog.MainTitle = progressWindowTitle;
+  updater.ProgressDialog.MainAddTitle = title + L' ';
+
+  {
+    if (!_parentFolders.IsEmpty())
+    {
+      // const CFolderLink &fl = _parentFolders.Back();
+      // updater.UpdateCallbackSpec->PasswordIsDefined = fl.UsePassword;
+      // updater.UpdateCallbackSpec->Password = fl.Password;
+    }
+  }
+
+  updater.FolderOperations = _folderOperations;
+  updater.FolderPrefix = folderPrefix;
+  updater.FileNames.ClearAndReserve(filePaths.Size());
+  unsigned i;
+  for (i = 0; i < filePaths.Size(); i++)
+    updater.FileNames.AddInReserved(filePaths[i]);
+  updater.FileNamePointers.ClearAndReserve(updater.FileNames.Size());
+  for (i = 0; i < updater.FileNames.Size(); i++)
+    updater.FileNamePointers.AddInReserved(updater.FileNames[i]);
+
+  {
+    NWindows::CThread thread;
+    const WRes wres = thread.Create(CThreadUpdate::MyThreadFunction, &updater);
+    if (wres != 0)
+      return HRESULT_FROM_WIN32(wres);
+    updater.ProgressDialog.Create(title, thread, GetParent());
+  }
+
+  if (messages)
+    *messages = updater.ProgressDialog.Sync.Messages;
+
+  res = updater.Result;
+  }
+
+  if (res == E_NOINTERFACE)
+  {
+    const UString errorMessage = LangString(IDS_OPERATION_IS_NOT_SUPPORTED);
+    if (showErrorMessages)
+      MessageBox_Error(errorMessage);
+    else if (messages)
+      messages->Add(errorMessage);
+    return E_ABORT;
+  }
+
+  RefreshTitleAlways();
+  return res;
+}
+
+// Not used yet.
+void CPanel::CopyFromFolderNoAsk(bool moveMode, const UStringVector &filePaths)
+{
+  CDisableTimerProcessing disableTimerProcessing(*this);
+
+  CSelectedState srcSelState;
+  SaveSelectedState(srcSelState);
+
+  CDisableNotify disableNotify(*this);
+
+  const HRESULT result = CopyFromFolder(moveMode, L"", filePaths, true, NULL);
 
   if (result != S_OK)
   {

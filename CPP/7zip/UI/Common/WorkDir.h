@@ -11,7 +11,7 @@
 
 FString GetWorkDir(const NWorkDir::CInfo &workDirInfo, const FString &path, FString &fileName);
 
-class CWorkDirTempFile  MY_UNCOPYABLE
+class CWorkDirTempFile
 {
   FString _originalPath;
   NWindows::NFile::NDir::CTempFile _tempFile;
@@ -19,12 +19,8 @@ class CWorkDirTempFile  MY_UNCOPYABLE
 public:
   CMyComPtr<IOutStream> OutStream;
 
-  const FString &Get_OriginalFilePath() const { return _originalPath; }
-  const FString &Get_TempFilePath() const { return _tempFile.GetPath(); }
-
   HRESULT CreateTempFile(const FString &originalPath);
-  HRESULT MoveToOriginal(bool deleteOriginal,
-      NWindows::NFile::NDir::ICopyFileProgress *progress = NULL);
+  HRESULT MoveToOriginal(bool deleteOriginal);
 };
 
 #endif

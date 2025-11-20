@@ -7,6 +7,7 @@
 
 #include "../../PropID.h"
 #include "App.h"
+#include "../../../Windows/ProcessUtils.h"
 
 using namespace NWindows;
 
@@ -78,6 +79,10 @@ bool CPanel::OnKeyDown(LPNMLVKEYDOWN keyDownInfo, LRESULT &result)
   if ((keyDownInfo->wVKey == VK_F9) && !alt && !ctrl && !shift)
   {
     g_App.SwitchOnOffOnePanel();
+  }
+  else if ((keyDownInfo->wVKey == VK_F9) && !alt && ctrl && !shift)
+  {
+    g_App.SwitchOnOffMultiPanel();
   }
 
   if (keyDownInfo->wVKey >= VK_F3 && keyDownInfo->wVKey <= VK_F12 && ctrl)
@@ -297,7 +302,8 @@ bool CPanel::OnKeyDown(LPNMLVKEYDOWN keyDownInfo, LRESULT &result)
     case 'V':
       if (ctrl)
       {
-        EditPaste();
+        // EditPaste();
+        EditPasteClipboard();
         return true;
       }
       return false;
@@ -323,6 +329,15 @@ bool CPanel::OnKeyDown(LPNMLVKEYDOWN keyDownInfo, LRESULT &result)
         return true;
       }
       return false;
+    case 'L':
+      {
+        //MessageBox(0, g_App.LastFocusedPanel == 0? L"hi" : L"BYE", L"HI", 0);
+        if (ctrl)
+        {
+          _panelCallback->SetFocusToPathNoDropDown();
+          return true;
+        }
+      }
     case 'Z':
       if (ctrl)
       {
@@ -350,6 +365,12 @@ bool CPanel::OnKeyDown(LPNMLVKEYDOWN keyDownInfo, LRESULT &result)
       if (alt && !ctrl && !shift)
       {
         FoldersHistory();
+        return true;
+      }
+    case 'F':
+      if (ctrl)
+      {
+        FindFzf();
         return true;
       }
   }

@@ -45,12 +45,7 @@ class CProgressBox: public CPercentPrinterState
   DWORD _prevElapsedSec;
 
   bool _wasPrinted;
-public:
-  bool UseBytesForPercents;
-  DWORD StartTick;
-  unsigned MaxLen;
 
-private:
   UString _tempU;
   UString _name1U;
   UString _name2U;
@@ -69,12 +64,15 @@ private:
   void ReduceString(const UString &src, AString &dest);
 
 public:
+  DWORD StartTick;
+  bool UseBytesForPercents;
+  unsigned MaxLen;
 
   CProgressBox(UInt32 tickStep = 200):
       _tickStep(tickStep),
       _prevTick(0),
-      UseBytesForPercents(true),
       StartTick(0),
+      UseBytesForPercents(true),
       MaxLen(60)
     {}
 

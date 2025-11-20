@@ -17,9 +17,9 @@ public:
   ~CMyComPtr() { if (_p) _p->Release(); }
   void Release() { if (_p) { _p->Release(); _p = NULL; } }
   operator T*() const {  return (T*)_p;  }
-  T* Interface() const {  return (T*)_p;  }
   // T& operator*() const {  return *_p; }
   T** operator&() { return &_p; }
+  T* get() { return _p; }
   T* operator->() const { return _p; }
   T* operator=(T* p)
   {
@@ -69,112 +69,6 @@ public:
   }
 };
 
-
-template <class iface, class cls>
-class CMyComPtr2
-{
-  cls* _p;
-  
-  CMyComPtr2(const CMyComPtr2<iface, cls>& lp);
-  CMyComPtr2(cls* p);
-  CMyComPtr2(iface* p);
-  iface* operator=(const CMyComPtr2<iface, cls>& lp);
-  iface* operator=(cls* p);
-  iface* operator=(iface* p);
-public:
-  CMyComPtr2(): _p(NULL) {}
-  ~CMyComPtr2()
-  {
-    if (_p)
-    {
-      iface *ip = _p;
-      ip->Release();
-    }
-  }
-  // void Release() { if (_p) { (iface *)_p->Release(); _p = NULL; } }
-  cls* operator->() const { return _p; }
-  cls* ClsPtr() const { return _p; }
-  operator iface*() const
-  {
-    iface *ip = _p;
-    return ip;
-  }
-  iface* Interface() const
-  {
-    iface *ip = _p;
-    return ip;
-  }
-  // operator bool() const {  return _p != NULL; }
-  bool IsDefined() const {  return _p != NULL; }
-  void Create_if_Empty()
-  {
-    if (!_p)
-    {
-      _p = new cls;
-      iface *ip = _p;
-      ip->AddRef();
-    }
-  }
-  iface* Detach()
-  {
-    iface *ip = _p;
-    _p = NULL;
-    return ip;
-  }
-  void SetFromCls(cls *src)
-  {
-    if (src)
-    {
-      iface *ip = src;
-      ip->AddRef();
-    }
-    if (_p)
-    {
-      iface *ip = _p;
-      ip->Release();
-    }
-    _p = src;
-  }
-};
-
-
-template <class iface, class cls>
-class CMyComPtr2_Create
-{
-  cls* _p;
-
-  CMyComPtr2_Create(const CMyComPtr2_Create<iface, cls>& lp);
-  CMyComPtr2_Create(cls* p);
-  CMyComPtr2_Create(iface* p);
-  iface* operator=(const CMyComPtr2_Create<iface, cls>& lp);
-  iface* operator=(cls* p);
-  iface* operator=(iface* p);
-public:
-  CMyComPtr2_Create(): _p(new cls)
-  {
-    iface *ip = _p;
-    ip->AddRef();
-  }
-  ~CMyComPtr2_Create()
-  {
-    iface *ip = _p;
-    ip->Release();
-  }
-  cls* operator->() const { return _p; }
-  cls* ClsPtr() const { return _p; }
-  operator iface*() const
-  {
-    iface *ip = _p;
-    return ip;
-  }
-  iface* Interface() const
-  {
-    iface *ip = _p;
-    return ip;
-  }
-};
-
-
 #define Z7_DECL_CMyComPtr_QI_FROM(i, v, unk) \
   CMyComPtr<i> v; (unk)->QueryInterface(IID_ ## i, (void **)&v);
 
@@ -215,7 +109,7 @@ private:
   // CMyComBSTR(int nSize) { m_str = ::SysAllocStringLen(NULL, nSize); }
   // CMyComBSTR(int nSize, LPCOLESTR sz) { m_str = ::SysAllocStringLen(sz, nSize);  }
   // CMyComBSTR(const CMyComBSTR& src) { m_str = src.MyCopy(); }
-  
+
   /*
   CMyComBSTR(REFGUID src)
   {
@@ -225,7 +119,7 @@ private:
     CoTaskMemFree(szGuid);
   }
   */
-  
+
   /*
   CMyComBSTR& operator=(const CMyComBSTR& src)
   {
@@ -238,14 +132,14 @@ private:
     return *this;
   }
   */
-  
+
   CMyComBSTR& operator=(LPCOLESTR src)
   {
     ::SysFreeString(m_str);
     m_str = ::SysAllocString(src);
     return *this;
   }
-  
+
   unsigned Len() const { return ::SysStringLen(m_str); }
 
   BSTR MyCopy() const
@@ -260,7 +154,7 @@ private:
     return res;
     */
   }
-  
+
   /*
   void Attach(BSTR src) { m_str = src; }
   BSTR Detach()
@@ -341,56 +235,16 @@ protected:
   Z7_COM_QI_ENTRY_UNKNOWN(i) \
   Z7_COM_QI_ENTRY(i)
 
-
-#define Z7_COM_ADDREF_RELEASE_MT \
-  private: \
-  STDMETHOD_(ULONG, AddRef)() Z7_override Z7_final \
-    { return (ULONG)InterlockedIncrement((LONG *)&_m_RefCount); } \
-  STDMETHOD_(ULONG, Release)() Z7_override Z7_final \
-    { const LONG v = InterlockedDecrement((LONG *)&_m_RefCount); \
-      if (v != 0) return (ULONG)v; \
-      delete this;  return 0; }
-
-#define Z7_COM_QI_END_MT \
+#define Z7_COM_QI_END \
   else return E_NOINTERFACE; \
-  InterlockedIncrement((LONG *)&_m_RefCount); /* AddRef(); */ return S_OK; }
-
-// you can define Z7_COM_USE_ATOMIC,
-// if you want to call Release() from different threads (for example, for .NET code)
-// #define Z7_COM_USE_ATOMIC
-
-#if defined(Z7_COM_USE_ATOMIC) && !defined(Z7_ST)
-
-#ifndef _WIN32
-#if 0
-#include "../../C/Threads.h"
-#else
-EXTERN_C_BEGIN
-LONG InterlockedIncrement(LONG volatile *addend);
-LONG InterlockedDecrement(LONG volatile *addend);
-EXTERN_C_END
-#endif
-#endif // _WIN32
-
-#define Z7_COM_ADDREF_RELEASE  Z7_COM_ADDREF_RELEASE_MT
-#define Z7_COM_QI_END          Z7_COM_QI_END_MT
-
-#else // !Z7_COM_USE_ATOMIC
+  ++_m_RefCount; /* AddRef(); */ return S_OK; }
 
 #define Z7_COM_ADDREF_RELEASE \
   private: \
   STDMETHOD_(ULONG, AddRef)() throw() Z7_override Z7_final \
     { return ++_m_RefCount; } \
   STDMETHOD_(ULONG, Release)() throw() Z7_override Z7_final \
-    { if (--_m_RefCount != 0) return _m_RefCount; \
-      delete this;  return 0; }
-
-#define Z7_COM_QI_END \
-  else return E_NOINTERFACE; \
-  ++_m_RefCount; /* AddRef(); */ return S_OK; }
-
-#endif // !Z7_COM_USE_ATOMIC
-
+    { if (--_m_RefCount != 0) return _m_RefCount;  delete this;  return 0; } \
 
 #define Z7_COM_UNKNOWN_IMP_SPEC(i) \
   Z7_COM_QI_BEGIN \
@@ -468,19 +322,6 @@ EXTERN_C_END
   Z7_COM_QI_ENTRY(i7) \
   )
 
-#define Z7_COM_UNKNOWN_IMP_8(i1, i2, i3, i4, i5, i6, i7, i8) \
-  Z7_COM_UNKNOWN_IMP_SPEC( \
-  Z7_COM_QI_ENTRY_UNKNOWN(i1) \
-  Z7_COM_QI_ENTRY(i1) \
-  Z7_COM_QI_ENTRY(i2) \
-  Z7_COM_QI_ENTRY(i3) \
-  Z7_COM_QI_ENTRY(i4) \
-  Z7_COM_QI_ENTRY(i5) \
-  Z7_COM_QI_ENTRY(i6) \
-  Z7_COM_QI_ENTRY(i7) \
-  Z7_COM_QI_ENTRY(i8) \
-  )
-
 
 #define Z7_IFACES_IMP_UNK_1(i1) \
   Z7_COM_UNKNOWN_IMP_1(i1) \
@@ -520,16 +361,6 @@ EXTERN_C_END
   Z7_IFACE_COM7_IMP(i4) \
   Z7_IFACE_COM7_IMP(i5) \
   Z7_IFACE_COM7_IMP(i6) \
-
-#define Z7_IFACES_IMP_UNK_7(i1, i2, i3, i4, i5, i6, i7) \
-  Z7_COM_UNKNOWN_IMP_7(i1, i2, i3, i4, i5, i6, i7) \
-  Z7_IFACE_COM7_IMP(i1) \
-  Z7_IFACE_COM7_IMP(i2) \
-  Z7_IFACE_COM7_IMP(i3) \
-  Z7_IFACE_COM7_IMP(i4) \
-  Z7_IFACE_COM7_IMP(i5) \
-  Z7_IFACE_COM7_IMP(i6) \
-  Z7_IFACE_COM7_IMP(i7) \
 
 
 #define Z7_CLASS_IMP_COM_0(c) \
@@ -594,20 +425,6 @@ EXTERN_C_END
   public i6, \
   public CMyUnknownImp { \
   Z7_IFACES_IMP_UNK_6(i1, i2, i3, i4, i5, i6) \
-  private:
-
-
-#define Z7_CLASS_IMP_COM_7(c, i1, i2, i3, i4, i5, i6, i7) \
-  Z7_class_final(c) : \
-  public i1, \
-  public i2, \
-  public i3, \
-  public i4, \
-  public i5, \
-  public i6, \
-  public i7, \
-  public CMyUnknownImp { \
-  Z7_IFACES_IMP_UNK_7(i1, i2, i3, i4, i5, i6, i7) \
   private:
 
 

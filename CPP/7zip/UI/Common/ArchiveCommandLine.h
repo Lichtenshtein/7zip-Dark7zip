@@ -60,14 +60,11 @@ struct CArcCmdLineOptions
   bool StdInMode;
   bool StdOutMode;
   bool EnableHeaders;
-  bool DisablePercents;
-
 
   bool YesToAll;
   bool ShowDialog;
   bool TechMode;
   bool ShowTime;
-  CBoolPair ListPathSeparatorSlash;
 
   CBoolPair NtSecurity;
   CBoolPair AltStreams;
@@ -134,7 +131,6 @@ struct CArcCmdLineOptions
       StdOutMode(false),
 
       EnableHeaders(false),
-      DisablePercents(false),
       
       YesToAll(false),
       ShowDialog(false),
@@ -149,12 +145,6 @@ struct CArcCmdLineOptions
 
       LogLevel(0)
   {
-    ListPathSeparatorSlash.Val =
-#ifdef _WIN32
-        false;
-#else
-        true;
-#endif
   }
 };
 

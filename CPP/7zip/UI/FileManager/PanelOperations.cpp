@@ -60,7 +60,7 @@ HRESULT CThreadFolderOperations::ProcessVirt()
     case FOLDER_TYPE_CREATE_FOLDER:
       return FolderOperations->CreateFolder(Name, UpdateCallback);
     case FOLDER_TYPE_DELETE:
-      return FolderOperations->Delete(Indices.ConstData(), Indices.Size(), UpdateCallback);
+      return FolderOperations->Delete(&Indices.Front(), Indices.Size(), UpdateCallback);
     case FOLDER_TYPE_RENAME:
       return FolderOperations->Rename(Index, Name, UpdateCallback);
     default:
@@ -80,7 +80,7 @@ HRESULT CThreadFolderOperations::DoOperation(CPanel &panel, const UString &progr
 
   UpdateCallbackSpec->Init();
 
-  if (!panel._parentFolders.IsEmpty())
+  if (panel._parentFolders.Size() > 0)
   {
     const CFolderLink &fl = panel._parentFolders.Back();
     UpdateCallbackSpec->PasswordIsDefined = fl.UsePassword;
@@ -192,8 +192,6 @@ void CPanel::DeleteItems(bool NON_CE_VAR(toRecycleBin))
         #ifdef _UNICODE
         /* res = */ ::SHFileOperationW(&fo);
         #else
-Z7_DIAGNOSTIC_IGNORE_CAST_FUNCTION
-        const
         Func_SHFileOperationW
            f_SHFileOperationW = Z7_GET_PROC_ADDRESS(
         Func_SHFileOperationW, ::GetModuleHandleW(L"shell32.dll"),
@@ -244,8 +242,7 @@ Z7_DIAGNOSTIC_IGNORE_CAST_FUNCTION
     messageID = IDS_WANT_TO_DELETE_ITEMS;
     messageParam = NumberToString(indices.Size());
   }
-  if (::MessageBoxW(GetParent(), MyFormatNew(messageID, messageParam), LangString(titleID),
-      MB_YESNOCANCEL | MB_ICONQUESTION) != IDYES)
+  if (::MessageBoxW(GetParent(), MyFormatNew(messageID, messageParam), LangString(titleID), MB_OKCANCEL | MB_ICONQUESTION) != IDOK)
     return;
 
   CDisableNotify disableNotify(*this);
@@ -275,8 +272,8 @@ static bool IsCorrectFsName(const UString &name)
 {
   const UString lastPart = name.Ptr((unsigned)(name.ReverseFind_PathSepar() + 1));
   return
-      !lastPart.IsEqualTo(".") &&
-      !lastPart.IsEqualTo("..");
+      lastPart != L"." &&
+      lastPart != L"..";
 }
 
 bool CorrectFsPath(const UString &relBase, const UString &path, UString &result);
@@ -319,7 +316,7 @@ BOOL CPanel::OnEndLabelEdit(LV_DISPINFOW * lpnmh)
   if (realIndex == kParentIndex)
     return FALSE;
   const UString prefix = GetItemPrefix(realIndex);
-  const UString oldName = GetItemName(realIndex);
+
 
   CDisableNotify disableNotify(*this);
   {
@@ -327,22 +324,20 @@ BOOL CPanel::OnEndLabelEdit(LV_DISPINFOW * lpnmh)
     op.FolderOperations = _folderOperations;
     op.Index = realIndex;
     op.Name = newName;
-    const HRESULT res = op.DoOperation(*this,
+    /* HRESULTres = */ op.DoOperation(*this,
         LangString(IDS_RENAMING),
         LangString(IDS_ERROR_RENAMING));
     // fixed in 9.26: we refresh list even after errors
     // (it's more safe, since error can be at different stages, so list can be incorrect).
-    if (res == S_OK)
-      _selectedState.FocusedName = prefix + newName;
-    else
-    {
-      _selectedState.FocusedName = prefix + oldName;
-      // return FALSE;
-    }
+    /*
+    if (res != S_OK)
+      return FALSE;
+    */
   }
 
   // Can't use RefreshListCtrl here.
   // RefreshListCtrlSaveFocused();
+  _selectedState.FocusedName = prefix + newName;
   _selectedState.FocusedName_Defined = true;
   _selectedState.SelectFocused = true;
 

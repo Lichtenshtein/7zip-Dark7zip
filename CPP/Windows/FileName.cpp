@@ -65,14 +65,7 @@ void NormalizeDirPathPrefix(UString &dirPath)
     dirPath.Add_PathSepar();
 }
 
-
-#define IS_LETTER_CHAR(c) ((((unsigned)(int)(c) | 0x20) - (unsigned)'a' <= (unsigned)('z' - 'a')))
-bool IsDrivePath (const wchar_t *s) throw() { return IS_LETTER_CHAR(s[0]) && s[1] == ':' && IS_SEPAR(s[2]); }
-// bool IsDriveName2(const wchar_t *s) throw() { return IS_LETTER_CHAR(s[0]) && s[1] == ':' && s[2] == 0; }
-
 #ifdef _WIN32
-
-bool IsDrivePath2(const wchar_t *s) throw() { return IS_LETTER_CHAR(s[0]) && s[1] == ':'; }
 
 #ifndef USE_UNICODE_FSTRING
 #ifdef Z7_LONG_PATH
@@ -93,6 +86,13 @@ void NormalizeDirSeparators(FString &s)
     if (s[i] == '/')
       s.ReplaceOneCharAtPos(i, FCHAR_PATH_SEPARATOR);
 }
+
+#endif
+
+
+#define IS_LETTER_CHAR(c) ((((unsigned)(int)(c) | 0x20) - (unsigned)'a' <= (unsigned)('z' - 'a')))
+
+bool IsDrivePath(const wchar_t *s) throw() { return IS_LETTER_CHAR(s[0]) && s[1] == ':' && IS_SEPAR(s[2]); }
 
 bool IsAltPathPrefix(CFSTR s) throw()
 {
@@ -117,23 +117,16 @@ bool IsAltPathPrefix(CFSTR s) throw()
   return true;
 }
 
-#endif // _WIN32
+#if defined(_WIN32) && !defined(UNDER_CE)
 
-
-const char * const kSuperPathPrefix =
-    STRING_PATH_SEPARATOR
-    STRING_PATH_SEPARATOR "?"
-    STRING_PATH_SEPARATOR;
+const char * const kSuperPathPrefix = "\\\\?\\";
 #ifdef Z7_LONG_PATH
-static const char * const kSuperUncPrefix =
-    STRING_PATH_SEPARATOR
-    STRING_PATH_SEPARATOR "?"
-    STRING_PATH_SEPARATOR "UNC"
-    STRING_PATH_SEPARATOR;
+static const char * const kSuperUncPrefix = "\\\\?\\UNC\\";
 #endif
 
 #define IS_DEVICE_PATH(s)          (IS_SEPAR((s)[0]) && IS_SEPAR((s)[1]) && (s)[2] == '.' && IS_SEPAR((s)[3]))
 #define IS_SUPER_PREFIX(s)         (IS_SEPAR((s)[0]) && IS_SEPAR((s)[1]) && (s)[2] == '?' && IS_SEPAR((s)[3]))
+#define IS_SUPER_OR_DEVICE_PATH(s) (IS_SEPAR((s)[0]) && IS_SEPAR((s)[1]) && ((s)[2] == '?' || (s)[2] == '.') && IS_SEPAR((s)[3]))
 
 #define IS_UNC_WITH_SLASH(s) ( \
      ((s)[0] == 'U' || (s)[0] == 'u') \
@@ -141,16 +134,6 @@ static const char * const kSuperUncPrefix =
   && ((s)[2] == 'C' || (s)[2] == 'c') \
   && IS_SEPAR((s)[3]))
 
-static const unsigned kDrivePrefixSize = 3; /* c:\ */
-
-bool IsSuperPath(const wchar_t *s) throw();
-bool IsSuperPath(const wchar_t *s) throw() { return IS_SUPER_PREFIX(s); }
-// bool IsSuperUncPath(const wchar_t *s) throw() { return (IS_SUPER_PREFIX(s) && IS_UNC_WITH_SLASH(s + kSuperPathPrefixSize)); }
-
-#if defined(_WIN32) && !defined(UNDER_CE)
-
-#define IS_SUPER_OR_DEVICE_PATH(s) (IS_SEPAR((s)[0]) && IS_SEPAR((s)[1]) && ((s)[2] == '?' || (s)[2] == '.') && IS_SEPAR((s)[3]))
-bool IsSuperOrDevicePath(const wchar_t *s) throw() { return IS_SUPER_OR_DEVICE_PATH(s); }
 bool IsDevicePath(CFSTR s) throw()
 {
   #ifdef UNDER_CE
@@ -171,7 +154,7 @@ bool IsDevicePath(CFSTR s) throw()
   
   if (!IS_DEVICE_PATH(s))
     return false;
-  const unsigned len = MyStringLen(s);
+  unsigned len = MyStringLen(s);
   if (len == 6 && s[5] == ':')
     return true;
   if (len < 18 || len > 22 || !IsString1PrefixedByString2(s + kDevicePathPrefixSize, "PhysicalDrive"))
@@ -191,7 +174,7 @@ bool IsNetworkPath(CFSTR s) throw()
     return false;
   if (IsSuperUncPath(s))
     return true;
-  const FChar c = s[2];
+  FChar c = s[2];
   return (c != '.' && c != '?');
 }
 
@@ -204,7 +187,7 @@ unsigned GetNetworkServerPrefixSize(CFSTR s) throw()
     prefixSize = kSuperUncPathPrefixSize;
   else
   {
-    const FChar c = s[2];
+    FChar c = s[2];
     if (c == '.' || c == '?')
       return 0;
   }
@@ -225,6 +208,14 @@ bool IsNetworkShareRootPath(CFSTR s) throw()
     return true;
   return s[(unsigned)pos + 1] == 0;
 }
+
+static const unsigned kDrivePrefixSize = 3; /* c:\ */
+
+bool IsDrivePath2(const wchar_t *s) throw() { return IS_LETTER_CHAR(s[0]) && s[1] == ':'; }
+// bool IsDriveName2(const wchar_t *s) throw() { return IS_LETTER_CHAR(s[0]) && s[1] == ':' && s[2] == 0; }
+bool IsSuperPath(const wchar_t *s) throw() { return IS_SUPER_PREFIX(s); }
+bool IsSuperOrDevicePath(const wchar_t *s) throw() { return IS_SUPER_OR_DEVICE_PATH(s); }
+// bool IsSuperUncPath(const wchar_t *s) throw() { return (IS_SUPER_PREFIX(s) && IS_UNC_WITH_SLASH(s + kSuperPathPrefixSize)); }
 
 bool IsAltStreamPrefixWithColon(const UString &s) throw()
 {
@@ -287,14 +278,12 @@ bool IsAbsolutePath(const wchar_t *s) throw()
 int FindAltStreamColon(CFSTR path) throw()
 {
   unsigned i = 0;
-  if (IsSuperPath(path))
-    i = kSuperPathPrefixSize;
-  if (IsDrivePath2(path + i))
-    i += 2;
+  if (IsDrivePath2(path))
+    i = 2;
   int colonPos = -1;
   for (;; i++)
   {
-    const FChar c = path[i];
+    FChar c = path[i];
     if (c == 0)
       return colonPos;
     if (c == ':')
@@ -313,13 +302,13 @@ int FindAltStreamColon(CFSTR path) throw()
 static unsigned GetRootPrefixSize_Of_NetworkPath(CFSTR s)
 {
   // Network path: we look "server\path\" as root prefix
-  const int pos = FindSepar(s);
+  int pos = FindSepar(s);
   if (pos < 0)
     return 0;
-  const int pos2 = FindSepar(s + (unsigned)pos + 1);
+  int pos2 = FindSepar(s + (unsigned)pos + 1);
   if (pos2 < 0)
     return 0;
-  return (unsigned)pos + (unsigned)pos2 + 2;
+  return pos + pos2 + 2;
 }
 
 static unsigned GetRootPrefixSize_Of_SimplePath(CFSTR s)
@@ -345,7 +334,7 @@ static unsigned GetRootPrefixSize_Of_SuperPath(CFSTR s)
   const int pos = FindSepar(s + kSuperPathPrefixSize);
   if (pos < 0)
     return 0;
-  return kSuperPathPrefixSize + (unsigned)pos + 1;
+  return kSuperPathPrefixSize + pos + 1;
 }
 
 unsigned GetRootPrefixSize(CFSTR s) throw()
@@ -358,16 +347,14 @@ unsigned GetRootPrefixSize(CFSTR s) throw()
 }
 
 #endif // USE_UNICODE_FSTRING
-#endif // _WIN32
-
 
 static unsigned GetRootPrefixSize_Of_NetworkPath(const wchar_t *s) throw()
 {
   // Network path: we look "server\path\" as root prefix
-  const int pos = FindSepar(s);
+  int pos = FindSepar(s);
   if (pos < 0)
     return 0;
-  const int pos2 = FindSepar(s + (unsigned)pos + 1);
+  int pos2 = FindSepar(s + (unsigned)pos + 1);
   if (pos2 < 0)
     return 0;
   return (unsigned)(pos + pos2 + 2);
@@ -381,7 +368,7 @@ static unsigned GetRootPrefixSize_Of_SimplePath(const wchar_t *s) throw()
     return 0;
   if (s[1] == 0 || !IS_SEPAR(s[1]))
     return 1;
-  const unsigned size = GetRootPrefixSize_Of_NetworkPath(s + 2);
+  unsigned size = GetRootPrefixSize_Of_NetworkPath(s + 2);
   return (size == 0) ? 0 : 2 + size;
 }
 
@@ -389,21 +376,17 @@ static unsigned GetRootPrefixSize_Of_SuperPath(const wchar_t *s) throw()
 {
   if (IS_UNC_WITH_SLASH(s + kSuperPathPrefixSize))
   {
-    const unsigned size = GetRootPrefixSize_Of_NetworkPath(s + kSuperUncPathPrefixSize);
+    unsigned size = GetRootPrefixSize_Of_NetworkPath(s + kSuperUncPathPrefixSize);
     return (size == 0) ? 0 : kSuperUncPathPrefixSize + size;
   }
   // we support \\?\c:\ paths and volume GUID paths \\?\Volume{GUID}\"
-  const int pos = FindSepar(s + kSuperPathPrefixSize);
+  int pos = FindSepar(s + kSuperPathPrefixSize);
   if (pos < 0)
     return 0;
   return kSuperPathPrefixSize + (unsigned)(pos + 1);
 }
 
-#ifdef _WIN32
 unsigned GetRootPrefixSize(const wchar_t *s) throw()
-#else
-unsigned GetRootPrefixSize_WINDOWS(const wchar_t *s) throw()
-#endif
 {
   if (IS_DEVICE_PATH(s))
     return kDevicePathPrefixSize;
@@ -412,7 +395,7 @@ unsigned GetRootPrefixSize_WINDOWS(const wchar_t *s) throw()
   return GetRootPrefixSize_Of_SimplePath(s);
 }
 
-#ifndef _WIN32
+#else // _WIN32
 
 bool IsAbsolutePath(const wchar_t *s) throw() { return IS_SEPAR(s[0]); }
 

@@ -5,7 +5,6 @@
 #include "../Common/MyCom.h"
 #include "../Common/StringConvert.h"
 
-#include "COM.h"
 #include "FileName.h"
 #include "MemoryGlobal.h"
 #include "Shell.h"
@@ -162,7 +161,7 @@ static HRESULT ReadAnsiStrings(const char *p, size_t size, UStringVector &names)
       name.Empty();
     }
     else
-      name.Add_Char(c);
+      name += c;
   }
   return E_INVALIDARG;
 }
@@ -170,7 +169,7 @@ static HRESULT ReadAnsiStrings(const char *p, size_t size, UStringVector &names)
 
 #define INIT_FORMATETC_HGLOBAL(type) { (type), NULL, DVASPECT_CONTENT, -1, TYMED_HGLOBAL }
 
-static HRESULT DataObject_GetData_HGLOBAL(IDataObject *dataObject, CLIPFORMAT cf, NCOM::CStgMedium &medium)
+HRESULT DataObject_GetData_HGLOBAL(IDataObject *dataObject, CLIPFORMAT cf, NCOM::CStgMedium &medium)
 {
   FORMATETC etc = INIT_FORMATETC_HGLOBAL(cf);
   RINOK(dataObject->GetData(&etc, &medium))
@@ -179,11 +178,18 @@ static HRESULT DataObject_GetData_HGLOBAL(IDataObject *dataObject, CLIPFORMAT cf
   return S_OK;
 }
 
+HRESULT DataObject_SetData_HGLOBAL(IDataObject *dataObject, CLIPFORMAT cf, NCOM::CStgMedium &medium)
+{
+  FORMATETC etc = INIT_FORMATETC_HGLOBAL(cf);
+  RINOK(dataObject->SetData(&etc, &medium, TRUE));
+  return S_OK;
+}
+
 static HRESULT DataObject_GetData_HDROP_Names(IDataObject *dataObject, UStringVector &names)
 {
   names.Clear();
   NCOM::CStgMedium medium;
-  
+
   /* Win10 : if (dataObject) is from IContextMenu::Initialize() and
     if (len_of_path >= MAX_PATH (260) for some file in data object)
     {
@@ -276,7 +282,7 @@ static HRESULT DataObject_GetData_IDLIST(IDataObject *dataObject, UStringVector 
     RINOK(::SHGetDesktopFolder(&desktopFolder))
     if (!desktopFolder)
       return E_FAIL;
-    
+
     LPCITEMIDLIST const lpcItem = (LPCITEMIDLIST)(const void *)((const Byte *)cida + offset);
 
    #ifdef SHOW_DEBUG_SHELL
@@ -294,16 +300,16 @@ static HRESULT DataObject_GetData_IDLIST(IDataObject *dataObject, UStringVector 
       }
     }
    #endif
-    
+
     RINOK(desktopFolder->BindToObject(lpcItem,
         NULL, IID_IShellFolder, (void **)&parentFolder))
     if (!parentFolder)
       return E_FAIL;
   }
-  
+
   names.ClearAndReserve(cida->cidl);
   UString path;
-  
+
   // for (int y = 0; y < 1; y++) // for debug
   for (unsigned i = 1; i <= cida->cidl; i++)
   {
@@ -522,7 +528,7 @@ void CDrop::QueryFileName(UINT fileIndex, UString &fileName)
 void CDrop::QueryFileNames(UStringVector &fileNames)
 {
   UINT numFiles = QueryCountOfFiles();
-  
+
   Print_Number(numFiles, "\n====== CDrop::QueryFileNames START ===== \n");
 
   fileNames.ClearAndReserve(numFiles);
@@ -543,18 +549,8 @@ void CDrop::QueryFileNames(UStringVector &fileNames)
 typedef int Z7_WIN_GPFIDL_FLAGS;
 
 extern "C" {
-#ifndef _UNICODE
-typedef BOOL (WINAPI * Func_SHGetPathFromIDListW)(LPCITEMIDLIST pidl, LPWSTR pszPath); // nt4
-#endif
-
-#if !defined(Z7_WIN32_WINNT_MIN) || Z7_WIN32_WINNT_MIN < 0x0600  // Vista
-#define Z7_USE_DYN_SHGetPathFromIDListEx
-#endif
-
-#ifdef Z7_USE_DYN_SHGetPathFromIDListEx
-Z7_DIAGNOSTIC_IGNORE_CAST_FUNCTION
-typedef BOOL (WINAPI * Func_SHGetPathFromIDListEx)(LPCITEMIDLIST pidl, PWSTR pszPath, DWORD cchPath, Z7_WIN_GPFIDL_FLAGS uOpts); // vista
-#endif
+typedef BOOL (WINAPI * Func_SHGetPathFromIDListW)(LPCITEMIDLIST pidl, LPWSTR pszPath);
+typedef BOOL (WINAPI * Func_SHGetPathFromIDListEx)(LPCITEMIDLIST pidl, PWSTR pszPath, DWORD cchPath, Z7_WIN_GPFIDL_FLAGS uOpts);
 }
 
 #ifndef _UNICODE
@@ -594,26 +590,18 @@ bool GetPathFromIDList(LPCITEMIDLIST itemIDList, UString &path)
     /* for long path we need SHGetPathFromIDListEx().
       win10: SHGetPathFromIDListEx() for long path returns path with
              with super path prefix "\\\\?\\". */
-#ifdef Z7_USE_DYN_SHGetPathFromIDListEx
     const
     Func_SHGetPathFromIDListEx
     func_SHGetPathFromIDListEx = Z7_GET_PROC_ADDRESS(
     Func_SHGetPathFromIDListEx, ::GetModuleHandleW(L"shell32.dll"),
         "SHGetPathFromIDListEx");
     if (func_SHGetPathFromIDListEx)
-#endif
     {
       ODS("==== GetPathFromIDList() (SHGetPathFromIDListEx)")
       do
       {
         len *= 4;
-        result = BOOLToBool(
-#ifdef Z7_USE_DYN_SHGetPathFromIDListEx
-          func_SHGetPathFromIDListEx
-#else
-          SHGetPathFromIDListEx
-#endif
-          (itemIDList, path.GetBuf(len), len, 0));
+        result = BOOLToBool(func_SHGetPathFromIDListEx(itemIDList, path.GetBuf(len), len, 0));
         if (result)
           break;
       }

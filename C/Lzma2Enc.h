@@ -18,7 +18,6 @@ typedef struct
   int numBlockThreads_Reduced;
   int numBlockThreads_Max;
   int numTotalThreads;
-  unsigned numThreadGroups; // 0 : no groups
 } CLzma2EncProps;
 
 void Lzma2EncProps_Init(CLzma2EncProps *p);

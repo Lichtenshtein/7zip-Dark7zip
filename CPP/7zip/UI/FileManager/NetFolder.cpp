@@ -254,23 +254,28 @@ Z7_COM7F_IMF(CNetFolder::GetFolderProperty(PROPID propID, PROPVARIANT *value))
 
 Z7_COM7F_IMF(CNetFolder::GetSystemIconIndex(UInt32 index, Int32 *iconIndex))
 {
-  *iconIndex = -1;
-  if (index >= _items.Size())
+  if (index >= (UInt32)_items.Size())
     return E_INVALIDARG;
+  *iconIndex = 0;
   const CResourceW &resource = _items[index];
+  int iconIndexTemp;
   if (resource.DisplayType == RESOURCEDISPLAYTYPE_SERVER ||
       resource.Usage == RESOURCEUSAGE_CONNECTABLE)
   {
-    return Shell_GetFileInfo_SysIconIndex_for_Path_return_HRESULT(
-        us2fs(resource.RemoteName), FILE_ATTRIBUTE_DIRECTORY, iconIndex);
+    if (GetRealIconIndex(us2fs(resource.RemoteName), 0, iconIndexTemp))
+    {
+      *iconIndex = iconIndexTemp;
+      return S_OK;
+    }
   }
   else
   {
-#if 0
-    return S_FALSE;
-#else
-    return Shell_GetFileInfo_SysIconIndex_for_Path_return_HRESULT(
-        FTEXT("__DIR__"), FILE_ATTRIBUTE_DIRECTORY, iconIndex);
-#endif
+    if (GetRealIconIndex(FTEXT(""), FILE_ATTRIBUTE_DIRECTORY, iconIndexTemp))
+    {
+      *iconIndex = iconIndexTemp;
+      return S_OK;
+    }
+    // *anIconIndex = GetRealIconIndex(0, L"\\\\HOME");
   }
+  return GetLastError_noZero_HRESULT();
 }

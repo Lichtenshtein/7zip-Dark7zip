@@ -14,7 +14,7 @@ class CApp;
 extern CApp g_App;
 extern HWND g_HWND;
 
-const unsigned kNumPanelsMax = 2;
+const unsigned kNumPanelsMax = 3;
 
 extern bool g_IsSmallScreen;
 
@@ -34,14 +34,18 @@ class CPanelCallbackImp Z7_final: public CPanelCallback
 {
   CApp *_app;
   unsigned _index;
+  Int32 multiPanelReentrancyCount;
 public:
   void Init(CApp *app, unsigned index)
   {
     _app = app;
     _index = index;
+    multiPanelReentrancyCount = 0;
   }
   virtual void OnTab() Z7_override;
   virtual void SetFocusToPath(unsigned index) Z7_override;
+  virtual void SetFocusToPathNoDropDown();
+
   virtual void OnCopy(bool move, bool copyToSame) Z7_override;
   virtual void OnSetSameFolder() Z7_override;
   virtual void OnSetSubFolder() Z7_override;
@@ -49,6 +53,16 @@ public:
   virtual void DragBegin() Z7_override;
   virtual void DragEnd() Z7_override;
   virtual void RefreshTitle(bool always) Z7_override;
+
+  // Multi panel callbacks.
+  virtual HRESULT OnRefreshList(bool& shouldReturn) Z7_override;
+  virtual HRESULT OnBind(bool& shouldReturn) Z7_override;
+  virtual HRESULT OnSelectedItemChanged() Z7_override;
+  virtual HRESULT OnOpenFolder(std::optional<std::reference_wrapper<bool>> shouldReturn = std::nullopt, std::optional<UString> path = std::nullopt) Z7_override;
+  virtual HRESULT OnOpenParentFolder() Z7_override;
+  virtual UString OnSetComboText(UString const& text) Z7_override;
+  virtual bool IsMultiPanelMode() Z7_override;
+  int GetIndex() Z7_override;
 };
 
 
@@ -63,6 +77,7 @@ public:
   // bool ShowDeletedFiles;
   unsigned NumPanels;
   unsigned LastFocusedPanel;
+  unsigned MultiPanelMode;
 
   bool ShowStandardToolbar;
   bool ShowArchiveToolbar;
@@ -84,14 +99,15 @@ public:
   CMyComPtr<IDropTarget> _dropTarget;
 
   UString LangString_N_SELECTED_ITEMS;
-  
+
   void ReloadLangItems();
 
   CApp():
     _window(NULL),
     AutoRefresh_Mode(true),
     NumPanels(2),
-    LastFocusedPanel(0)
+    LastFocusedPanel(0),
+    MultiPanelMode(0)
   {
     SetPanels_AutoRefresh_Mode();
   }
@@ -100,7 +116,7 @@ public:
   void SetFocusedPanel(unsigned index);
   void DragBegin(unsigned panelIndex);
   void DragEnd();
-  
+
   void OnCopy(bool move, bool copyToSame, unsigned srcPanelIndex);
   void OnSetSameFolder(unsigned srcPanelIndex);
   void OnSetSubFolder(unsigned srcPanelIndex);
@@ -109,7 +125,7 @@ public:
   HRESULT Create(HWND hwnd, const UString &mainPath, const UString &arcFormat, int xSizes[2], bool needOpenArc, COpenResult &openRes);
   void Read();
   void Save();
-  void ReleaseApp();
+  void Release();
 
   // void SetFocus(int panelIndex) { Panels[panelIndex].SetFocusToList(); }
   void SetFocusToLastItem() { Panels[LastFocusedPanel].SetFocusToLastRememberedItem(); }
@@ -121,6 +137,12 @@ public:
   void OpenItem() { GetFocusedPanel().OpenSelectedItems(true); }
   void OpenItemInside(const wchar_t *type) { GetFocusedPanel().OpenFocusedItemAsInternal(type); }
   void OpenItemOutside() { GetFocusedPanel().OpenSelectedItems(false); }
+  void OpenItemVscode() { GetFocusedPanel().OpenSelectedItem(L"code.cmd", L"", SW_HIDE); }
+  void OpenItemTerminal() { GetFocusedPanel().OpenInSelectedItem(L"powershell.exe"); }
+  void OpenItemExplorer() { GetFocusedPanel().OpenInSelectedItem(L"", L"explore"); }
+  void FindFzf() { GetFocusedPanel().FindFzf(); }
+  // void FindIgrep() { GetFocusedPanel().FindIgrep(); }
+  void CopyItemPath() { GetFocusedPanel().CopyItemPath(); }
   void EditItem(bool useEditor) { GetFocusedPanel().EditItem(useEditor); }
   void Rename() { GetFocusedPanel().RenameFile(); }
   void CopyTo() { OnCopy(false, false, GetFocusedPanelIndex()); }
@@ -131,14 +153,14 @@ public:
 
   void DiffFiles(const UString &path1, const UString &path2);
   void DiffFiles();
-  
+
   void VerCtrl(unsigned id);
 
   void Split();
   void Combine();
   void Properties() { GetFocusedPanel().Properties(); }
   void Comment() { GetFocusedPanel().ChangeComment(); }
-  
+
   #ifndef UNDER_CE
   void Link();
   void OpenAltStreams() { GetFocusedPanel().OpenAltStreams(); }
@@ -195,7 +217,8 @@ public:
 
   void SetListSettings();
   HRESULT SwitchOnOffOnePanel();
-  
+  HRESULT SwitchOnOffMultiPanel();
+
   CIntVector _timestampLevels;
 
   bool GetFlatMode() { return Panels[LastFocusedPanel].GetFlatMode(); }
@@ -203,26 +226,18 @@ public:
   int GetTimestampLevel() const { return Panels[LastFocusedPanel]._timestampLevel; }
   void SetTimestampLevel(int level)
   {
-    for (unsigned i = 0; i < kNumPanelsMax; i++)
+    unsigned i;
+    for (i = 0; i < kNumPanelsMax; i++)
     {
       CPanel &panel = Panels[i];
       panel._timestampLevel = level;
-    }
-    RedrawListItems_InPanels();
-  }
-
-  void RedrawListItems_InPanels()
-  {
-    for (unsigned i = 0; i < kNumPanelsMax; i++)
-    {
-      CPanel &panel = Panels[i];
       if (panel.PanelCreated)
         panel.RedrawListItems();
     }
   }
 
   // bool Get_ShowNtfsStrems_Mode() { return Panels[LastFocusedPanel].Get_ShowNtfsStrems_Mode(); }
-  
+
   void ChangeFlatMode() { Panels[LastFocusedPanel].ChangeFlatMode(); }
   // void Change_ShowNtfsStrems_Mode() { Panels[LastFocusedPanel].Change_ShowNtfsStrems_Mode(); }
   // void Change_ShowDeleted() { ShowDeletedFiles = !ShowDeletedFiles; }
@@ -273,7 +288,7 @@ public:
     if (ShowArchiveToolbar) mask |= 8;
     SaveToolbarsMask(mask);
   }
-  
+
   void SaveToolbarChanges();
 
   void SwitchStandardToolbar()
@@ -309,6 +324,17 @@ public:
   void RefreshTitlePanel(unsigned panelIndex, bool always = false);
 
   void MoveSubWindows();
+
+  void MoveSubWindowsMultiPanel();
+  HRESULT InitializeMultiPanel();
+  HRESULT UninitializeMultiPanel();
+  HRESULT SyncMultiPanel();
+  HRESULT ResizeSingleColumn();
 };
 
+
+enum MyAppMessages
+{
+  kOpenPath = WM_USER + 1,
+};
 #endif

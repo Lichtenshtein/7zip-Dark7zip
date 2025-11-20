@@ -33,8 +33,9 @@ class CProgressSync
 {
   bool _stopped;
   bool _paused;
+
 public:
-  bool _filesProgressMode;
+  bool _bytesProgressMode;
   bool _isDir;
   UInt64 _totalBytes;
   UInt64 _completedBytes;
@@ -72,14 +73,13 @@ public:
     _paused = val;
   }
   
-  void Set_FilesProgressMode(bool filesProgressMode)
+  void Set_BytesProgressMode(bool bytesProgressMode)
   {
     NWindows::NSynchronization::CCriticalSectionLock lock(_cs);
-    _filesProgressMode = filesProgressMode;
+    _bytesProgressMode = bytesProgressMode;
   }
   
   HRESULT CheckStop();
-  void Clear_Stop_Status();
   HRESULT ScanProgress(UInt64 numFiles, UInt64 totalSize, const FString &fileName, bool isDir = false);
 
   HRESULT Set_NumFilesTotal(UInt64 val);
@@ -102,32 +102,12 @@ public:
   bool ThereIsMessage() const { return !Messages.IsEmpty() || FinalMessage.ThereIsMessage(); }
 };
 
-
 class CProgressDialog: public NWindows::NControl::CModalDialog
 {
-  bool _isDir;
-  bool _wasCreated;
-  bool _needClose;
-  bool _errorsWereDisplayed;
-  bool _waitCloseByCancelButton;
-  bool _cancelWasPressed;
-  bool _inCancelMessageBox;
-  bool _externalCloseMessageWasReceived;
-  bool _background;
-public:
-  bool WaitMode;
-  bool MessagesDisplayed; // = true if user pressed OK on all messages or there are no messages.
-  bool CompressingMode;
-  bool ShowCompressionInfo;
-
-private:
-  unsigned _numPostedMessages;
-  unsigned _numAutoSizeMessages;
-  unsigned _numMessages;
-
   UString _titleFileName;
   UString _filePath;
   UString _status;
+  bool _isDir;
 
   UString _background_String;
   UString _backgrounded_String;
@@ -172,6 +152,7 @@ private:
   NWindows::NControl::CProgressBar m_ProgressBar;
   NWindows::NControl::CListView _messageList;
   
+  unsigned _numMessages;
   UStringVector _messageStrings;
 
   // #ifdef __ITaskbarList3_INTERFACE_DEFINED__
@@ -194,9 +175,27 @@ private:
   UString _filesStr_Prev;
   UString _filesTotStr_Prev;
 
-  unsigned _numReduceSymbols;
   unsigned _prevSpeed_MoveBits;
   UInt64 _prevSpeed;
+
+  bool _foreground;
+
+  unsigned _numReduceSymbols;
+
+  bool _wasCreated;
+  bool _needClose;
+
+  unsigned _numPostedMessages;
+  UInt32 _numAutoSizeMessages;
+
+  bool _errorsWereDisplayed;
+
+  bool _waitCloseByCancelButton;
+  bool _cancelWasPressed;
+  
+  bool _inCancelMessageBox;
+  bool _externalCloseMessageWasReceived;
+
 
   // #ifdef __ITaskbarList3_INTERFACE_DEFINED__
   void SetTaskbarProgressState(TBPFLAG tbpFlags)
@@ -245,10 +244,14 @@ private:
   void ShowAfterMessages(HWND wndParent);
 
   void CheckNeedClose();
-
 public:
   CProgressSync Sync;
+  bool CompressingMode;
+  bool WaitMode;
+  bool ShowCompressionInfo;
+  bool MessagesDisplayed; // = true if user pressed OK on all messages or there are no messages.
   int IconID;
+
   HWND MainWindow;
   #ifndef Z7_SFX
   UString MainTitle;

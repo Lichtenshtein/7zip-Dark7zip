@@ -1,0 +1,9 @@
+*.obj
+*.exe
+*.pch
+*.dll
+*.exp
+*.lib
+*.sfx
+resource.res
+*.pdb

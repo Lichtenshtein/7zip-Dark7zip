@@ -5,7 +5,6 @@
 #include "../../C/CpuArch.h"
 
 #include "../Common/IntToString.h"
-#include "../Common/StringConvert.h"
 
 #ifdef _WIN32
 
@@ -17,31 +16,12 @@
 #include <sys/utsname.h>
 #ifdef __APPLE__
 #include <sys/sysctl.h>
-
 #elif !defined(_AIX)
 
-#if defined(__GLIBC__) && (__GLIBC__ * 100 + __GLIBC_MINOR__ >= 216)
-  #define Z7_GETAUXV_AVAILABLE
-#else
-//  #pragma message("=== is not NEW GLIBC === ")
-  #if defined __has_include
-  #if __has_include (<sys/auxv.h>)
-//    #pragma message("=== sys/auxv.h is avail=== ")
-    #define Z7_GETAUXV_AVAILABLE
-  #endif
-  #endif
-#endif
-
-#ifdef Z7_GETAUXV_AVAILABLE
-// #if defined __has_include
-// #if __has_include (<sys/auxv.h>)
 #include <sys/auxv.h>
-#define USE_HWCAP
-// #endif
-// #endif
 
-#undef AT_HWCAP    // to debug
-#undef AT_HWCAP2   // to debug
+// #undef AT_HWCAP    // to debug
+// #undef AT_HWCAP2   // to debug
 
 /* the following patch for some debian systems.
    Is it OK to define AT_HWCAP and AT_HWCAP2 here with these constant numbers? */
@@ -56,38 +36,10 @@
 #endif
 */
 
-#ifdef USE_HWCAP
-
-#if defined(__FreeBSD__)
-
-// #if (__FreeBSD__ >= 13) // (FreeBSD 12.01 is required for elf_aux_info() ???)
-static unsigned long MY_getauxval(int aux)
-{
-  unsigned long val;
-  if (elf_aux_info(aux, &val, sizeof(val)))
-    return 0;
-  return val;
-}
-
-#else // ! __FreeBSD__
-
 #ifdef MY_CPU_ARM_OR_ARM64
-  #if defined __has_include
-  #if __has_include (<asm/hwcap.h>)
 #include <asm/hwcap.h>
-  #endif
-  #endif
 #endif
-
-#if defined(AT_HWCAP) || defined(AT_HWCAP2)
-#define MY_getauxval  getauxval
 #endif
-
-#endif // ! __FreeBSD__
-#endif // USE_HWCAP
-#endif // Z7_GETAUXV_AVAILABLE
-
-#endif // !defined(_AIX)
 
 #ifdef __linux__
 #include "../Windows/FileIO.h"
@@ -118,13 +70,13 @@ static bool ReadFile_to_Buffer(CFSTR fileName, CByteBuffer &buf)
     return false;
   */
   size_t size = 0;
-  size_t addSize = (size_t)1 << 12;
+  size_t addSize = ((size_t)1 << 12);
   for (;;)
   {
     // printf("\nsize = %d\n", (unsigned)size);
     buf.ChangeSize_KeepData(size + addSize, size);
     size_t processed;
-    if (!file.ReadFull(buf.NonConstData() + size, addSize, processed))
+    if (!file.ReadFull(buf + size, addSize, processed))
       return false;
     if (processed == 0)
     {
@@ -155,19 +107,19 @@ static void PrintCpuChars(AString &s, UInt32 v)
 {
   for (unsigned j = 0; j < 4; j++)
   {
-    const Byte b = (Byte)(v & 0xFF);
+    Byte b = (Byte)(v & 0xFF);
     v >>= 8;
     if (b == 0)
       break;
     if (b >= 0x20 && b <= 0x7f)
-      s.Add_Char((char)b);
+      s += (char)b;
     else
     {
-      s.Add_Char('[');
+      s += '[';
       char temp[16];
       ConvertUInt32ToHex(b, temp);
       s += temp;
-      s.Add_Char(']');
+      s += ']';
     }
   }
 }
@@ -185,7 +137,7 @@ static void x86cpuid_to_String(AString &s)
   {
     for (unsigned i = 0; i < 3; i++)
     {
-      z7_x86_cpuid(a, (UInt32)(0x80000002 + i));
+      z7_x86_cpuid(a, 0x80000002 + i);
       for (unsigned j = 0; j < 4; j++)
         PrintCpuChars(s, a[j]);
     }
@@ -401,8 +353,8 @@ void PrintSize_KMGT_Or_Hex(AString &s, UInt64 v)
   }
   s.Add_UInt64(v);
   if (c)
-    s.Add_Char(c);
-  s.Add_Char('B');
+    s += c;
+  s += 'B';
 }
 // #endif
 // #endif
@@ -428,7 +380,7 @@ static void SysInfo_To_String(AString &s, const SYSTEM_INFO &si)
     s += " act:";
     PrintHex(s, si.dwActiveProcessorMask);
   }
-  s += " threads:";
+  s += " cpus:";
   s.Add_UInt32(si.dwNumberOfProcessors);
   if (si.dwPageSize != 1 << 12)
   {
@@ -448,7 +400,7 @@ static void SysInfo_To_String(AString &s, const SYSTEM_INFO &si)
   if (minAdd != kReserveSize)
   {
     PrintSize_KMGT_Or_Hex(s, minAdd);
-    s.Add_Minus();
+    s += "-";
   }
   else
   {
@@ -512,14 +464,17 @@ void GetSysInfo(AString &s1, AString &s2)
 }
 
 
+void GetCpuName(AString &s);
+
 static void AddBracedString(AString &dest, AString &src)
 {
   if (!src.IsEmpty())
   {
-    dest.Add_Space_if_NotEmpty();
-    dest.Add_Char('(');
-    dest += src;
-    dest.Add_Char(')');
+    AString s;
+    s += '(';
+    s += src;
+    s += ')';
+    dest.Add_OptSpaced(s);
   }
 }
 
@@ -530,28 +485,6 @@ struct CCpuName
   AString Microcode;
   AString LargePages;
 
-#ifdef _WIN32
-  UInt32 MHz;
-
-#ifdef MY_CPU_ARM64
-#define Z7_SYS_INFO_SHOW_ARM64_REGS
-#endif
-#ifdef Z7_SYS_INFO_SHOW_ARM64_REGS
-  bool Arm64_ISAR0_EL1_Defined;
-  UInt64 Arm64_ISAR0_EL1;
-#endif
-#endif
-
-#ifdef _WIN32
-  CCpuName():
-      MHz(0)
-#ifdef Z7_SYS_INFO_SHOW_ARM64_REGS
-    , Arm64_ISAR0_EL1_Defined(false)
-    , Arm64_ISAR0_EL1(0)
-#endif
-    {}
-#endif
-
   void Fill();
 
   void Get_Revision_Microcode_LargePages(AString &s)
@@ -559,53 +492,25 @@ struct CCpuName
     s.Empty();
     AddBracedString(s, Revision);
     AddBracedString(s, Microcode);
-#ifdef _WIN32
-    if (MHz != 0)
-    {
-      s.Add_Space_if_NotEmpty();
-      s.Add_UInt32(MHz);
-      s += " MHz";
-    }
-#endif
-    if (!LargePages.IsEmpty())
-      s.Add_OptSpaced(LargePages);
+    s.Add_OptSpaced(LargePages);
   }
-
-#ifdef Z7_SYS_INFO_SHOW_ARM64_REGS
-  void Get_Registers(AString &s)
-  {
-    if (Arm64_ISAR0_EL1_Defined)
-    {
-      // ID_AA64ISAR0_EL1
-      s.Add_OptSpaced("cp4030:");
-      PrintHex(s, Arm64_ISAR0_EL1);
-      {
-        const unsigned sha2 = ((unsigned)(Arm64_ISAR0_EL1 >> 12) & 0xf) - 1;
-        if (sha2 < 2)
-        {
-          s += ":SHA256";
-          if (sha2)
-            s += ":SHA512";
-        }
-      }
-    }
-  }
-#endif
 };
 
 void CCpuName::Fill()
 {
-  // CpuName.Empty();
-  // Revision.Empty();
-  // Microcode.Empty();
-  // LargePages.Empty();
+  CpuName.Empty();
+  Revision.Empty();
+  Microcode.Empty();
+  LargePages.Empty();
 
   AString &s = CpuName;
 
   #ifdef MY_CPU_X86_OR_AMD64
   {
     #if !defined(MY_CPU_AMD64)
-    if (z7_x86_cpuid_GetMaxFunc())
+    if (!z7_x86_cpuid_GetMaxFunc())
+      s += "x86";
+    else
     #endif
     {
       x86cpuid_to_String(s);
@@ -622,62 +527,60 @@ void CCpuName::Fill()
   {
     Add_sysctlbyname_to_String("machdep.cpu.brand_string", s);
   }
-  #elif defined(MY_CPU_E2K) && defined(Z7_MCST_LCC_VERSION) && (Z7_MCST_LCC_VERSION >= 12323)
-  {
-    s += "mcst ";
-    s += __builtin_cpu_name();
-    s.Add_Space();
-    s += __builtin_cpu_arch();
-  }
   #endif
 
 
-#ifdef _WIN32
+  if (s.IsEmpty())
+  {
+    #ifdef MY_CPU_LE
+      s += "LE";
+    #elif defined(MY_CPU_BE)
+      s += "BE";
+    #endif
+  }
+  
+  #ifdef __APPLE__
+  {
+    AString s2;
+    UInt32 v = 0;
+    if (z7_sysctlbyname_Get_UInt32("machdep.cpu.core_count", &v) == 0)
+    {
+      s2.Add_UInt32(v);
+      s2 += 'C';
+    }
+    if (z7_sysctlbyname_Get_UInt32("machdep.cpu.thread_count", &v) == 0)
+    {
+      s2.Add_UInt32(v);
+      s2 += 'T';
+    }
+    if (!s2.IsEmpty())
+    {
+      s.Add_Space_if_NotEmpty();
+      s += s2;
+    }
+  }
+  #endif
+
+  
+  #ifdef _WIN32
   {
     NRegistry::CKey key;
     if (key.Open(HKEY_LOCAL_MACHINE, TEXT("HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0"), KEY_READ) == ERROR_SUCCESS)
     {
-      // s.Empty(); // for debug
-      {
-        CSysString name;
-        if (s.IsEmpty())
-        if (key.QueryValue(TEXT("ProcessorNameString"), name) == ERROR_SUCCESS)
-        {
-          s += GetAnsiString(name);
-        }
-        if (key.QueryValue(TEXT("Identifier"), name) == ERROR_SUCCESS)
-        {
-          if (!Revision.IsEmpty())
-            Revision += " : ";
-          Revision += GetAnsiString(name);
-        }
-      }
-#ifdef _WIN32
-      key.GetValue_UInt32_IfOk(TEXT("~MHz"), MHz);
-#ifdef Z7_SYS_INFO_SHOW_ARM64_REGS
-/*
-mapping arm64 registers to Windows registry:
-CP 4000: MIDR_EL1
-CP 4020: ID_AA64PFR0_EL1
-CP 4021: ID_AA64PFR1_EL1
-CP 4028: ID_AA64DFR0_EL1
-CP 4029: ID_AA64DFR1_EL1
-CP 402C: ID_AA64AFR0_EL1
-CP 402D: ID_AA64AFR1_EL1
-CP 4030: ID_AA64ISAR0_EL1
-CP 4031: ID_AA64ISAR1_EL1
-CP 4038: ID_AA64MMFR0_EL1
-CP 4039: ID_AA64MMFR1_EL1
-CP 403A: ID_AA64MMFR2_EL1
-*/
-      if (key.GetValue_UInt64_IfOk(TEXT("CP 4030"), Arm64_ISAR0_EL1) == ERROR_SUCCESS)
-        Arm64_ISAR0_EL1_Defined = true;
-#endif
-#endif
       LONG res[2];
       CByteBuffer bufs[2];
-      res[0] = key.QueryValue_Binary(TEXT("Previous Update Revision"), bufs[0]);
-      res[1] = key.QueryValue_Binary(TEXT("Update Revision"),          bufs[1]);
+      {
+        for (unsigned i = 0; i < 2; i++)
+        {
+          UInt32 size = 0;
+          res[i] = key.QueryValue(i == 0 ?
+            TEXT("Previous Update Revision") :
+            TEXT("Update Revision"), bufs[i], size);
+          if (res[i] == ERROR_SUCCESS)
+            if (size != bufs[i].Size())
+              res[i] = ERROR_SUCCESS + 1;
+        }
+      }
       if (res[0] == ERROR_SUCCESS || res[1] == ERROR_SUCCESS)
       {
         for (unsigned i = 0; i < 2; i++)
@@ -689,11 +592,11 @@ CP 403A: ID_AA64MMFR2_EL1
           const CByteBuffer &buf = bufs[i];
           if (buf.Size() == 8)
           {
-            const UInt32 high = GetUi32(buf);
+            UInt32 high = GetUi32(buf);
             if (high != 0)
             {
               PrintHex(Microcode, high);
-              Microcode.Add_Dot();
+              Microcode += ".";
             }
             PrintHex(Microcode, GetUi32(buf + 4));
           }
@@ -701,36 +604,8 @@ CP 403A: ID_AA64MMFR2_EL1
       }
     }
   }
-#endif
-
-  if (s.IsEmpty())
-  {
-    #ifdef MY_CPU_NAME
-      s += MY_CPU_NAME;
-    #endif
-  }
-  
-  #ifdef __APPLE__
-  {
-    AString s2;
-    UInt32 v = 0;
-    if (z7_sysctlbyname_Get_UInt32("machdep.cpu.core_count", &v) == 0)
-    {
-      s2.Add_UInt32(v);
-      s2.Add_Char('C');
-    }
-    if (z7_sysctlbyname_Get_UInt32("machdep.cpu.thread_count", &v) == 0)
-    {
-      s2.Add_UInt32(v);
-      s2.Add_Char('T');
-    }
-    if (!s2.IsEmpty())
-    {
-      s.Add_Space_if_NotEmpty();
-      s += s2;
-    }
-  }
   #endif
+
 
   #ifdef Z7_LARGE_PAGES
   Add_LargePages_String(LargePages);
@@ -747,7 +622,7 @@ void AddCpuFeatures(AString &s)
   UInt64 flags = 0;
   for (unsigned i = 0; i < kNumFeatures; i++)
   {
-    if (IsProcessorFeaturePresent((DWORD)i))
+    if (IsProcessorFeaturePresent(i))
     {
       flags += (UInt64)1 << i;
       // s.Add_Space_if_NotEmpty();
@@ -807,21 +682,12 @@ void AddCpuFeatures(AString &s)
   #ifdef AT_HWCAP
   s.Add_OptSpaced("hwcap:");
   {
-    unsigned long h = MY_getauxval(AT_HWCAP);
+    unsigned long h = getauxval(AT_HWCAP);
     PrintHex(s, h);
     #ifdef MY_CPU_ARM64
-#ifndef HWCAP_SHA3
-#define HWCAP_SHA3    (1 << 17)
-#endif
-#ifndef HWCAP_SHA512
-#define HWCAP_SHA512  (1 << 21)
-// #pragma message("=== HWCAP_SHA512 define === ")
-#endif
     if (h & HWCAP_CRC32)  s += ":CRC32";
     if (h & HWCAP_SHA1)   s += ":SHA1";
     if (h & HWCAP_SHA2)   s += ":SHA2";
-    if (h & HWCAP_SHA3)   s += ":SHA3";
-    if (h & HWCAP_SHA512) s += ":SHA512";
     if (h & HWCAP_AES)    s += ":AES";
     if (h & HWCAP_ASIMD)  s += ":ASIMD";
     #elif defined(MY_CPU_ARM)
@@ -832,7 +698,7 @@ void AddCpuFeatures(AString &s)
  
   #ifdef AT_HWCAP2
   {
-    unsigned long h = MY_getauxval(AT_HWCAP2);
+    unsigned long h = getauxval(AT_HWCAP2);
     #ifndef MY_CPU_ARM
     if (h != 0)
     #endif
@@ -855,8 +721,6 @@ void AddCpuFeatures(AString &s)
 
 #ifdef _WIN32
 #ifndef UNDER_CE
-
-Z7_DIAGNOSTIC_IGNORE_CAST_FUNCTION
 
 EXTERN_C_BEGIN
 typedef void (WINAPI * Func_RtlGetVersion) (OSVERSIONINFOEXW *);
@@ -980,16 +844,11 @@ void GetSystemInfoText(AString &sRes)
       }
     }
     {
-      AString s, registers;
-      GetCpuName_MultiLine(s, registers);
+      AString s;
+      GetCpuName(s);
       if (!s.IsEmpty())
       {
         sRes += s;
-        sRes.Add_LF();
-      }
-      if (!registers.IsEmpty())
-      {
-        sRes += registers;
         sRes.Add_LF();
       }
     }
@@ -1009,8 +868,20 @@ void GetSystemInfoText(AString &sRes)
 }
 
 
-void GetCpuName_MultiLine(AString &s, AString &registers);
-void GetCpuName_MultiLine(AString &s, AString &registers)
+void GetCpuName(AString &s);
+void GetCpuName(AString &s)
+{
+  CCpuName cpuName;
+  cpuName.Fill();
+  s = cpuName.CpuName;
+  AString s2;
+  cpuName.Get_Revision_Microcode_LargePages(s2);
+  s.Add_OptSpaced(s2);
+}
+
+
+void GetCpuName_MultiLine(AString &s);
+void GetCpuName_MultiLine(AString &s)
 {
   CCpuName cpuName;
   cpuName.Fill();
@@ -1022,10 +893,6 @@ void GetCpuName_MultiLine(AString &s, AString &registers)
     s.Add_LF();
     s += s2;
   }
-  registers.Empty();
-#ifdef Z7_SYS_INFO_SHOW_ARM64_REGS
-  cpuName.Get_Registers(registers);
-#endif
 }
 
 
@@ -1085,13 +952,24 @@ void GetVirtCpuid(AString &s)
 
 void GetCompiler(AString &s)
 {
+  #ifdef __VERSION__
+    s += __VERSION__;
+  #endif
+
+  #ifdef __GNUC__
+    s += " GCC ";
+    s.Add_UInt32(__GNUC__);
+    s.Add_Dot();
+    s.Add_UInt32(__GNUC_MINOR__);
+    s.Add_Dot();
+    s.Add_UInt32(__GNUC_PATCHLEVEL__);
+  #endif
+
   #ifdef __clang__
     s += " CLANG ";
     s.Add_UInt32(__clang_major__);
     s.Add_Dot();
     s.Add_UInt32(__clang_minor__);
-    s.Add_Dot();
-    s.Add_UInt32(__clang_patchlevel__);
   #endif
 
   #ifdef __xlC__
@@ -1107,67 +985,12 @@ void GetCompiler(AString &s)
     #endif
   #endif
 
-  // #define __LCC__ 126
-  // #define __LCC_MINOR__ 20
-  // #define __MCST__ 1
-  #ifdef __MCST__
-    s += " MCST";
-  #endif
-  #ifdef __LCC__
-    s += " LCC ";
-    s.Add_UInt32(__LCC__ / 100);
-    s.Add_Dot();
-    s.Add_UInt32(__LCC__ % 100 / 10);
-    s.Add_UInt32(__LCC__ % 10);
-    #ifdef __LCC_MINOR__
-      s.Add_Dot();
-      s.Add_UInt32(__LCC_MINOR__ / 10);
-      s.Add_UInt32(__LCC_MINOR__ % 10);
-    #endif
-  #endif
-
-  // #define __EDG_VERSION__ 602
-  #ifdef __EDG_VERSION__
-    s += " EDG ";
-    s.Add_UInt32(__EDG_VERSION__ / 100);
-    s.Add_Dot();
-    s.Add_UInt32(__EDG_VERSION__ % 100 / 10);
-    s.Add_UInt32(__EDG_VERSION__ % 10);
-  #endif
-
-  #ifdef __VERSION__
-    s.Add_Space();
-    s += "ver:";
-    s += __VERSION__;
-  #endif
-
-  #ifdef __GNUC__
-    s += " GCC ";
-    s.Add_UInt32(__GNUC__);
-    s.Add_Dot();
-    s.Add_UInt32(__GNUC_MINOR__);
-    s.Add_Dot();
-    s.Add_UInt32(__GNUC_PATCHLEVEL__);
-  #endif
-
-
   #ifdef _MSC_VER
     s += " MSC ";
     s.Add_UInt32(_MSC_VER);
-    #ifdef _MSC_FULL_VER
-      s.Add_Dot();
-      s.Add_UInt32(_MSC_FULL_VER);
-    #endif
-      
   #endif
 
-    #if defined(__AVX512F__)
-      #if defined(__AVX512VL__)
-        #define MY_CPU_COMPILE_ISA "AVX512VL"
-      #else
-        #define MY_CPU_COMPILE_ISA "AVX512F"
-      #endif
-    #elif defined(__AVX2__)
+    #if defined(__AVX2__)
       #define MY_CPU_COMPILE_ISA "AVX2"
     #elif defined(__AVX__)
       #define MY_CPU_COMPILE_ISA "AVX"
@@ -1191,61 +1014,9 @@ void GetCompiler(AString &s)
       #define MY_CPU_COMPILE_ISA "IA32"
     #endif
 
-  AString s2;
 
   #ifdef MY_CPU_COMPILE_ISA
-    s2.Add_OptSpaced(MY_CPU_COMPILE_ISA);
+    s += ':';
+    s.Add_OptSpaced(MY_CPU_COMPILE_ISA);
   #endif
-
-#ifndef MY_CPU_ARM64
-  #ifdef __ARM_FP
-    s2.Add_OptSpaced("FP");
-  #endif
-  #ifdef __ARM_NEON
-    s2.Add_OptSpaced("NEON");
-  #endif
-  #ifdef __NEON__
-    s2.Add_OptSpaced("__NEON__");
-  #endif
-  #ifdef __ARM_FEATURE_SIMD32
-    s2.Add_OptSpaced("SIMD32");
-  #endif
-#endif
-
-  #ifdef __ARM_FEATURE_CRYPTO
-    s2.Add_OptSpaced("CRYPTO");
-  #endif
-
-  #ifdef __ARM_FEATURE_SHA2
-    s2.Add_OptSpaced("SHA2");
-  #endif
-
-  #ifdef __ARM_FEATURE_AES
-    s2.Add_OptSpaced("AES");
-  #endif
-
-  #ifdef __ARM_FEATURE_CRC32
-    s2.Add_OptSpaced("CRC32");
-  #endif
-
-  #ifdef __ARM_FEATURE_UNALIGNED
-    s2.Add_OptSpaced("UNALIGNED");
-  #endif
-
-
-  #ifdef MY_CPU_BE
-    s2.Add_OptSpaced("BE");
-  #endif
-
-  #if defined(MY_CPU_LE_UNALIGN) \
-      && !defined(MY_CPU_X86_OR_AMD64) \
-      && !defined(MY_CPU_ARM64)
-    s2.Add_OptSpaced("LE-unaligned");
-  #endif
-
-  if (!s2.IsEmpty())
-  {
-    s.Add_OptSpaced(": ");
-    s += s2;
-  }
 }
