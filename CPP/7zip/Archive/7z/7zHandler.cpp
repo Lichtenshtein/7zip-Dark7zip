@@ -272,7 +272,6 @@ Z7_COM7F_IMF(CHandler::GetArchiveProperty(PROPID propID, PROPVARIANT *value))
         prop = true;
       break;
     }
-    default: break;
   }
   return prop.Detach(value);
   #ifndef Z7_SFX
@@ -292,7 +291,7 @@ bool CHandler::IsFolderEncrypted(CNum folderIndex) const
   if (folderIndex == kNumNoIndex)
     return false;
   const size_t startPos = _db.FoCodersDataOffset[folderIndex];
-  const Byte *p = _db.CodersData.ConstData() + startPos;
+  const Byte *p = _db.CodersData + startPos;
   const size_t size = _db.FoCodersDataOffset[folderIndex + 1] - startPos;
   CInByte2 inByte;
   inByte.Init(p, size);
@@ -351,11 +350,11 @@ Z7_COM7F_IMF(CHandler::GetRawProp(UInt32 index, PROPID propID, const void **data
   {
     if (_db.NameOffsets && _db.NamesBuf)
     {
-      const size_t offset = _db.NameOffsets[index];
-      const size_t size = (_db.NameOffsets[index + 1] - offset) * 2;
+      size_t offset = _db.NameOffsets[index];
+      size_t size = (_db.NameOffsets[index + 1] - offset) * 2;
       if (size < ((UInt32)1 << 31))
       {
-        *data = (const void *)(_db.NamesBuf.ConstData() + offset * 2);
+        *data = (const void *)(_db.NamesBuf + offset * 2);
         *dataSize = (UInt32)size;
         *propType = NPropDataType::kUtf16z;
       }
@@ -384,47 +383,19 @@ Z7_COM7F_IMF(CHandler::GetRawProp(UInt32 index, PROPID propID, const void **data
 
 #ifndef Z7_SFX
 
-/*
-   Used to obtain the method with level from first archived item block where it would be able to retrieve them
-   (and will set this method (and if found also the level) in the caller (only if no methods are specified
-   in command-line arguments or supplied from UI);
-   The filtered methods (BCJ, etc) and encryption (7zAES) will be ignored, so first not filtered method of 
-   first block will win.
-   Current restrictions (todo's):
-   - complex compressed archives, e. g. using multiple codecs per item (first method will win) or different 
-     methods across items groups (method of first item will win);
-   - not all methods allow to obtain levels (e. g. LZMA, LZMA2, PPMD)
-   - ZSTD fast levels will be not set to codec at the moment (and resulting to level 1); also other parameters
-     like windowLog are not supported currently by recompression.
- */
-bool CHandler::ObtainMethodFromBlocks(CHandler::MethodInfo *info) const
+HRESULT CHandler::SetMethodToProp(CNum folderIndex, PROPVARIANT *prop) const
 {
-  // no blocks - no methods can be found:
-  if (!_db.NumFolders) return false;
-  // for every block:
-  CNum folderIndex;
-  for (folderIndex = 0; folderIndex < _db.NumFolders; folderIndex++) {
-    if (ObtainBlockMethods(folderIndex, NULL, info) == S_OK &&
-        !info->methName.IsEmpty()
-    ) {
-      return true;
-    }
-  }
-  return false;
-}
-
-HRESULT CHandler::ObtainBlockMethods(CNum folderIndex, PROPVARIANT *prop, CHandler::MethodInfo *info) const
-{
-  if (prop) PropVariant_Clear(prop);
+  PropVariant_Clear(prop);
   if (folderIndex == kNumNoIndex)
     return S_OK;
+  // for (int ttt = 0; ttt < 1; ttt++) {
   const unsigned kTempSize = 256;
   char temp[kTempSize];
   unsigned pos = kTempSize;
   temp[--pos] = 0;
  
   const size_t startPos = _db.FoCodersDataOffset[folderIndex];
-  const Byte *p = _db.CodersData.ConstData() + startPos;
+  const Byte *p = _db.CodersData + startPos;
   const size_t size = _db.FoCodersDataOffset[folderIndex + 1] - startPos;
   CInByte2 inByte;
   inByte.Init(p, size);
@@ -433,7 +404,7 @@ HRESULT CHandler::ObtainBlockMethods(CNum folderIndex, PROPVARIANT *prop, CHandl
   CNum numCoders = inByte.ReadNum();
   bool needSpace = false;
   
-  for (; numCoders != 0; numCoders--)
+  for (; numCoders != 0; numCoders--, needSpace = true)
   {
     if (pos < 32) // max size of property
       break;
@@ -461,17 +432,15 @@ HRESULT CHandler::ObtainBlockMethods(CNum folderIndex, PROPVARIANT *prop, CHandl
     }
     
     const char *name = NULL;
-    int lev = (int)-1;
     char s[32];
     s[0] = 0;
     
     if (id64 <= (UInt32)0xFFFFFFFF)
     {
       const UInt32 id = (UInt32)id64;
-      switch (id) {
-      case k_LZMA:
+      if (id == k_LZMA)
+      {
         name = "LZMA";
-        if (info) {goto obtainInfo;}
         if (propsSize == 5)
         {
           const UInt32 dicSize = GetUi32((const Byte *)props + 1);
@@ -488,16 +457,16 @@ HRESULT CHandler::ObtainBlockMethods(CNum folderIndex, PROPVARIANT *prop, CHandl
             if (pb != 2) dest = AddProp32(dest, "pb", pb);
           }
         }
-        break;
-      case k_LZMA2:
+      }
+      else if (id == k_LZMA2)
+      {
         name = "LZMA2";
-        if (info) {goto obtainInfo;}
         if (propsSize == 1)
           GetLzma2String(s, props[0]);
-        break;
-      case k_PPMD:
+      }
+      else if (id == k_PPMD)
+      {
         name = "PPMD";
-        if (info) {goto obtainInfo;}
         if (propsSize == 5)
         {
           char *dest = s;
@@ -506,197 +475,27 @@ HRESULT CHandler::ObtainBlockMethods(CNum folderIndex, PROPVARIANT *prop, CHandl
           dest = MyStpCpy(dest, ":mem");
           GetStringForSizeValue(dest, GetUi32(props + 1));
         }
-        break;
-      case k_LZHAM:
-        name = "LZHAM";
-        if (propsSize == 5)
-        {
-          if (info) {lev = props[2]; goto obtainInfo;}
-          char *dest = s;
-          *dest++ = 'v';
-          ConvertUInt32ToString(props[0], dest);
-          dest += MyStringLen(dest);
-          *dest++ = ',';
-          *dest++ = 'd';
-          ConvertUInt32ToString(props[1], dest);
-          dest += MyStringLen(dest);
-          *dest++ = ',';
-          *dest++ = 'l';
-          ConvertUInt32ToString(props[2], dest);
-          dest += MyStringLen(dest);
-        }
-        break;
-      case k_BROTLI:
-        name = "Brotli";
-        if (propsSize == 3)
-        {
-          if (info) {lev = props[2]; goto obtainInfo;}
-          char *dest = s;
-          *dest++ = 'v';
-          ConvertUInt32ToString(props[0], dest);
-          dest += MyStringLen(dest);
-          *dest++ = '.';
-          ConvertUInt32ToString(props[1], dest);
-          dest += MyStringLen(dest);
-          *dest++ = ',';
-          *dest++ = 'l';
-          ConvertUInt32ToString(props[2], dest);
-          dest += MyStringLen(dest);
-        }
-        break;
-      case k_LIZARD:
-        name = "Lizard";
-        if (propsSize == 3)
-        {
-          if (info) {lev = props[2]; goto obtainInfo;}
-          char *dest = s;
-          *dest++ = 'v';
-          ConvertUInt32ToString(props[0], dest);
-          dest += MyStringLen(dest);
-          *dest++ = '.';
-          ConvertUInt32ToString(props[1], dest);
-          dest += MyStringLen(dest);
-          *dest++ = ',';
-          *dest++ = 'l';
-          ConvertUInt32ToString(props[2], dest);
-          dest += MyStringLen(dest);
-        }
-        break;
-      case k_LZ4:
-        name = "LZ4";
-        if (propsSize == 3 || propsSize == 5)
-        {
-          if (info) {lev = props[2]; goto obtainInfo;}
-          char *dest = s;
-          *dest++ = 'v';
-          ConvertUInt32ToString(props[0], dest);
-          dest += MyStringLen(dest);
-          *dest++ = '.';
-          ConvertUInt32ToString(props[1], dest);
-          dest += MyStringLen(dest);
-          *dest++ = ',';
-          *dest++ = 'l';
-          ConvertUInt32ToString(props[2], dest);
-          dest += MyStringLen(dest);
-        }
-        break;
-      case k_LZ5:
-        name = "LZ5";
-        if (propsSize == 3 || propsSize == 5)
-        {
-          if (info) {lev = props[2]; goto obtainInfo;}
-          char *dest = s;
-          *dest++ = 'v';
-          ConvertUInt32ToString(props[0], dest);
-          dest += MyStringLen(dest);
-          *dest++ = '.';
-          ConvertUInt32ToString(props[1], dest);
-          dest += MyStringLen(dest);
-          *dest++ = ',';
-          *dest++ = 'l';
-          ConvertUInt32ToString(props[2], dest);
-          dest += MyStringLen(dest);
-        }
-        break;
-      case k_ZSTD:
-        name = "ZSTD";
-        if (propsSize == 3 || propsSize == 5)
-        {
-          UInt32 l = props[2];
-          if (info) {
-            if (l <= 22 || l == Z7_ZSTD_ULTIMATE_LEV) {
-              lev = l;
-            } else {
-              // todo: need parameter to set fast mode (to NCoderPropID::kFast)
-              // fast = 1;
-              // l -= 32;
-              lev = 1; // use fastest positive level at the moment;
-            }
-            goto obtainInfo;
-          }
-          char *dest = s;
-          *dest++ = 'v';
-          ConvertUInt32ToString(props[0], dest);
-          dest += MyStringLen(dest);
-          *dest++ = '.';
-          ConvertUInt32ToString(props[1], dest);
-          dest += MyStringLen(dest);
-          *dest++ = ',';
-          if (l <= 22) {
-            *dest++ = 'l';
-            ConvertUInt32ToString(l, dest);
-          } else if (l == Z7_ZSTD_ULTIMATE_LEV) { // special level for zstd --max (advanced ultra) 
-            *dest++ = 'm';
-            *dest++ = 'a';
-            *dest++ = 'x';
-            *dest = '\0';
-          } else {
-            *dest++ = 'f';
-            *dest++ = 'l';
-            ConvertUInt32ToString(l - Z7_ZSTD_FAST_LEV_INC, dest);
-          }
-          dest += MyStringLen(dest);
-        }
-        break;
-      // filtered methods from here, if we need method info, ignore them - continue search
-      case k_Delta:
-        if (info) continue;
+      }
+      else if (id == k_Delta)
+      {
         name = "Delta";
         if (propsSize == 1)
           ConvertUInt32ToString((UInt32)props[0] + 1, s);
-        break;
-      case k_ARM64:
-        if (info) continue;
+      }
+      else if (id == k_ARM64)
+      {
         name = "ARM64";
-      case k_RISCV:
-        if (info) continue;
-        if (id == k_RISCV) name = "RISCV";
         if (propsSize == 4)
           ConvertUInt32ToString(GetUi32(props), s);
         /*
         else if (propsSize != 0)
           MyStringCopy(s, "unsupported");
         */
-        break;
-      case k_BCJ2:
-        if (info) continue;
-        name = "BCJ2";
-        break;
-      case k_BCJ:
-        if (info) continue;
-        name = "BCJ";
-        break;
-      case k_SWAP2:
-        if (info) continue;
-        name = "SWAP2";
-        break;
-      case k_SWAP4:
-        if (info) continue;
-        name = "SWAP4";
-        break;
-      case k_PPC:
-        if (info) continue;
-        name = "PPC";
-        break;
-      case k_IA64:
-        if (info) continue;
-        name = "IA64";
-        break;
-      case k_ARM:
-        if (info) continue;
-        name = "ARM";
-        break;
-      case k_ARMT:
-        if (info) continue;
-        name = "ARMT";
-        break;
-      case k_SPARC:
-        if (info) continue;
-        name = "SPARC";
-        break;
-      // and encryption (also ignore by obtaining info):
-      case k_AES:
-        if (info) continue;
+      }
+      else if (id == k_BCJ2) name = "BCJ2";
+      else if (id == k_BCJ) name = "BCJ";
+      else if (id == k_AES)
+      {
         name = "7zAES";
         if (propsSize >= 1)
         {
@@ -704,29 +503,7 @@ HRESULT CHandler::ObtainBlockMethods(CNum folderIndex, PROPVARIANT *prop, CHandl
           const UInt32 numCyclesPower = firstByte & 0x3F;
           ConvertUInt32ToString(numCyclesPower, s);
         }
-        break;
       }
-    }
-  
-  // if need to retrieve single method info only:
-  obtainInfo:
-    if (info) {
-      if (name)
-      {
-        info->methName = name;
-      }
-      else
-      {
-        FindMethod(EXTERNAL_CODECS_VARS id64, info->methName);
-      }
-      //printf("******* %d/%d %s - %d\n", folderIndex, numCoders, info->methName.Ptr(), lev);
-      // found 1st useable for compression method, use it for now:
-      if (!info->methName.IsEmpty()) {
-        info->level = lev;
-        return S_OK;
-      }
-      // search for another method:
-      continue;
     }
     
     if (name)
@@ -769,7 +546,6 @@ HRESULT CHandler::ObtainBlockMethods(CNum folderIndex, PROPVARIANT *prop, CHandl
           temp[pos + i] = methodName[i];
       }
     }
-    needSpace = true;
   }
   
   if (numCoders != 0 && pos >= 4)
@@ -780,15 +556,8 @@ HRESULT CHandler::ObtainBlockMethods(CNum folderIndex, PROPVARIANT *prop, CHandl
     temp[--pos] = '.';
   }
   
-  if (prop)
-    return PropVarEm_Set_Str(prop, temp + pos);
-  return S_OK;
+  return PropVarEm_Set_Str(prop, temp + pos);
   // }
-}
-
-HRESULT CHandler::SetMethodToProp(CNum folderIndex, PROPVARIANT *prop) const
-{
-  return ObtainBlockMethods(folderIndex, prop, NULL);
 }
 
 #endif
@@ -897,7 +666,6 @@ Z7_COM7F_IMF(CHandler::GetProperty(UInt32 index, PROPID propID, PROPVARIANT *val
    #endif
     
     #endif
-    default: break;
   }
   // return prop.Detach(value);
   return S_OK;

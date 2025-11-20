@@ -3,11 +3,10 @@
 #ifndef ZIP7_INC_COMMON_MY_TYPES_H
 #define ZIP7_INC_COMMON_MY_TYPES_H
 
-#include "Common0.h"
 #include "../../C/7zTypes.h"
+#include "Common.h"
 
-// typedef int HRes;
-// typedef HRESULT HRes;
+typedef int HRes;
 
 struct CBoolPair
 {
@@ -34,8 +33,5 @@ struct CBoolPair
     Def = true;
   }
 };
-
-/* CP_UNICODE - basically same as MY__CP_UTF16, but used srv-mode in console pipes only... */
-#define CP_UNICODE 1200
 
 #endif

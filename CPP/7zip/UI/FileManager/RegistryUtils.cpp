@@ -11,7 +11,7 @@
 using namespace NWindows;
 using namespace NRegistry;
 
-#define REG_PATH_7Z TEXT("Software") TEXT(STRING_PATH_SEPARATOR) TEXT("7-Zip-Zstandard")
+#define REG_PATH_7Z TEXT("Software") TEXT(STRING_PATH_SEPARATOR) TEXT("7-Zip")
 
 static LPCTSTR const kCUBasePath = REG_PATH_7Z;
 static LPCTSTR const kCU_FMPath = REG_PATH_7Z TEXT(STRING_PATH_SEPARATOR) TEXT("FM");
@@ -37,17 +37,10 @@ static LPCTSTR const kShowSystemMenu = TEXT("ShowSystemMenu");
 // static LPCTSTR const kLockMemoryAdd = TEXT("LockMemoryAdd");
 static LPCTSTR const kLargePages = TEXT("LargePages");
 
-// they default to off (0) in 7-Zip ZS /TR
-static LPCTSTR const kArcHistory = TEXT("WantArcHistory");
-static LPCTSTR const kPathHistory = TEXT("WantPathHistory");
-static LPCTSTR const kCopyHistory = TEXT("WantCopyHistory");
-static LPCTSTR const kFolderHistory = TEXT("WantFolderHistory");
-static LPCTSTR const kLowercaseHashes = TEXT("LowercaseHashes");
-
 static LPCTSTR const kFlatViewName = TEXT("FlatViewArc");
 // static LPCTSTR const kShowDeletedFiles = TEXT("ShowDeleted");
 
-static LPCTSTR const kClrMode = TEXT("ColorMode");
+static LPCTSTR const kPanelMode = TEXT("PanelMode");
 
 static void SaveCuString(LPCTSTR keyPath, LPCWSTR valuePath, LPCWSTR value)
 {
@@ -89,33 +82,40 @@ static void SaveOption(LPCTSTR value, bool enabled)
   key.SetValue(value, enabled);
 }
 
+static void SaveOption(LPCTSTR value, UInt32 data)
+{
+  CKey key;
+  key.Create(HKEY_CURRENT_USER, kCU_FMPath);
+  key.SetValue(value, data);
+}
+
 static bool Read7ZipOption(LPCTSTR value, bool defaultValue)
 {
   CKey key;
   if (key.Open(HKEY_CURRENT_USER, kCUBasePath, KEY_READ) == ERROR_SUCCESS)
   {
     bool enabled;
-    if (key.GetValue_bool_IfOk(value, enabled) == ERROR_SUCCESS)
+    if (key.QueryValue(value, enabled) == ERROR_SUCCESS)
       return enabled;
   }
   return defaultValue;
 }
 
-static bool ReadFMOption(LPCTSTR value, bool enabled=false)
+static void ReadOption(CKey &key, LPCTSTR value, bool &dest)
 {
-  CKey key;
-  if (key.Open(HKEY_CURRENT_USER, kCU_FMPath, KEY_READ) == ERROR_SUCCESS)
-  {
-    if (key.QueryValue(value, enabled) == ERROR_SUCCESS)
-      return enabled;
-  }
-  return enabled;
+  bool enabled = false;
+  if (key.QueryValue(value, enabled) == ERROR_SUCCESS)
+    dest = enabled;
 }
 
-static void ReadOption(CKey &key, LPCTSTR name, bool &dest)
+[[maybe_unused]]
+static void ReadOption(CKey &key, LPCTSTR value, UInt32 &dest)
 {
-  key.GetValue_bool_IfOk(name, dest);
+  UInt32 data = false;
+  if (key.QueryValue(value, data) == ERROR_SUCCESS)
+    dest = data;
 }
+
 
 /*
 static void SaveLmOption(LPCTSTR value, bool enabled)
@@ -146,11 +146,6 @@ void CFmSettings::Save() const
   SaveOption(kShowGrid, ShowGrid);
   SaveOption(kSingleClick, SingleClick);
   SaveOption(kAlternativeSelection, AlternativeSelection);
-  SaveOption(kArcHistory, ArcHistory);
-  SaveOption(kPathHistory, PathHistory);
-  SaveOption(kCopyHistory, CopyHistory);
-  SaveOption(kFolderHistory, FolderHistory);
-  SaveOption(kLowercaseHashes, LowercaseHashes);
   // SaveOption(kUnderline, Underline);
 
   SaveOption(kShowSystemMenu, ShowSystemMenu);
@@ -164,16 +159,12 @@ void CFmSettings::Load()
      to select group of files. We need to implement additional
      way to select files in any column as in Explorer.
      Then we can enable (FullRow == true) default mode. */
-  // FullRow = true;
-  FullRow = false;
+  FullRow = true;
+  // We default to true to prevent flickering in find mode when we draw the custom background for find result.
+  // FullRow = false;
   ShowGrid = false;
   SingleClick = false;
   AlternativeSelection = false;
-  ArcHistory = true;
-  PathHistory = true;
-  CopyHistory = true;
-  FolderHistory = true;
-  LowercaseHashes = false;
   // Underline = false;
 
   ShowSystemMenu = false;
@@ -187,11 +178,6 @@ void CFmSettings::Load()
     ReadOption(key, kShowGrid, ShowGrid);
     ReadOption(key, kSingleClick, SingleClick);
     ReadOption(key, kAlternativeSelection, AlternativeSelection);
-    ReadOption(key, kArcHistory, ArcHistory);
-    ReadOption(key, kPathHistory, PathHistory);
-    ReadOption(key, kCopyHistory, CopyHistory);
-    ReadOption(key, kFolderHistory, FolderHistory);
-    ReadOption(key, kLowercaseHashes, LowercaseHashes);
     // ReadOption(key, kUnderline, Underline);
 
     ReadOption(key, kShowSystemMenu, ShowSystemMenu );
@@ -204,12 +190,6 @@ void CFmSettings::Load()
 
 void SaveLockMemoryEnable(bool enable) { Save7ZipOption(kLargePages, enable); }
 bool ReadLockMemoryEnable() { return Read7ZipOption(kLargePages, false); }
-
-bool WantArcHistory() { return ReadFMOption(kArcHistory, true); }
-bool WantPathHistory() { return ReadFMOption(kPathHistory, true); }
-bool WantCopyHistory() { return ReadFMOption(kCopyHistory, true); }
-bool WantFolderHistory() { return ReadFMOption(kFolderHistory, true); }
-bool WantLowercaseHashes() { return ReadFMOption(kLowercaseHashes); }
 
 static CSysString GetFlatViewName(UInt32 panelIndex)
 {
@@ -229,26 +209,17 @@ bool ReadFlatView(UInt32 panelIndex)
   return enabled;
 }
 
+void SavePanelMode(UInt32 mode) { SaveOption(kPanelMode, mode); }
+UInt32 ReadPanelMode()
+{
+  bool data = false;
+  CKey key;
+  if (key.Open(HKEY_CURRENT_USER, kCU_FMPath, KEY_READ) == ERROR_SUCCESS)
+    ReadOption(key, kPanelMode, data);
+  return data;
+}
+
 /*
 void Save_ShowDeleted(bool enable) { SaveOption(kShowDeletedFiles, enable); }
 bool Read_ShowDeleted() { return ReadOption(kShowDeletedFiles, false); }
 */
-
-void Save_ClrMode(UInt32 clrMode)
-{
-  CKey key;
-  key.Create(HKEY_CURRENT_USER, kCUBasePath);
-  if (clrMode > 2)
-    key.DeleteValue(kClrMode);
-  else
-    key.SetValue(kClrMode, clrMode);
-}
-
-UInt32 Read_ClrMode()
-{
-  CKey key;
-  UInt32 v = 1;
-  if (key.Open(HKEY_CURRENT_USER, kCUBasePath, KEY_READ) == ERROR_SUCCESS)
-    key.GetValue_UInt32_IfOk(kClrMode, v);
-  return v;
-}

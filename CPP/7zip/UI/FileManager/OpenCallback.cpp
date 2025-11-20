@@ -27,7 +27,7 @@ HRESULT COpenArchiveCallback::Open_SetTotal(const UInt64 *numFiles, const UInt64
     ProgressDialog.Sync.Set_NumFilesTotal(numFiles ? *numFiles : (UInt64)(Int64)-1);
     // if (numFiles)
     {
-      ProgressDialog.Sync.Set_FilesProgressMode(numFiles != NULL);
+      ProgressDialog.Sync.Set_BytesProgressMode(numFiles == NULL);
     }
     if (numBytes)
       ProgressDialog.Sync.Set_NumBytesTotal(*numBytes);
@@ -82,12 +82,5 @@ HRESULT COpenArchiveCallback::Open_CryptoGetTextPassword(BSTR *password)
   }
   return StringToBstr(Password, password);
   // COM_TRY_END
-}
-
-HRESULT COpenArchiveCallback::Open_GetPasswordIfAny(bool &passwordIsDefined, UString &password)
-{
-  passwordIsDefined = PasswordIsDefined;
-  password = Password;
-  return S_OK;
 }
 #endif

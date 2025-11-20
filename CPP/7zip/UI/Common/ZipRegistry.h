@@ -31,12 +31,9 @@ namespace NExtract
     
     CBoolPair SplitDest;
     CBoolPair ElimDup;
-    CBoolPair DeleteArchive;
     // CBoolPair AltStreams;
     CBoolPair NtSecurity;
     CBoolPair ShowPassword;
-
-    CBoolPair OpnTrgFold;
 
     UStringVector Paths;
 
@@ -46,9 +43,6 @@ namespace NExtract
   
   void Save_ShowPassword(bool showPassword);
   bool Read_ShowPassword();
-
-  void Save_LimitGB(UInt32 limit_GB);
-  UInt32 Read_LimitGB();
 }
 
 namespace NCompression
@@ -156,7 +150,6 @@ namespace NCompression
 
     void Save() const;
     void Load();
-    void LoadAndUpdateFormatByMethod(CFormatOptions &fo);
   };
 }
 

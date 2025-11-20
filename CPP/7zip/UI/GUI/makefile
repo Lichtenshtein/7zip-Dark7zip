@@ -7,8 +7,7 @@ CFLAGS = $(CFLAGS) \
 LIBS = $(LIBS) ceshell.lib Commctrl.lib
 !ELSE
 LIBS = $(LIBS) comctl32.lib htmlhelp.lib comdlg32.lib gdi32.lib
-CFLAGS = $(CFLAGS) -DZ7_DEVICE_FILE
-# -DZ7_LONG_PATH -DZ7_LARGE_PAGES
+CFLAGS = $(CFLAGS) -DZ7_LONG_PATH -DZ7_LARGE_PAGES -DZ7_DEVICE_FILE
 !ENDIF
 
 GUI_OBJS = \
@@ -31,7 +30,6 @@ COMMON_OBJS = \
   $O\ListFileUtils.obj \
   $O\MyString.obj \
   $O\MyVector.obj \
-  $O\MyWindows.obj \
   $O\NewHandler.obj \
   $O\StringConvert.obj \
   $O\StringToInt.obj \
@@ -90,7 +88,7 @@ UI_COMMON_OBJS = \
   $O\EnumDirItems.obj \
   $O\Extract.obj \
   $O\ExtractingFilePath.obj \
-  $O\HashCalc2.obj \
+  $O\HashCalc.obj \
   $O\LoadCodecs.obj \
   $O\OpenArchive.obj \
   $O\PropIDUtils.obj \
@@ -116,7 +114,6 @@ FM_OBJS = \
   $O\HelpUtils.obj \
   $O\LangUtils.obj \
   $O\ListViewDialog.obj \
-  $O\MemDialog.obj \
   $O\OpenCallback.obj \
   $O\ProgramLocation.obj \
   $O\PropertyName.obj \
@@ -142,9 +139,10 @@ C_OBJS = \
   $O\Alloc.obj \
   $O\CpuArch.obj \
   $O\DllSecur.obj \
+  $O\Sort.obj \
   $O\Threads.obj \
 
 !include "../../Crc.mak"
-!include "../../Sort.mak"
+
 
 !include "../../7zip.mak"

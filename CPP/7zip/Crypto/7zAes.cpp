@@ -7,7 +7,6 @@
 
 #include "../../Common/ComTry.h"
 #include "../../Common/MyBuffer2.h"
-#include "../../Common/MyString.h"
 
 #ifndef Z7_ST
 #include "../../Windows/Synchronization.h"
@@ -59,8 +58,7 @@ void CKeyInfo::CalcKey()
 
     // MY_ALIGN (16)
     // CSha256 sha;
-    const size_t shaAllocSize = sizeof(CSha256) + unrollSize + bufSize * 2;
-    CAlignedBuffer1 sha(shaAllocSize);
+    CAlignedBuffer sha(sizeof(CSha256) + unrollSize + bufSize * 2);
     Byte *buf = sha + sizeof(CSha256);
 
     memcpy(buf, Salt, SaltSize);
@@ -110,7 +108,7 @@ void CKeyInfo::CalcKey()
     */
 
     Sha256_Final((CSha256 *)(void *)(Byte *)sha, Key);
-    memset(sha, 0, shaAllocSize);
+    memset(sha, 0, sha.Size());
   }
 }
 
@@ -200,10 +198,6 @@ Z7_COM7F_IMF(CEncoder::ResetSalt())
 
 Z7_COM7F_IMF(CEncoder::ResetInitVector())
 {
-  // if set with key:
-  if (!_key.NumCyclesPower && _ivSize) {
-    return S_OK;
-  }
   for (unsigned i = 0; i < sizeof(_iv); i++)
     _iv[i] = 0;
   _ivSize = 16;
@@ -215,13 +209,6 @@ Z7_COM7F_IMF(CEncoder::WriteCoderProperties(ISequentialOutStream *outStream))
 {
   Byte props[2 + sizeof(_key.Salt) + sizeof(_iv)];
   unsigned propsSize = 1;
-
-  /* don't write iv/salt if provided key together with iv */
-  if (!_key.NumCyclesPower && _key.Password.Size() >= (32*2+16*2+1)*2)
-  {
-    props[0] = (Byte)_key.NumCyclesPower /* | 0|0 */;
-    return WriteStream(outStream, props, propsSize);
-  }
 
   props[0] = (Byte)(_key.NumCyclesPower
       | (_key.SaltSize == 0 ? 0 : (1 << 7))
@@ -268,16 +255,19 @@ Z7_COM7F_IMF(CDecoder::SetDecoderProperties2(const Byte *data, UInt32 size))
   if (size == 0)
     return S_OK;
   
-  const unsigned b0 = data[0];
+  Byte b0 = data[0];
+
   _key.NumCyclesPower = b0 & 0x3F;
   if ((b0 & 0xC0) == 0)
     return size == 1 ? S_OK : E_INVALIDARG;
+
   if (size <= 1)
     return E_INVALIDARG;
 
-  const unsigned b1 = data[1];
-  const unsigned saltSize = ((b0 >> 7) & 1) + (b1 >> 4);
-  const unsigned ivSize   = ((b0 >> 6) & 1) + (b1 & 0x0F);
+  Byte b1 = data[1];
+
+  unsigned saltSize = ((b0 >> 7) & 1) + (b1 >> 4);
+  unsigned ivSize   = ((b0 >> 6) & 1) + (b1 & 0x0F);
   
   if (size != 2 + saltSize + ivSize)
     return E_INVALIDARG;
@@ -295,24 +285,9 @@ Z7_COM7F_IMF(CDecoder::SetDecoderProperties2(const Byte *data, UInt32 size))
 Z7_COM7F_IMF(CBaseCoder::CryptoSetPassword(const Byte *data, UInt32 size))
 {
   COM_TRY_BEGIN
-
+  
   _key.Password.Wipe();
   _key.Password.CopyFrom(data, (size_t)size);
-
-  // if starts with artificial mark (PasswordIsKey) - data+1 points to HEX of key(s)
-  if (size >= (32*2+1)*2 && *(wchar_t*)data == PWD_IS_HEX_KEY_MARK) {
-    UString_Wipe pwdBuf((wchar_t*)data, size/2);
-    unsigned keyLen = pwdBuf.HexKeyToBytes(1);
-    if (keyLen != kKeySize && keyLen != kKeySize+sizeof(_iv)) {
-      return E_INVALIDARG;
-    }
-    _key.NumCyclesPower = 0; /* in-place key supplied from args */
-    memcpy(_key.Key, (Byte*)pwdBuf.GetBuf(), kKeySize);
-    if (keyLen >= kKeySize+sizeof(_iv)) {
-      memcpy(_iv, ((Byte*)pwdBuf.GetBuf())+kKeySize, sizeof(_iv));
-      _ivSize = sizeof(_iv);
-    }
-  }
   return S_OK;
   
   COM_TRY_END
@@ -322,10 +297,7 @@ Z7_COM7F_IMF(CBaseCoder::Init())
 {
   COM_TRY_BEGIN
   
-  if (_key.NumCyclesPower)
-    PrepareKey();
-  //printf("***** key:%.*s\n", (int)kKeySize, (char *)_key.Key);
-  //printf("***** iv :%.*s\n", (int)sizeof(_iv),(char *)_iv);
+  PrepareKey();
   CMyComPtr<ICryptoProperties> cp;
   RINOK(_aesFilter.QueryInterface(IID_ICryptoProperties, &cp))
   if (!cp)

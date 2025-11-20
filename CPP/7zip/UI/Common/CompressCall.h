@@ -5,6 +5,8 @@
 
 #include "../../../Common/MyString.h"
 
+UString GetQuotedString(const UString &s);
+
 HRESULT CompressFiles(
     const UString &arcPathPrefix,
     const UString &arcName,

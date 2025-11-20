@@ -2,9 +2,6 @@
 
 #include "StdAfx.h"
 
-#include <wchar.h>
-// #include <cstdio.h>
-
 #include "resource.h"
 
 #include "../../../Common/IntToString.h"
@@ -34,86 +31,57 @@ using namespace NWindows;
 #define SPACE_REPLACE_CHAR (wchar_t)(0x2423)
 #define SPACE_TERMINATOR_CHAR (wchar_t)(0x9C)
 
-// #define INT_TO_STR_SPEC(v) \
-//   while (v >= 10) { temp[i++] = (Byte)('0' + (unsigned)(v % 10)); v /= 10; } \
-//   *s++ = (Byte)('0' + (unsigned)v);
+#define INT_TO_STR_SPEC(v) \
+  while (v >= 10) { temp[i++] = (unsigned char)('0' + (unsigned)(v % 10)); v /= 10; } \
+  *s++ = (unsigned char)('0' + (unsigned)v);
 
-// static void ConvertSizeToString1(UInt64 val, wchar_t *s) throw()
-// {
-//   Byte temp[32];
-//   unsigned i = 0;
-  
-//   if (val <= (UInt32)0xFFFFFFFF)
-//   {
-//     UInt32 val32 = (UInt32)val;
-//     INT_TO_STR_SPEC(val32)
-//   }
-//   else
-//   {
-//     INT_TO_STR_SPEC(val)
-//   }
-
-//   if (i < 3)
-//   {
-//     if (i != 0)
-//     {
-//       *s++ = temp[(size_t)i - 1];
-//       if (i == 2)
-//         *s++ = temp[0];
-//     }
-//     *s = 0;
-//     return;
-//   }
-
-//   unsigned r = i % 3;
-//   if (r != 0)
-//   {
-//     s[0] = temp[--i];
-//     if (r == 2)
-//       s[1] = temp[--i];
-//     s += r;
-//   }
-
-//   do
-//   {
-//     s[0] = ' ';
-//     s[1] = temp[(size_t)i - 1];
-//     s[2] = temp[(size_t)i - 2];
-//     s[3] = temp[(size_t)i - 3];
-//     s += 4;
-//   }
-//   while (i -= 3);
-
-//   *s = 0;
-// }
-
-static void ConvertSizeToString(UInt64 size, wchar_t *output) throw()
+static void ConvertSizeToString(UInt64 val, wchar_t *s) throw()
 {
-  size_t outputSize;
-  // outputSize = sizeof(output) / sizeof(output[0]);
-  outputSize = sizeof(output);
-  // swprintf(output, outputSize, L"%llu B", size);
-  // swprintf(output, sizeof(output), L"55%dGB", 123);
+  unsigned char temp[32];
+  unsigned i = 0;
 
-  if (size < (1ULL << 10)) {
-    // swprintf(output, outputSize, L"%lluB%zu", size, outputSize);
-    swprintf(output, outputSize, L"%lluB", size);
-  } else if (size < (1ULL << 20)) {
-    // swprintf(output, outputSize, L"%llu KB", size >> 10);
-    swprintf(output, outputSize, L"%.1fK", static_cast<double>(size) / (1ULL << 10));
-  } else if (size < (1ULL << 30)) {
-    // swprintf(output, outputSize, L"%llu MB", size >> 20);
-    swprintf(output, outputSize, L"%.1fM", static_cast<double>(size) / (1ULL << 20));
-  } else if (size < (1ULL << 40)) {
-    // swprintf(output, outputSize, L"%llu GB", size >> 30);
-    swprintf(output, outputSize, L"%.1fG", static_cast<double>(size) / (1ULL << 30));
-  } else if (size < (1ULL << 50))  {
-    // swprintf(output, outputSize, L"%llu TB", size >> 40);
-    swprintf(output, outputSize, L"%.1fT", static_cast<double>(size) / (1ULL << 40));
-  } else {
-    // swprintf(output, outputSize, L"%llu PB", size >> 50);
-    swprintf(output, outputSize, L"%.1fP", static_cast<double>(size) / (1ULL << 50));
+  if (val <= (UInt32)0xFFFFFFFF)
+  {
+    UInt32 val32 = (UInt32)val;
+    INT_TO_STR_SPEC(val32)
   }
+  else
+  {
+    INT_TO_STR_SPEC(val)
+  }
+
+  if (i < 3)
+  {
+    if (i != 0)
+    {
+      *s++ = temp[(size_t)i - 1];
+      if (i == 2)
+        *s++ = temp[0];
+    }
+    *s = 0;
+    return;
+  }
+
+  unsigned r = i % 3;
+  if (r != 0)
+  {
+    s[0] = temp[--i];
+    if (r == 2)
+      s[1] = temp[--i];
+    s += r;
+  }
+
+  do
+  {
+    s[0] = ' ';
+    s[1] = temp[(size_t)i - 1];
+    s[2] = temp[(size_t)i - 2];
+    s[3] = temp[(size_t)i - 3];
+    s += 4;
+  }
+  while (i -= 3);
+
+  *s = 0;
 }
 
 UString ConvertSizeToString(UInt64 value);
@@ -123,6 +91,30 @@ UString ConvertSizeToString(UInt64 value)
   ConvertSizeToString(value, s);
   return s;
 }
+
+static inline unsigned GetHex_Upper(unsigned v)
+{
+  return (v < 10) ? ('0' + v) : ('A' + (v - 10));
+}
+
+static inline unsigned GetHex_Lower(unsigned v)
+{
+  return (v < 10) ? ('0' + v) : ('a' + (v - 10));
+}
+
+/*
+static void HexToString(char *dest, const Byte *data, UInt32 size)
+{
+  for (UInt32 i = 0; i < size; i++)
+  {
+    unsigned b = data[i];
+    dest[0] = GetHex((b >> 4) & 0xF);
+    dest[1] = GetHex(b & 0xF);
+    dest += 2;
+  }
+  *dest = 0;
+}
+*/
 
 bool IsSizeProp(UINT propID) throw();
 bool IsSizeProp(UINT propID) throw()
@@ -229,8 +221,6 @@ LRESULT CPanel::SetItemText(LVITEMW &item)
   if (item.cchTextMax <= 1)
     return 0;
 
-  // item.cchTextMax > 1
-  
   const CPropColumn &property = _visibleColumns[item.iSubItem];
   PROPID propID = property.ID;
 
@@ -300,11 +290,13 @@ LRESULT CPanel::SetItemText(LVITEMW &item)
     UInt32 dataSize;
     UInt32 propType;
     RINOK(_folderRawProps->GetRawProp(realIndex, propID, &data, &dataSize, &propType))
-    unsigned limit = (unsigned)item.cchTextMax - 1;
-    // limit != 0
+    const unsigned limit = (unsigned)item.cchTextMax - 1;
     if (dataSize == 0)
+    {
+      text[0] = 0;
       return 0;
-    
+    }
+
     if (propID == kpidNtReparse)
     {
       UString s;
@@ -314,7 +306,7 @@ LRESULT CPanel::SetItemText(LVITEMW &item)
         unsigned i;
         for (i = 0; i < limit; i++)
         {
-          const wchar_t c = s[i];
+          wchar_t c = s[i];
           if (c == 0)
             break;
           text[i] = c;
@@ -332,7 +324,7 @@ LRESULT CPanel::SetItemText(LVITEMW &item)
         unsigned i;
         for (i = 0; i < limit; i++)
         {
-          const wchar_t c = (Byte)s[i];
+          wchar_t c = (Byte)s[i];
           if (c == 0)
             break;
           text[i] = c;
@@ -354,29 +346,33 @@ LRESULT CPanel::SetItemText(LVITEMW &item)
           wchar_t c = (Byte)temp[i];
           if (c == 0)
             break;
-          *text++ = c;
+          text[i] = c;
         }
-        *text = 0;
+        text[i] = 0;
       }
       else
       {
-        const char * const k_Hex =
-          (dataSize <= 8
-            && (propID == kpidCRC || propID == kpidChecksum))
-            ? k_Hex_Upper : k_Hex_Lower;
-        limit /= 2;
-        if (limit > dataSize)
-            limit = dataSize;
-        const Byte *data2 = (const Byte *)data;
-        do
+        if (dataSize > limit)
+          dataSize = limit;
+        WCHAR *dest = text;
+        const bool needUpper = (dataSize <= 8)
+            && (propID == kpidCRC || propID == kpidChecksum);
+        for (UInt32 i = 0; i < dataSize; i++)
         {
-          const size_t b = *data2++;
-          text[0] = (Byte)k_Hex[b >> 4];
-          text[1] = (Byte)k_Hex[b & 15];
-          text += 2;
+          unsigned b = ((const Byte *)data)[i];
+          if (needUpper)
+          {
+            dest[0] = (WCHAR)GetHex_Upper((b >> 4) & 0xF);
+            dest[1] = (WCHAR)GetHex_Upper(b & 0xF);
+          }
+          else
+          {
+            dest[0] = (WCHAR)GetHex_Lower((b >> 4) & 0xF);
+            dest[1] = (WCHAR)GetHex_Lower(b & 0xF);
+          }
+          dest += 2;
         }
-        while (--limit);
-        *text = 0;
+        *dest = 0;
       }
     }
     return 0;
@@ -425,19 +421,19 @@ LRESULT CPanel::SetItemText(LVITEMW &item)
       const wchar_t *name = NULL;
       unsigned nameLen = 0;
       _folderGetItemName->GetItemName(realIndex, &name, &nameLen);
-      
+
       if (name)
       {
         unsigned dest = 0;
         const unsigned limit = (unsigned)item.cchTextMax - 1;
-        
+
         for (unsigned i = 0; dest < limit;)
         {
           const wchar_t c = name[i++];
           if (c == 0)
             break;
           text[dest++] = c;
-          
+
           if (c != ' ')
           {
             if (c != 0x202E) // RLO
@@ -445,10 +441,10 @@ LRESULT CPanel::SetItemText(LVITEMW &item)
             text[(size_t)dest - 1] = '_';
             continue;
           }
-          
+
           if (name[i] != ' ')
             continue;
-          
+
           unsigned t = 1;
           for (; name[i + t] == ' '; t++);
 
@@ -481,7 +477,7 @@ LRESULT CPanel::SetItemText(LVITEMW &item)
       }
     }
   }
-  
+
   if (propID == kpidPrefix)
   {
     if (_folderGetItemName)
@@ -505,9 +501,9 @@ LRESULT CPanel::SetItemText(LVITEMW &item)
       }
     }
   }
-  
+
   const HRESULT res = _folder->GetProperty(realIndex, propID, &prop);
-  
+
   if (res != S_OK)
   {
     MyStringCopy(text, L"Error: ");
@@ -549,9 +545,13 @@ LRESULT CPanel::SetItemText(LVITEMW &item)
     }
     text[i] = 0;
   }
-  
+
   return 0;
 }
+
+#ifndef UNDER_CE
+extern DWORD g_ComCtl32Version;
+#endif
 
 void CPanel::OnItemChanged(NMLISTVIEW *item)
 {
@@ -563,6 +563,7 @@ void CPanel::OnItemChanged(NMLISTVIEW *item)
   // Don't change this code. It works only with such check
   if (oldSelected != newSelected)
     _selectedStatusVector[index] = newSelected;
+  _panelCallback->OnSelectedItemChanged();
 }
 
 extern bool g_LVN_ITEMACTIVATE_Support;
@@ -574,8 +575,6 @@ void CPanel::OnNotifyActivateItems()
   bool shift = IsKeyDown(VK_SHIFT);
   if (!shift && alt && !ctrl)
     Properties();
-  else if (ctrl)
-    g_App.OnSetSubFolder(g_App.LastFocusedPanel);
   else
     OpenSelectedItems(!shift || alt || ctrl);
 }
@@ -590,7 +589,7 @@ bool CPanel::OnNotifyList(LPNMHDR header, LRESULT &result)
       {
         if (!_mySelectMode)
           OnItemChanged((LPNMLISTVIEW)header);
-        
+
         // Post_Refresh_StatusBar();
         /* 9.26: we don't call Post_Refresh_StatusBar.
            it was very slow if we select big number of files
@@ -673,7 +672,7 @@ bool CPanel::OnNotifyList(LPNMHDR header, LRESULT &result)
       case NM_CLICK:
       SendRefreshStatusBarMessage();
       return 0;
-      
+
         // TODO : Handler default action...
         return 0;
         case LVN_ITEMCHANGED:
@@ -693,9 +692,9 @@ bool CPanel::OnNotifyList(LPNMHDR header, LRESULT &result)
       SetFocusToList();
       Post_Refresh_StatusBar();
       if (_mySelectMode)
-#ifdef Z7_USE_DYN_ComCtl32Version
+        #ifndef UNDER_CE
         if (g_ComCtl32Version >= MAKELONG(71, 4))
-#endif
+        #endif
           OnLeftClick((MY_NMLISTVIEW_NMITEMACTIVATE *)header);
       return false;
     }
@@ -708,7 +707,7 @@ bool CPanel::OnNotifyList(LPNMHDR header, LRESULT &result)
 
     case NM_CUSTOMDRAW:
     {
-      if (_mySelectMode || (_markDeletedItems && _thereAreDeletedItems))
+      if (_mySelectMode || (_markDeletedItems && _thereAreDeletedItems) || _findMode)
         return OnCustomDraw((LPNMLVCUSTOMDRAW)header, result);
       break;
     }
@@ -724,6 +723,11 @@ bool CPanel::OnNotifyList(LPNMHDR header, LRESULT &result)
       Post_Refresh_StatusBar();
       break;
     }
+    // How does this help??
+    case NM_KILLFOCUS:
+    {
+      return true;
+    }
     // case LVN_BEGINRDRAG:
   }
   return false;
@@ -731,57 +735,69 @@ bool CPanel::OnNotifyList(LPNMHDR header, LRESULT &result)
 
 bool CPanel::OnCustomDraw(LPNMLVCUSTOMDRAW lplvcd, LRESULT &result)
 {
+  // https://learn.microsoft.com/en-us/windows/win32/controls/about-custom-draw#responding-to-the-prepaint-notification
   switch (lplvcd->nmcd.dwDrawStage)
   {
   case CDDS_PREPAINT :
     result = CDRF_NOTIFYITEMDRAW;
     return true;
-    
   case CDDS_ITEMPREPAINT:
-    /*
-    SelectObject(lplvcd->nmcd.hdc,
-    GetFontForItem(lplvcd->nmcd.dwItemSpec,
-    lplvcd->nmcd.lItemlParam) );
-    lplvcd->clrText = GetColorForItem(lplvcd->nmcd.dwItemSpec,
-    lplvcd->nmcd.lItemlParam);
-    lplvcd->clrTextBk = GetBkColorForItem(lplvcd->nmcd.dwItemSpec,
-    lplvcd->nmcd.lItemlParam);
-    */
-    const unsigned realIndex = (unsigned)lplvcd->nmcd.lItemlParam;
-    lplvcd->clrTextBk = _listView.GetBkColor();
-    if (_mySelectMode)
     {
-      if (realIndex != kParentIndex && _selectedStatusVector[realIndex])
-       lplvcd->clrTextBk = RGB(255, 192, 192);
-    }
+      /*
+      SelectObject(lplvcd->nmcd.hdc,
+      GetFontForItem(lplvcd->nmcd.dwItemSpec,
+      lplvcd->nmcd.lItemlParam) );
+      lplvcd->clrText = GetColorForItem(lplvcd->nmcd.dwItemSpec,
+      lplvcd->nmcd.lItemlParam);
+      lplvcd->clrTextBk = GetBkColorForItem(lplvcd->nmcd.dwItemSpec,
+      lplvcd->nmcd.lItemlParam);
+      */
+      const unsigned realIndex = (unsigned)lplvcd->nmcd.lItemlParam;
+      // lplvcd->clrTextBk = _listView.GetBkColor();
+      if (_mySelectMode)
+      {
+        if (realIndex != kParentIndex && _selectedStatusVector[realIndex])
+          lplvcd->clrTextBk = RGB(255, 192, 192);
+      }
 
-    if (_markDeletedItems && _thereAreDeletedItems)
-    {
-      if (IsItem_Deleted(realIndex))
-        lplvcd->clrText = RGB(255, 0, 0);
-    }
-    // lplvcd->clrText = RGB(0, 0, 0);
-    // result = CDRF_NEWFONT;
-    result = CDRF_NOTIFYITEMDRAW;
-    return true;
-    
-    // return false;
-    // return true;
-    /*
-    case CDDS_SUBITEM | CDDS_ITEMPREPAINT:
-    if (lplvcd->iSubItem == 0)
-    {
-    // lplvcd->clrText = RGB(255, 0, 0);
-    lplvcd->clrTextBk = RGB(192, 192, 192);
-    }
-    else
-    {
-    lplvcd->clrText = RGB(0, 0, 0);
-    lplvcd->clrTextBk = RGB(255, 255, 255);
-    }
-    return true;
-    */
+      // I don't think _markDeletedItems is being used yet?
+      _markDeletedItems = false;
+      if (_markDeletedItems && _thereAreDeletedItems)
+      {
+        if (IsItem_Deleted(realIndex))
+          lplvcd->clrText = RGB(255, 0, 0);
+      }
 
+      if (_findMode && realIndex != kParentIndex && _selectedStatusVector[realIndex])
+      {
+        // lplvcd->iStateId = CDIS_CHECKED | CDIS_SELECTED;
+        // lplvcd->iIconEffect = ILD_MASK;
+        // lplvcd->clrFace = RGB(0, 0x78, 0xD7);
+        lplvcd->clrText = RGB(0xFF, 0xFF, 0xFF);
+        lplvcd->clrTextBk = RGB(0, 0x78, 0xD7);
+      }
+      // lplvcd->clrText = RGB(0, 0, 0);
+      result = CDRF_NEWFONT;
+      // result = CDRF_NOTIFYITEMDRAW;
+      return true;
+
+      // return false;
+      // return true;
+      /*
+      case CDDS_SUBITEM | CDDS_ITEMPREPAINT:
+      if (lplvcd->iSubItem == 0)
+      {
+      // lplvcd->clrText = RGB(255, 0, 0);
+      lplvcd->clrTextBk = RGB(192, 192, 192);
+      }
+      else
+      {
+      lplvcd->clrText = RGB(0, 0, 0);
+      lplvcd->clrTextBk = RGB(255, 255, 255);
+      }
+      return true;
+      */
+    }
         /* At this point, you can change the background colors for the item
         and any subitems and return CDRF_NEWFONT. If the list-view control
         is in report mode, you can simply return CDRF_NOTIFYSUBITEMREDRAW
@@ -818,8 +834,8 @@ void CPanel::Refresh_StatusBar()
   {
     wchar_t selectSizeString[32];
     selectSizeString[0] = 0;
-    
-    if (!indices.IsEmpty())
+
+    if (indices.Size() > 0)
     {
       // for (unsigned ttt = 0; ttt < 1000; ttt++) {
       UInt64 totalSize = 0;
@@ -845,7 +861,7 @@ void CPanel::Refresh_StatusBar()
       NCOM::CPropVariant prop;
       if (_folder->GetProperty(realIndex, kpidMTime, &prop) == S_OK)
       {
-        char dateString2[64];
+        char dateString2[32];
         dateString2[0] = 0;
         ConvertPropertyToShortString2(dateString2, prop, kpidMTime);
         for (unsigned i = 0;; i++)
@@ -860,7 +876,7 @@ void CPanel::Refresh_StatusBar()
   }
   _statusBar.SetText(2, sizeString);
   _statusBar.SetText(3, dateString);
-  
+
   // _statusBar.SetText(4, nameString);
   // _statusBar2.SetText(1, MyFormatNew(L"{0} bytes", NumberToStringW(totalSize)));
   // }

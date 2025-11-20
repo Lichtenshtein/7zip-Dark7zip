@@ -3,14 +3,14 @@
 #ifndef ZIP7_INC_IDECL_H
 #define ZIP7_INC_IDECL_H
 
-#include "../Common/Common0.h"
+#include "../Common/Common.h"
 #include "../Common/MyUnknown.h"
 
 #define k_7zip_GUID_Data1 0x23170F69
 #define k_7zip_GUID_Data2 0x40C1
-#define k_7zip_GUID_Data2_ZS 0x20BB
 
 #define k_7zip_GUID_Data3_Common  0x278A
+
 #define k_7zip_GUID_Data3_Decoder 0x2790
 #define k_7zip_GUID_Data3_Encoder 0x2791
 #define k_7zip_GUID_Data3_Hasher  0x2792

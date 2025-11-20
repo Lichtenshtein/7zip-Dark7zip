@@ -271,7 +271,8 @@ Z7_COM7F_IMF(CHandler::Extract(const UInt32 *indices, UInt32 numItems,
 
   RINOK(extractCallback->SetTotal(importantTotalUnpacked))
 
-  CMyComPtr2_Create<ICompressProgressInfo, CLocalProgress> lps;
+  CLocalProgress *lps = new CLocalProgress;
+  CMyComPtr<ICompressProgressInfo> progress = lps;
   lps->Init(extractCallback, false);
 
   CDecoder decoder(
@@ -384,7 +385,7 @@ Z7_COM7F_IMF(CHandler::Extract(const UInt32 *indices, UInt32 numItems,
           &curUnpacked,
 
           outStream,
-          lps,
+          progress,
           NULL // *inStreamMainRes
           , dataAfterEnd_Error
           
@@ -393,9 +394,6 @@ Z7_COM7F_IMF(CHandler::Extract(const UInt32 *indices, UInt32 numItems,
             , true, _numThreads, _memUsage_Decompress
           #endif
           );
-
-      if (result == k_My_HRESULT_WritingDone)
-        return S_OK;
 
       if (result == S_FALSE || result == E_NOTIMPL || dataAfterEnd_Error)
       {

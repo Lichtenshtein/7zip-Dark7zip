@@ -90,17 +90,7 @@ is implemented by
 // IExtractCallbackUI - is non-COM interface
 // IFolderArchiveExtractCallback - is COM interface
 // Z7_IFACE_DECL_PURE_(IExtractCallbackUI, IFolderArchiveExtractCallback)
-DECLARE_INTERFACE(IExtractCallbackUI)
-{
-  Z7_IFACE_PURE(IExtractCallbackUI)
-
-  UInt64 ExtrOffset;
-  UInt64 ExtrLength;
-
-  IExtractCallbackUI() :
-      ExtrOffset(0),
-      ExtrLength(UINT64_MAX) {};
-};
+Z7_IFACE_DECL_PURE(IExtractCallbackUI)
 
 
 

@@ -44,7 +44,7 @@ class CExtractScanConsole Z7_final: public IDirItemsCallback
 
   // CErrorPathCodes2 ScanErrors;
 
-  bool NeedPercents() const { return _percent._so && !_percent.DisablePrint; }
+  bool NeedPercents() const { return _percent._so != NULL; }
   
   void ClosePercentsAndFlush()
   {
@@ -56,16 +56,11 @@ class CExtractScanConsole Z7_final: public IDirItemsCallback
 
 public:
 
-  void Init(
-      CStdOutStream *outStream,
-      CStdOutStream *errorStream,
-      CStdOutStream *percentStream,
-      bool disablePercents)
+  void Init(CStdOutStream *outStream, CStdOutStream *errorStream, CStdOutStream *percentStream)
   {
     _so = outStream;
     _se = errorStream;
     _percent._so = percentStream;
-    _percent.DisablePrint = disablePercents;
   }
   
   void SetWindowWidth(unsigned width) { _percent.MaxLen = width - 1; }
@@ -92,10 +87,6 @@ class CExtractCallbackConsole Z7_final:
  #ifndef Z7_NO_CRYPTO
   public ICryptoGetTextPassword,
  #endif
- #ifndef Z7_SFX
-  public IArchiveRequestMemoryUseCallback,
- #endif
-
   public COpenCallbackConsole,
   public CMyUnknownImp
 {
@@ -105,10 +96,6 @@ class CExtractCallbackConsole Z7_final:
  #ifndef Z7_NO_CRYPTO
   Z7_COM_QI_ENTRY(ICryptoGetTextPassword)
  #endif
- #ifndef Z7_SFX
-  Z7_COM_QI_ENTRY(IArchiveRequestMemoryUseCallback)
- #endif
-
   Z7_COM_QI_END
   Z7_COM_ADDREF_RELEASE
 
@@ -120,28 +107,12 @@ class CExtractCallbackConsole Z7_final:
  #ifndef Z7_NO_CRYPTO
   Z7_IFACE_COM7_IMP(ICryptoGetTextPassword)
  #endif
- #ifndef Z7_SFX
-  Z7_IFACE_COM7_IMP(IArchiveRequestMemoryUseCallback)
- #endif
+  
 
-  bool _needWriteArchivePath;
-
-public:
-  bool ThereIsError_in_Current;
-  bool ThereIsWarning_in_Current;
-  bool NeedFlush;
-
-private:
   AString _tempA;
   UString _tempU;
 
-  UString _currentArchivePath;
   UString _currentName;
-
-#ifndef Z7_SFX
-  void PrintTo_se_Path_WithTitle(const UString &path, const char *title);
-  void Add_ArchiveName_Error();
-#endif
 
   void ClosePercents_for_so()
   {
@@ -159,6 +130,9 @@ private:
 public:
   UInt64 NumTryArcs;
   
+  bool ThereIsError_in_Current;
+  bool ThereIsWarning_in_Current;
+
   UInt64 NumOkArcs;
   UInt64 NumCantOpenArcs;
   UInt64 NumArcsWithError;
@@ -170,11 +144,11 @@ public:
   UInt64 NumFileErrors;
   UInt64 NumFileErrors_in_Current;
 
+  bool NeedFlush;
   unsigned PercentsNameLevel;
   unsigned LogLevel;
 
   CExtractCallbackConsole():
-      _needWriteArchivePath(true),
       NeedFlush(false),
       PercentsNameLevel(1),
       LogLevel(0)
@@ -182,13 +156,9 @@ public:
 
   void SetWindowWidth(unsigned width) { _percent.MaxLen = width - 1; }
 
-  void Init(
-      CStdOutStream *outStream,
-      CStdOutStream *errorStream,
-      CStdOutStream *percentStream,
-      bool disablePercents)
+  void Init(CStdOutStream *outStream, CStdOutStream *errorStream, CStdOutStream *percentStream)
   {
-    COpenCallbackConsole::Init(outStream, errorStream, percentStream, disablePercents);
+    COpenCallbackConsole::Init(outStream, errorStream, percentStream);
 
     NumTryArcs = 0;
     

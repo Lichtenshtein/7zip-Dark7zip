@@ -16,7 +16,7 @@
 
 #else // Z7_OLD_WIN_SDK
 
-typedef struct {
+typedef struct _PROCESS_MEMORY_COUNTERS {
     DWORD cb;
     DWORD PageFaultCount;
     SIZE_T PeakWorkingSetSize;
@@ -114,7 +114,7 @@ DECLARE_AND_SET_CLIENT_VERSION_VAR
 #elif defined(Z7_PROG_VARIANT_R)
   #define PROG_POSTFIX      "r"
   #define PROG_POSTFIX_2  " (r)"
-#elif defined(Z7_PROG_VARIANT_A) || !defined(Z7_EXTERNAL_CODECS)
+#elif !defined(Z7_EXTERNAL_CODECS)
   #define PROG_POSTFIX      "a"
   #define PROG_POSTFIX_2  " (a)"
 #else
@@ -123,10 +123,9 @@ DECLARE_AND_SET_CLIENT_VERSION_VAR
 #endif
 
 
-#define kVersionString "7-Zip" PROG_POSTFIX_2 " " MY_VERSION_CPU
-
-static const char * const kCopyrightString = "\n"
-  kVersionString
+static const char * const kCopyrightString = "\n7-Zip"
+  PROG_POSTFIX_2
+  " " MY_VERSION_CPU
   " : " MY_COPYRIGHT_DATE "\n";
 
 static const char * const kHelpString =
@@ -146,21 +145,18 @@ static const char * const kHelpString =
     "  t : Test integrity of archive\n"
     "  u : Update files to archive\n"
     "  x : eXtract files with full paths\n"
-    "  --srv-mode : Start in interactive server mode\n"
-    "  --version : Show version information\n"
     "\n"
     "<Switches>\n"
     "  -- : Stop switches and @listfile parsing\n"
-    "  -ai[r[-|0]][m[-|2]][w[-]]{@listfile|!wildcard} : Include archives\n"
-    "  -ax[r[-|0]][m[-|2]][w[-]]{@listfile|!wildcard} : eXclude archives\n"
+    "  -ai[r[-|0]]{@listfile|!wildcard} : Include archives\n"
+    "  -ax[r[-|0]]{@listfile|!wildcard} : eXclude archives\n"
     "  -ao{a|s|t|u} : set Overwrite mode\n"
     "  -an : disable archive_name field\n"
-    "  -ba : disable log output totally\n"
     "  -bb[0-3] : set output log level\n"
     "  -bd : disable progress indicator\n"
     "  -bs{o|e|p}{0|1|2} : set output stream for output/error/progress line\n"
     "  -bt : show execution time statistics\n"
-    "  -i[r[-|0]][m[-|2]][w[-]]{@listfile|!wildcard} : Include filenames\n"
+    "  -i[r[-|0]]{@listfile|!wildcard} : Include filenames\n"
     "  -m{Parameters} : set compression Method\n"
     "    -mmt[N] : set number of CPU threads\n"
     "    -mx[N] : set compression level: -mx1 (fastest) ... -mx9 (ultra)\n"
@@ -172,14 +168,7 @@ static const char * const kHelpString =
     "  -sa{a|e|s} : set Archive name mode\n"
     "  -scc{UTF-8|WIN|DOS} : set charset for console input/output\n"
     "  -scs{UTF-8|UTF-16LE|UTF-16BE|WIN|DOS|{id}} : set charset for list files\n"
-    "  -scrc[CRC32|CRC64|SHA256"
-#ifndef Z7_PROG_VARIANT_R
-    "|SHA1|XXH64"
-#ifdef Z7_PROG_VARIANT_Z
-    "|BLAKE2SP"
-#endif
-#endif
-    "|*] : set hash function for x, e, h commands\n"
+    "  -scrc[CRC32|CRC64|SHA1|SHA256|*] : set hash function for x, e, h commands\n"
     "  -sdel : delete files after compression\n"
     "  -seml[.] : send archive by email\n"
     "  -sfx[{name}] : Create SFX archive\n"
@@ -205,7 +194,7 @@ static const char * const kHelpString =
     "  -u[-][p#][q#][r#][x#][y#][z#][!newArchiveName] : Update options\n"
     "  -v{Size}[b|k|m|g] : Create volumes\n"
     "  -w[{path}] : assign Work directory. Empty path means a temporary directory\n"
-    "  -x[r[-|0]][m[-|2]][w[-]]{@listfile|!wildcard} : eXclude filenames\n"
+    "  -x[r[-|0]]{@listfile|!wildcard} : eXclude filenames\n"
     "  -y : assume Yes on all queries\n";
 
 // ---------------------------
@@ -217,9 +206,7 @@ static const char * const kNoFormats = "7-Zip cannot find the code that works wi
 static const char * const kUnsupportedArcTypeMessage = "Unsupported archive type";
 // static const char * const kUnsupportedUpdateArcType = "Can't create archive for that type";
 
-#ifndef Z7_EXTRACT_ONLY
 #define kDefaultSfxModule "7zCon.sfx"
-#endif
 
 Z7_ATTR_NORETURN
 static void ShowMessageAndThrowException(LPCSTR message, NExitCode::EEnum code)
@@ -257,49 +244,9 @@ static void ShowProgInfo(CStdOutStream *so)
 
   #ifdef __ARM_ARCH
   << " arm_v:" << __ARM_ARCH
-  #if (__ARM_ARCH == 8)
-    // for macos:
-    #if   defined(__ARM_ARCH_8_9__)
-      << ".9"
-    #elif defined(__ARM_ARCH_8_8__)
-      << ".8"
-    #elif defined(__ARM_ARCH_8_7__)
-      << ".7"
-    #elif defined(__ARM_ARCH_8_6__)
-      << ".6"
-    #elif defined(__ARM_ARCH_8_5__)
-      << ".5"
-    #elif defined(__ARM_ARCH_8_4__)
-      << ".4"
-    #elif defined(__ARM_ARCH_8_3__)
-      << ".3"
-    #elif defined(__ARM_ARCH_8_2__)
-      << ".2"
-    #elif defined(__ARM_ARCH_8_1__)
-      << ".1"
-    #endif
-  #endif
-    
-    #if defined(__ARM_ARCH_PROFILE) && \
-        (   __ARM_ARCH_PROFILE >= 'A' && __ARM_ARCH_PROFILE <= 'Z' \
-         || __ARM_ARCH_PROFILE >= 65  && __ARM_ARCH_PROFILE <= 65 + 25)
-      << "-" << (char)__ARM_ARCH_PROFILE
-    #endif
-
   #ifdef __ARM_ARCH_ISA_THUMB
   << " thumb:" << __ARM_ARCH_ISA_THUMB
   #endif
-  #endif
-
-  #ifdef _MIPS_ARCH
-  << " mips_arch:" << _MIPS_ARCH
-  #endif
-  #ifdef __mips_isa_rev
-  << " mips_isa_rev:" << __mips_isa_rev
-  #endif
-
-  #ifdef __iset__
-  << " e2k_v:" << __iset__
   #endif
   ;
 
@@ -377,12 +324,6 @@ static void ShowProgInfo(CStdOutStream *so)
 }
 #endif
 
-static void ThrowException_if_Error(HRESULT res)
-{
-  if (res != S_OK)
-    throw CSystemException(res);
-}
-
 static void ShowCopyrightAndHelp(CStdOutStream *so, bool needHelp)
 {
   if (!so)
@@ -393,406 +334,6 @@ static void ShowCopyrightAndHelp(CStdOutStream *so, bool needHelp)
   *so << endl;
   if (needHelp)
     *so << kHelpString;
-}
-
-static int MainV(
-  UStringVector &commandStrings,
-  CCodecs *codecs
-  #ifdef Z7_EXTERNAL_CODECS
-  , CExternalCodecs &_externalCodecs
-  #endif
-);
-static const char * const kNoErr = "";
-static const char * const kException_CmdLine_Error_Message = "Command Line Error: ";
-static const char * const kExceptionErrorMessage = "ERROR: ";
-static const char * const kUserBreakMessage  = "Break signaled";
-static const char * const kMemoryExceptionMessage = "Can't allocate required memory!";
-static const char * const kUnknownExceptionMessage = "Unknown Error";
-static const char * const kInternalExceptionMessage = "Internal Error # ";
-static int StartInServerMode(UStringVector &commandStrings)
-{
-  ShowCopyrightAndHelp(g_StdStream, false);
-  g_StdOut << "## SRV-MODE | 7z"
-    PROG_POSTFIX " interactive server mode | "
-    "type exit to stop interactive server mode" << endl;
-
-  HANDLE h_StdIn = GetStdHandle(STD_INPUT_HANDLE);
-  DWORD conMode = 0;
-  if (!GetConsoleMode(h_StdIn, &conMode)) conMode = 0;
-
-  if (commandStrings.Size() == 2) {
-    UString p = commandStrings[1];
-    if (p.IsPrefixedBy(L"-scc")) {
-      p = p.Mid(4, p.Len()-4);
-      Int32 cp = FindCharset(p, true);
-      g_StdOut.SetCodePage(cp);
-      g_StdErr.SetCodePage(cp);
-      g_StdIn.SetCodePage(cp);
-    } else {
-      ShowMessageAndThrowException(kUserErrorMessage, NExitCode::kUserError);
-    }
-  }
-
-  CREATE_CODECS_OBJECT
-
-  ThrowException_if_Error(codecs->Load());
-  Codecs_AddHashArcHandler(codecs);
-
-  #ifdef Z7_EXTERNAL_CODECS
-  {
-    g_ExternalCodecs_Ptr = &_externalCodecs;
-    UString s;
-    codecs->GetCodecsErrorMessage(s);
-    if (!s.IsEmpty())
-    {
-      CStdOutStream &so = (g_StdStream ? *g_StdStream : g_StdOut);
-      so << endl << s << endl;
-    }
-  }
-  #endif
-
-  UString scannedString;
-  CStdInStream orgStdIn = g_StdIn, *redirInStream;
-  CStdOutStream orgStdOut = g_StdOut, orgStdErr = g_StdErr, 
-      *redirOutStream, *redirErrStream;
-  FILE *redirInF, *redirOutF, *redirErrF;
-  int errCode;
-  UString errMsg;
-  UString DisableHeaders("-ba");
-  do {
-    try {
-
-      redirInF = 0; redirOutF = 0; redirErrF = 0;
-      redirInStream = NULL; redirOutStream = NULL; redirErrStream = NULL;
-      errCode = 0; errMsg = kNoErr;
-      g_StdOut << endl << "# ";
-      g_StdStream->Flush();
-      if (!g_StdIn.ScanUStringUntilNewLine(scannedString))
-        break;
-      if (!scannedString.Len() && g_StdIn.Eof())
-        break;
-      if (scannedString.IsEqualTo("exit"))
-        break;
-      if (!(conMode & ENABLE_ECHO_INPUT)) {
-        g_StdOut << scannedString << endl;
-        g_StdStream->Flush();
-      }
-
-      /*
-      // command to change default codepage of std-channels (utf-8, unicode)?
-      if (scannedString.IsPrefixedBy(L"chcp")) {
-        NCommandLineParser::SplitCommandLine(scannedString, commandStrings, false);
-        if (commandStrings.Size() == 2 && commandStrings[0].IsEqualTo("chcp")) {
-          Int32 cp = FindCharset(commandStrings[1], true);
-          g_StdOut.SetCodePage(cp); orgStdOut = g_StdOut;
-          g_StdErr.SetCodePage(cp); orgStdErr = g_StdErr;
-          g_StdIn.SetCodePage(cp); orgStdIn = g_StdIn;
-          continue;
-        }
-      }
-      */
-
-      commandStrings.Clear();
-      commandStrings.Add(DisableHeaders);
-      NCommandLineParser::SplitCommandLine(scannedString, commandStrings, false);
-
-      // try to find redirect tokens in command:
-      if (commandStrings.Size() > 2) {
-        UString redirIn, redirOut, redirErr;
-        int appendMode = 0; 
-        int fullStdRedir = 1;
-        for (unsigned i = commandStrings.Size()-1; i > 0; i--) {
-          UString & p = commandStrings[i];
-          // redirect as single parameter (prefix in parameter, like ">file"):
-          if (p.IsPrefixedBy(L"<")) {
-            redirIn = p.Mid(1, p.Len()-1);
-            commandStrings.Delete(i);
-          } else if (p.IsPrefixedBy(L">")) {
-            if (!p.IsPrefixedBy(L">>")) {
-              redirOut = p.Mid(1, p.Len()-1);
-            } else {
-              redirOut = p.Mid(2, p.Len()-2);
-              appendMode |= 1;
-            }
-            commandStrings.Delete(i);
-            fullStdRedir = 0; // redirect CStdOutFileStream only (e. g. -so)
-          } else if (p.IsPrefixedBy(L"1>")) {
-            if (!p.IsPrefixedBy(L"1>>")) {
-              redirOut = p.Mid(2, p.Len()-2);
-            } else {
-              redirOut = p.Mid(3, p.Len()-3);
-              appendMode |= 1;
-            }
-            commandStrings.Delete(i);
-          } else if (p.IsPrefixedBy(L"2>")) {
-            if (!p.IsPrefixedBy(L"2>>")) {
-              redirErr = p.Mid(2, p.Len()-2);
-            } else {
-              redirErr = p.Mid(3, p.Len()-3);
-              appendMode |= 2;
-            }
-            commandStrings.Delete(i);
-          } else if (i > 0) {
-            // redirect with 2 parameters (like > file):
-            UString & p2 = commandStrings[--i];
-            if (p2.Len() < 1 || p2.Len() > 2) {
-              break;
-            }
-            if (p2.IsEqualTo("<")) {
-              redirIn = p;
-              commandStrings.DeleteFrom(i);
-            } else if (p2.IsEqualTo(">") || (p2.IsEqualTo(">>") && (appendMode |= 1))) {
-              redirOut = p;
-              commandStrings.DeleteFrom(i);
-              fullStdRedir = 0; // redirect CStdOutFileStream only (e. g. -so)
-            } else if (p2.IsEqualTo("1>") || (p2.IsEqualTo("1>>") && (appendMode |= 1))) {
-              redirOut = p;
-              commandStrings.DeleteFrom(i);
-            } else if (p2.IsEqualTo("2>") || (p2.IsEqualTo("2>>") && (appendMode |= 2))) {
-              redirErr = p;
-              commandStrings.DeleteFrom(i);
-            } else {
-              break;
-            }
-          } else {
-            break;
-          }
-        }
-        // g_StdOut << "  cmd (" << commandStrings.Size() << "): " << commandStrings.Front() << " ... " << commandStrings.Back() << endl;
-        if (!redirIn.IsEmpty()) {
-          UInt64 offs = 0;
-          // g_StdOut << "  stdin < " << redirIn << endl;
-          if (redirIn.IsPrefixedBy(L"&")) { // <&n
-            const wchar_t *p = redirIn;
-            DWORD nHandle = ConvertStringToUInt32(p+1, &p);
-            if (*p != L'\0') {
-              throw (UString("Integer expected by <&n"));
-            }
-            redirInF = _wfdopen(nHandle, L"rt");
-          } else {
-            int o = redirIn.Find(L"?offs=");
-            if (o != -1) {
-              const wchar_t *p = redirIn;
-              p += o + 6; // move after ?offs=
-              offs = ConvertStringToUInt64(p, &p);
-              if (*p != L'\0') {
-                throw (UString("Integer expected by ?offs="));
-              }
-              redirIn.DeleteFrom(o);
-            }
-            if (_wfopen_s(&redirInF, redirIn, L"rt") != 0) {
-              redirInF = NULL;
-            };
-          }
-          if (!redirInF) {
-            errCode = errno;
-            throw (UString("Can't redirect stdin to ") + redirIn);
-          }
-          if (offs) {
-            int ret;
-          #ifdef _WIN32
-            ret = _fseeki64(redirInF, offs, SEEK_CUR);
-          #else
-            ret = fseeko(redirInF, offs, SEEK_CUR);
-          #endif
-            if (ret == -1) {
-              errCode = errno;
-              throw (UString("Can't seek to offs for ") + redirIn);
-            }
-          }
-          CStdInFileStream::defIn = redirInF;
-          redirInStream = new CStdInStream(redirInF);
-          g_StdIn = *redirInStream;
-        }
-        if (!redirErr.IsEmpty()) {
-          // g_StdOut << "  stderr > " << redirErr << endl;
-          if (redirErr.IsPrefixedBy(L"&")) { // 2>&n
-            const wchar_t *p = redirErr;
-            DWORD nHandle = ConvertStringToUInt32(p+1, &p);
-            if (*p != L'\0') {
-              throw (UString("Integer expected by 2>&n"));
-            }
-            redirErrF = _wfdopen(nHandle, (!(appendMode & 2) ? L"wt" : L"at"));
-          } else {
-            if (_wfopen_s(&redirErrF, redirErr, (!(appendMode & 2) ? L"wt" : L"at")) != 0) {
-              redirErrF = NULL;
-            };
-          }
-          if (!redirErrF) {
-            errCode = errno;
-            throw (UString("Can't redirect stderr to ") + redirErr);
-          }
-          g_ErrStream = redirErrStream = new CStdOutStream(redirErrF);
-          g_StdErr = *g_ErrStream;
-        }
-        if (!redirOut.IsEmpty()) {
-          // g_StdOut << "  stdout > " << redirOut << endl;
-          if (redirOut.IsPrefixedBy(L"&")) { // >&n
-            const wchar_t *p = redirOut;
-            DWORD nHandle = ConvertStringToUInt32(p+1, &p);
-            if (*p != L'\0') {
-              throw (UString("Integer expected by >&n"));
-            }
-            redirOutF = _wfdopen(nHandle, (!(appendMode & 1) ? L"wt" : L"at"));
-          } else {
-            if (_wfopen_s(&redirOutF, redirOut, (!(appendMode & 1) ? L"wt" : L"at")) != 0) {
-              redirOutF = NULL;
-            };
-          }
-          if (!redirOutF) {
-            errCode = errno;
-            throw (UString("Can't redirect stdout to ") + redirOut);
-          }
-          CStdOutFileStream::defOut = redirOutF;
-          CStdOutFileStream::defOutAppendMode = (appendMode & 1);
-          if (fullStdRedir) {
-            g_StdStream = redirOutStream = new CStdOutStream(redirOutF);
-            g_StdOut = *g_StdStream;
-          }
-        }
-      }
-
-      errCode = MainV(commandStrings, codecs
-      #ifdef Z7_EXTERNAL_CODECS
-        ,_externalCodecs
-      #endif
-      );
-
-      // end of redirect - close output stream here (to throw an error if it fails):
-      if (redirOutF) {
-        CStdOutFileStream::defOut = stdout;
-        CStdOutFileStream::defOutAppendMode = 0;
-        if (fclose(redirOutF) != 0) {
-          errCode = errno;
-          throw (UString("Error closing output channel"));
-        }
-        redirOutF = 0;
-      }
-
-    }
-    catch(const CNewException &)
-    {
-      errMsg = (kMemoryExceptionMessage);
-      errCode = (NExitCode::kMemoryError);
-    }
-    /*
-    catch(const NConsoleClose::CCtrlBreakException &)
-    {
-      errMsg = (kUserBreakMessage);
-      errCode = (NExitCode::kUserBreak);
-    }
-    */
-    catch(const CMessagePathException &e)
-    {
-      errMsg = (kException_CmdLine_Error_Message);
-      errMsg += e;
-      errCode = (NExitCode::kUserError);
-    }
-    catch(const CSystemException &systemError)
-    {
-      if (systemError.ErrorCode == E_OUTOFMEMORY)
-      {
-        errMsg = (kMemoryExceptionMessage);
-        errCode = (NExitCode::kMemoryError);
-      }
-      if (systemError.ErrorCode == E_ABORT)
-      {
-        errMsg = (kUserBreakMessage);
-        errCode = (NExitCode::kUserBreak);
-      }
-      else 
-      {
-        errMsg = ("System ERROR: ");
-        errMsg += NError::MyFormatMessage(systemError.ErrorCode);
-        errCode = (systemError.ErrorCode);
-      }
-    }
-    catch(NExitCode::EEnum &exitCode)
-    {
-      errMsg = kInternalExceptionMessage;
-      errCode = (exitCode);
-    }
-    catch(const UString &s)
-    {
-      errMsg = (kExceptionErrorMessage);
-      errMsg += s;
-      if (!errCode) errCode = (NExitCode::kFatalError);
-    }
-    catch(const AString &s)
-    {
-      errMsg = (kExceptionErrorMessage);
-      errMsg += s;
-      if (!errCode) errCode = (NExitCode::kFatalError);
-    }
-    catch(const char *s)
-    {
-      errMsg = (kExceptionErrorMessage);
-      errMsg += s;
-      if (!errCode) errCode = (NExitCode::kFatalError);
-    }
-    catch(const wchar_t *s)
-    {
-      errMsg = (kExceptionErrorMessage);
-      errMsg += s;
-      if (!errCode) errCode = (NExitCode::kFatalError);
-    }
-    catch(int t)
-    {
-      errMsg = kInternalExceptionMessage;
-      errCode = (t);
-    }
-    catch(...)
-    {
-      errMsg = (kUnknownExceptionMessage);
-      errCode = (NExitCode::kFatalError);
-    }
-    if (errCode != 0 || errMsg.Len()) {
-      if (!errMsg.Len()) {
-        errMsg = (kUnknownExceptionMessage);
-      }
-      if (g_StdStream)
-        g_StdStream->Flush();
-      if (g_ErrStream)
-        *g_ErrStream << "<< ERROR | " << errMsg << ", ECODE: " << errCode << endl;
-      if (errCode == NExitCode::kMemoryError || errCode == NExitCode::kUserBreak)
-        return errCode;
-    }
-    // end of redirect - restore streams:
-    if (redirInF) {
-      CStdInFileStream::defIn = stdin;
-      fclose(redirInF);
-      redirInF = 0;
-    }
-    if (redirInStream) {
-      delete redirInStream;
-      g_StdIn = orgStdIn;
-    }
-    if (redirOutF) {
-      CStdOutFileStream::defOut = stdout;
-      CStdOutFileStream::defOutAppendMode = 0;
-      fclose(redirOutF);
-      redirOutF = 0;
-    }
-    if (redirOutStream) {
-      delete redirOutStream;
-    }
-    if (g_StdStream != &g_StdOut) {
-      g_StdOut = orgStdOut;
-      g_StdStream = &g_StdOut;
-    }
-    if (redirErrF) {
-      fclose(redirErrF);
-      redirErrF = 0;
-    }
-    if (redirErrStream) {
-      delete redirErrStream;
-    }
-    if (g_ErrStream != &g_StdErr) {
-      g_StdErr = orgStdErr;
-      g_ErrStream = &g_StdErr;
-    }
-  } while (1);
-  return 0;
 }
 
 
@@ -839,11 +380,16 @@ static void PrintString(CStdOutStream &so, const UString &s, unsigned size)
     so << ' ';
 }
 
+static inline char GetHex(unsigned val)
+{
+  return (char)((val < 10) ? ('0' + val) : ('A' + (val - 10)));
+}
+
 static void PrintWarningsPaths(const CErrorPathCodes &pc, CStdOutStream &so)
 {
   FOR_VECTOR(i, pc.Paths)
   {
-    so.NormalizePrint_UString_Path(fs2us(pc.Paths[i]));
+    so.NormalizePrint_UString(fs2us(pc.Paths[i]));
     so << " : ";
     so << NError::MyFormatMessage(pc.Codes[i]) << endl;
   }
@@ -932,6 +478,12 @@ static int WarningsCheck(HRESULT result, const CCallbackConsoleBase &callback,
   return exitCode;
 }
 
+static void ThrowException_if_Error(HRESULT res)
+{
+  if (res != S_OK)
+    throw CSystemException(res);
+}
+
 static void PrintNum(UInt64 val, unsigned numDigits, char c = ' ')
 {
   char temp[64];
@@ -1018,8 +570,6 @@ static void PrintStat()
 
   #ifndef UNDER_CE
   
-Z7_DIAGNOSTIC_IGNORE_CAST_FUNCTION
-
   PROCESS_MEMORY_COUNTERS m;
   memset(&m, 0, sizeof(m));
   BOOL memDefined = FALSE;
@@ -1261,11 +811,11 @@ int Main2(
     for (int i = 0; i < numArgs; i++)
     {
       AString a (args[i]);
-#if 0
+      /*
       printf("\n%d %s :", i, a.Ptr());
       for (unsigned k = 0; k < a.Len(); k++)
         printf(" %2x", (unsigned)(Byte)a[k]);
-#endif
+      */
       const UString s = MultiByteToUnicodeString(a);
       commandStrings.Add(s);
     }
@@ -1279,51 +829,9 @@ int Main2(
     commandStrings.Delete(0);
   #endif
 
-  if ((commandStrings.Size() == 1 || commandStrings.Size() == 2) && commandStrings[0].IsEqualTo("--srv-mode")) {
-    return StartInServerMode(commandStrings);
-  }
-
-  CREATE_CODECS_OBJECT
-
-  ThrowException_if_Error(codecs->Load());
-  Codecs_AddHashArcHandler(codecs);
-
-  #ifdef Z7_EXTERNAL_CODECS
-  {
-    g_ExternalCodecs_Ptr = &_externalCodecs;
-    UString s;
-    codecs->GetCodecsErrorMessage(s);
-    if (!s.IsEmpty())
-    {
-      CStdOutStream &so = (g_StdStream ? *g_StdStream : g_StdOut);
-      so << endl << s << endl;
-    }
-  }
-  #endif
-
-  return MainV(commandStrings, codecs
-  #ifdef Z7_EXTERNAL_CODECS
-    ,_externalCodecs
-  #endif
-  );
-}
-
-static int MainV(
-  UStringVector &commandStrings,
-  CCodecs *codecs
-  #ifdef Z7_EXTERNAL_CODECS
-  , CExternalCodecs &_externalCodecs
-  #endif
-)
-{
   if (commandStrings.Size() == 0)
   {
     ShowCopyrightAndHelp(g_StdStream, true);
-    return 0;
-  }
-
-  if (commandStrings.Size() == 1 && commandStrings[0] == L"--version") {
-    *g_StdStream << kVersionString;
     return 0;
   }
 
@@ -1354,12 +862,9 @@ static int MainV(
 
   if (options.EnableHeaders)
   {
-    if (g_StdStream)
-    {
-      ShowCopyrightAndHelp(g_StdStream, false);
-      if (!parser.Parse1Log.IsEmpty())
-        *g_StdStream << parser.Parse1Log;
-    }
+    ShowCopyrightAndHelp(g_StdStream, false);
+    if (!parser.Parse1Log.IsEmpty())
+      *g_StdStream << parser.Parse1Log;
   }
 
   parser.Parse2(options);
@@ -1398,12 +903,10 @@ static int MainV(
     }
     */
     
-    if (stdout_cp != -1) g_StdOut.SetCodePage(stdout_cp);
-    if (stderr_cp != -1) g_StdErr.SetCodePage(stderr_cp);
-    if (stdin_cp != -1) g_StdIn.SetCodePage(stdin_cp);
+    if (stdout_cp != -1) g_StdOut.CodePage = stdout_cp;
+    if (stderr_cp != -1) g_StdErr.CodePage = stderr_cp;
+    if (stdin_cp != -1) g_StdIn.CodePage = stdin_cp;
   }
-  g_StdOut.ListPathSeparatorSlash = options.ListPathSeparatorSlash;
-  g_StdErr.ListPathSeparatorSlash = options.ListPathSeparatorSlash;
 
   unsigned percentsNameLevel = 1;
   if (options.LogLevel == 0 || options.Number_for_Percents != options.Number_for_Out)
@@ -1418,23 +921,36 @@ static int MainV(
     #if !defined(UNDER_CE)
     CONSOLE_SCREEN_BUFFER_INFO consoleInfo;
     if (GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &consoleInfo))
-      consoleWidth = (USHORT)consoleInfo.dwSize.X;
+      consoleWidth = (unsigned)(unsigned short)consoleInfo.dwSize.X;
     #endif
     
     #else
     
-#if !defined(__sun)
     struct winsize w;
     if (ioctl(0, TIOCGWINSZ, &w) == 0)
       consoleWidth = w.ws_col;
-#endif
+    
     #endif
   }
 
+  CREATE_CODECS_OBJECT
+
   codecs->CaseSensitive_Change = options.CaseSensitive_Change;
   codecs->CaseSensitive = options.CaseSensitive;
+  ThrowException_if_Error(codecs->Load());
+  Codecs_AddHashArcHandler(codecs);
+
   #ifdef Z7_EXTERNAL_CODECS
-  if (codecs->CaseSensitive_Change) codecs->UpdateCaseSensitive();
+  {
+    g_ExternalCodecs_Ptr = &_externalCodecs;
+    UString s;
+    codecs->GetCodecsErrorMessage(s);
+    if (!s.IsEmpty())
+    {
+      CStdOutStream &so = (g_StdStream ? *g_StdStream : g_StdOut);
+      so << endl << s << endl;
+    }
+  }
   #endif
 
   const bool isExtractGroupCommand = options.Command.IsFromExtractGroup();
@@ -1564,7 +1080,7 @@ static int MainV(
         {
           s += " (";
           s += ext.AddExt;
-          s.Add_Char(')');
+          s += ')';
         }
       }
       
@@ -1587,15 +1103,15 @@ static int MainV(
         {
           if (j != 0)
             so << ' ';
-          const unsigned b = sig.ConstData()[j];
+          Byte b = sig[j];
           if (b > 0x20 && b < 0x80)
           {
             so << (char)b;
           }
           else
           {
-            so << GET_HEX_CHAR_UPPER(b >> 4);
-            so << GET_HEX_CHAR_UPPER(b & 15);
+            so << GetHex((b >> 4) & 0xF);
+            so << GetHex(b & 0xF);
           }
         }
       }
@@ -1715,9 +1231,7 @@ static int MainV(
     {
       CExtractScanConsole scan;
       
-      scan.Init(options.EnableHeaders ? g_StdStream : NULL,
-          g_ErrStream, percentsStream,
-          options.DisablePercents);
+      scan.Init(options.EnableHeaders ? g_StdStream : NULL, g_ErrStream, percentsStream);
       scan.SetWindowWidth(consoleWidth);
 
       if (g_StdStream && options.EnableHeaders)
@@ -1767,11 +1281,8 @@ static int MainV(
       ecs->Password = options.Password;
       #endif
 
-      ecs->Init(g_StdStream, g_ErrStream, percentsStream, options.DisablePercents);
+      ecs->Init(g_StdStream, g_ErrStream, percentsStream);
       ecs->MultiArcMode = (ArchivePathsSorted.Size() > 1);
-      
-      ecs->ExtrOffset = options.ExtrOffset;
-      ecs->ExtrLength = options.ExtrLength;
 
       ecs->LogLevel = options.LogLevel;
       ecs->PercentsNameLevel = percentsNameLevel;
@@ -1934,7 +1445,6 @@ static int MainV(
       CListOptions lo;
       lo.ExcludeDirItems = options.Censor.ExcludeDirItems;
       lo.ExcludeFileItems = options.Censor.ExcludeFileItems;
-      lo.DisablePercents = options.DisablePercents;
 
       hresultMain = ListArchives(
           lo,
@@ -1971,15 +1481,12 @@ static int MainV(
   }
   else if (options.Command.IsFromUpdateGroup())
   {
-   #ifdef Z7_EXTRACT_ONLY
-    throw "update commands are not implemented";
-   #else
     CUpdateOptions &uo = options.UpdateOptions;
     if (uo.SfxMode && uo.SfxModule.IsEmpty())
       uo.SfxModule = kDefaultSfxModule;
 
     COpenCallbackConsole openCallback;
-    openCallback.Init(options.EnableHeaders ? g_StdStream : NULL, g_ErrStream, percentsStream, options.DisablePercents);
+    openCallback.Init(g_StdStream, g_ErrStream, percentsStream);
 
     #ifndef Z7_NO_CRYPTO
     bool passwordIsDefined =
@@ -2004,7 +1511,7 @@ static int MainV(
     callback.StdOutMode = uo.StdOutMode;
     callback.Init(
       // NULL,
-      options.EnableHeaders ? g_StdStream : NULL, g_ErrStream, percentsStream, options.DisablePercents);
+      g_StdStream, g_ErrStream, percentsStream);
 
     CUpdateErrorInfo errorInfo;
 
@@ -2027,10 +1534,8 @@ static int MainV(
 
     retCode = WarningsCheck(hresultMain, callback, errorInfo,
         g_StdStream, se,
-        //true 
-        options.EnableHeaders
+        true // options.EnableHeaders
         );
-   #endif
   }
   else if (options.Command.CommandType == NCommandType::kHash)
   {
@@ -2040,7 +1545,7 @@ static int MainV(
     if (percentsStream)
       callback.SetWindowWidth(consoleWidth);
   
-    callback.Init(g_StdStream, g_ErrStream, percentsStream, options.DisablePercents);
+    callback.Init(g_StdStream, g_ErrStream, percentsStream);
     callback.PrintHeaders = options.EnableHeaders;
     callback.PrintFields = options.ListFields;
 

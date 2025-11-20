@@ -7,8 +7,6 @@
 #define Z7_FILE_STREAMS_USE_WIN_FILE
 #endif
 
-#include <stdio.h>
-
 #include "../../Common/MyCom.h"
 #include "../../Common/MyString.h"
 
@@ -48,9 +46,8 @@ Z7_class_final(CInFileStream) :
   public IStreamGetProp,
   public CMyUnknownImp
 {
-  Z7_COM_UNKNOWN_IMP_6(
+  Z7_COM_UNKNOWN_IMP_5(
       IInStream,
-      ISequentialInStream,
       IStreamGetSize,
       IStreamGetProps,
       IStreamGetProps2,
@@ -111,10 +108,6 @@ public:
   {
     return File.GetLength(length);
   }
-
-#if 0
-  bool OpenStdIn();
-#endif
   
   bool Open(CFSTR fileName)
   {
@@ -129,18 +122,11 @@ public:
   }
 };
 
-// bool CreateStdInStream(CMyComPtr<ISequentialInStream> &str);
 
 Z7_CLASS_IMP_NOQIB_1(
   CStdInFileStream
   , ISequentialInStream
 )
-  int infno;
-  HANDLE infh;
-
-public:
-  static FILE *defIn;
-  CStdInFileStream();
 };
 
 
@@ -153,28 +139,15 @@ public:
 
   NWindows::NFile::NIO::COutFile File;
 
-  bool Create_NEW(CFSTR fileName)
+  bool Create(CFSTR fileName, bool createAlways)
   {
     ProcessedSize = 0;
-    return File.Create_NEW(fileName);
+    return File.Create(fileName, createAlways);
   }
-
-  bool Create_ALWAYS(CFSTR fileName)
+  bool Open(CFSTR fileName, DWORD creationDisposition)
   {
     ProcessedSize = 0;
-    return File.Create_ALWAYS(fileName);
-  }
-
-  bool Open_EXISTING(CFSTR fileName)
-  {
-    ProcessedSize = 0;
-    return File.Open_EXISTING(fileName);
-  }
-
-  bool Create_ALWAYS_or_Open_ALWAYS(CFSTR fileName, bool createAlways)
-  {
-    ProcessedSize = 0;
-    return File.Create_ALWAYS_or_Open_ALWAYS(fileName, createAlways);
+    return File.Open(fileName, creationDisposition);
   }
 
   HRESULT Close();
@@ -205,13 +178,9 @@ Z7_CLASS_IMP_NOQIB_1(
   , ISequentialOutStream
 )
   UInt64 _size;
-  int outfno;
-  HANDLE outfh;
 public:
-  static FILE *defOut;
-  static int defOutAppendMode;
   UInt64 GetSize() const { return _size; }
-  CStdOutFileStream();
+  CStdOutFileStream(): _size(0) {}
 };
 
 #endif

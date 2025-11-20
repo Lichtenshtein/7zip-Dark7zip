@@ -183,13 +183,6 @@ HRESULT CUpdateCallbackGUI::CryptoGetTextPassword(BSTR *password)
   return CryptoGetTextPassword2(NULL, password);
 }
 
-HRESULT CUpdateCallbackGUI::CryptoGetPasswordIfAny(bool& passwordIsDefined, UString& password)
-{
-  passwordIsDefined = PasswordIsDefined;
-  password = Password;
-  return S_OK;
-}
-
 /*
 It doesn't work, since main stream waits Dialog
 HRESULT CUpdateCallbackGUI::CloseProgress()
@@ -224,6 +217,7 @@ HRESULT CUpdateCallbackGUI::Open_CryptoGetTextPassword(BSTR *password)
   return CryptoGetTextPassword2(NULL, password);
 }
 
+/*
 HRESULT CUpdateCallbackGUI::Open_GetPasswordIfAny(bool &passwordIsDefined, UString &password)
 {
   passwordIsDefined = PasswordIsDefined;
@@ -231,7 +225,6 @@ HRESULT CUpdateCallbackGUI::Open_GetPasswordIfAny(bool &passwordIsDefined, UStri
   return S_OK;
 }
 
-/*
 bool CUpdateCallbackGUI::Open_WasPasswordAsked()
 {
   return PasswordWasAsked;
@@ -258,21 +251,6 @@ HRESULT CUpdateCallbackGUI::DeletingAfterArchiving(const FString &path, bool isD
 {
   return ProgressDialog->Sync.Set_Status2(_lang_Removing, fs2us(path), isDir);
 }
-
-
-HRESULT CUpdateCallbackGUI::MoveArc_Start(const wchar_t *srcTempPath, const wchar_t *destFinalPath, UInt64 totalSize, Int32 updateMode)
-{
-  return MoveArc_Start_Base(srcTempPath, destFinalPath, totalSize, updateMode);
-}
-HRESULT CUpdateCallbackGUI::MoveArc_Progress(UInt64 totalSize, UInt64 currentSize)
-{
-  return MoveArc_Progress_Base(totalSize, currentSize);
-}
-HRESULT CUpdateCallbackGUI::MoveArc_Finish()
-{
-  return MoveArc_Finish_Base();
-}
-
 
 HRESULT CUpdateCallbackGUI::StartOpenArchive(const wchar_t * /* name */)
 {

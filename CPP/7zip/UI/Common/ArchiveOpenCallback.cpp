@@ -85,7 +85,6 @@ Z7_COM7F_IMF(COpenCallbackImp::GetProperty(PROPID propID, PROPVARIANT *value))
     {
       case kpidName: prop = _subArchiveName; break;
       // case kpidSize:  prop = _subArchiveSize; break; // we don't use it now
-      default: break;
     }
   else
     switch (propID)
@@ -98,7 +97,6 @@ Z7_COM7F_IMF(COpenCallbackImp::GetProperty(PROPID propID, PROPVARIANT *value))
       case kpidCTime:  PropVariant_SetFrom_FiTime(prop, _fileInfo.CTime); break;
       case kpidATime:  PropVariant_SetFrom_FiTime(prop, _fileInfo.ATime); break;
       case kpidMTime:  PropVariant_SetFrom_FiTime(prop, _fileInfo.MTime); break;
-      default: break;
     }
   prop.Detach(value);
   return S_OK;
@@ -108,15 +106,12 @@ Z7_COM7F_IMF(COpenCallbackImp::GetProperty(PROPID propID, PROPVARIANT *value))
 
 // ---------- CInFileStreamVol ----------
 
-Z7_class_final(CInFileStreamVol):
-    public IInStream
-  , public IStreamGetSize
-  , public CMyUnknownImp
-{
-  Z7_IFACES_IMP_UNK_3(
-    IInStream,
-    ISequentialInStream,
-    IStreamGetSize)
+Z7_CLASS_IMP_COM_2(
+  CInFileStreamVol
+  , IInStream
+  , IStreamGetSize
+)
+  Z7_IFACE_COM7_IMP(ISequentialInStream)
 public:
   unsigned FileIndex;
   COpenCallbackImp *OpenCallbackImp;
@@ -382,24 +377,6 @@ Z7_COM7F_IMF(COpenCallbackImp::CryptoGetTextPassword(BSTR *password))
     return E_NOTIMPL;
   PasswordWasAsked = true;
   return Callback->Open_CryptoGetTextPassword(password);
-  COM_TRY_END
-}
-
-Z7_COM7F_IMF(COpenCallbackImp::CryptoGetPasswordIfAny(bool& passwordIsDefined, UString& password))
-{
-  COM_TRY_BEGIN
-  if (ReOpenCallback)
-  {
-    Z7_DECL_CMyComPtr_QI_FROM(
-        ICryptoGetTextPassword,
-        getTextPassword, ReOpenCallback)
-    if (getTextPassword)
-      return getTextPassword->CryptoGetPasswordIfAny(passwordIsDefined, password);
-  }
-  if (!Callback)
-    return E_NOTIMPL;
-  PasswordWasAsked = true;
-  return Callback->Open_GetPasswordIfAny(passwordIsDefined, password);
   COM_TRY_END
 }
 #endif

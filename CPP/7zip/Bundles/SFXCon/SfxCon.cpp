@@ -422,7 +422,7 @@ int Main2(
     {
       CExtractCallbackConsole *ecs = new CExtractCallbackConsole;
       CMyComPtr<IFolderArchiveExtractCallback> extractCallback = ecs;
-      ecs->Init(g_StdStream, &g_StdErr, g_StdStream, false);
+      ecs->Init(g_StdStream, &g_StdErr, g_StdStream);
 
       #ifndef Z7_NO_CRYPTO
       ecs->PasswordIsDefined = passwordEnabled;
@@ -457,10 +457,8 @@ int Main2(
           wildcardCensorHead,
           eo,
           ecs, ecs, ecs,
-#ifndef Z7_SFX
-		  NULL, // hash
-#endif
-		  errorMessage, stat);
+          // NULL, // hash
+          errorMessage, stat);
 
       ecs->ClosePercents();
 

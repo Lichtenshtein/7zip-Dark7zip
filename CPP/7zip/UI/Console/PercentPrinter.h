@@ -26,13 +26,6 @@ struct CPercentPrinterState
 
 class CPercentPrinter: public CPercentPrinterState
 {
-public:
-  CStdOutStream *_so;
-  bool DisablePrint;
-  bool NeedFlush;
-  unsigned MaxLen;
-  
-private:
   UInt32 _tickStep;
   DWORD _prevTick;
 
@@ -48,13 +41,16 @@ private:
   void GetPercents();
 
 public:
+  CStdOutStream *_so;
+
+  bool NeedFlush;
+  unsigned MaxLen;
   
   CPercentPrinter(UInt32 tickStep = 200):
-      DisablePrint(false),
-      NeedFlush(true),
-      MaxLen(80 - 1),
       _tickStep(tickStep),
-      _prevTick(0)
+      _prevTick(0),
+      NeedFlush(true),
+      MaxLen(80 - 1)
   {}
 
   ~CPercentPrinter();

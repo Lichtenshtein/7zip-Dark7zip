@@ -49,7 +49,6 @@ namespace NCompressDialog
     bool OrderMode;
     UInt32 Order;
     UString Options;
-    UString SplitVolume;
 
     UString EncryptionMethod;
 
@@ -99,7 +98,6 @@ namespace NCompressDialog
       OrderMode = false;
       Method.Empty();
       Options.Empty();
-      SplitVolume.Empty();
       EncryptionMethod.Empty();
       TimePrec = (UInt32)(Int32)(-1);
     }
@@ -143,15 +141,6 @@ struct CBool1
 
 class CCompressDialog: public NWindows::NControl::CModalDialog
 {
-public:
-  CBool1 SymLinks;
-  CBool1 HardLinks;
-  CBool1 AltStreams;
-  CBool1 NtSecurity;
-  CBool1 PreserveATime;
-private:
-  bool _ramSize_Defined;
-
   NWindows::NControl::CComboBox m_ArchivePath;
   NWindows::NControl::CComboBox m_Format;
   NWindows::NControl::CComboBox m_Level;
@@ -190,12 +179,19 @@ private:
   UString DirPrefix;
   UString StartDirPrefix;
 
-  size_t _ramSize;         // full RAM size avail
-  size_t _ramSize_Reduced; // full for 64-bit and reduced for 32-bit
+  bool _ramSize_Defined;
+  UInt64 _ramSize;         // full RAM size avail
+  UInt64 _ramSize_Reduced; // full for 64-bit and reduced for 32-bit
   UInt64 _ramUsage_Auto;
 
 public:
   NCompression::CInfo m_RegistryInfo;
+
+  CBool1 SymLinks;
+  CBool1 HardLinks;
+  CBool1 AltStreams;
+  CBool1 NtSecurity;
+  CBool1 PreserveATime;
 
   void SetArchiveName(const UString &name);
   int FindRegistryFormat(const UString &name);
@@ -230,7 +226,6 @@ public:
     EnableMultiCombo(IDC_COMPRESS_METHOD);
   }
 
-  void ComprMethodChanged();
   void MethodChanged()
   {
     SetDictionary2();
@@ -356,9 +351,7 @@ public:
 
   void OnButtonSetArchive();
   bool IsSFX();
-  bool IsAddDatetime();
   void OnButtonSFX();
-  void OnButtonAddDatetime();
 
   virtual bool OnInit() Z7_override;
   virtual bool OnMessage(UINT message, WPARAM wParam, LPARAM lParam) Z7_override;

@@ -90,25 +90,25 @@ struct CMultiOutStream_Bunch
     {
       CMultiOutStream_Rec &rec = Items[i];
       if (rec.Ref)
-  {
+      {
         const HRESULT hres2 = rec.Spec->Destruct();
         if (hres == S_OK)
           hres = hres2;
-  }
       }
+    }
     Items.Clear();
     return hres;
-    }
+  }
 
   void DisableDeletion()
-    {
+  {
     FOR_VECTOR (i, Items)
     {
       CMultiOutStream_Rec &rec = Items[i];
       if (rec.Ref)
         rec.Spec->NeedDelete = false;
     }
-    }
+  }
 };
 
 
@@ -427,7 +427,7 @@ static HRESULT Compress(
 
     UInt32 value;
     RINOK(outArchive->GetFileTimeType(&value))
-    
+
     // we support any future fileType here.
     fileTimeType = (NFileTimeType::EEnum)value;
     
@@ -474,7 +474,7 @@ static HRESULT Compress(
 
   CArcToDoStat stat2;
 
-  if (options.RenameMode || options.RenamePairs.Size() != 0)
+  if (options.RenamePairs.Size() != 0)
   {
     FOR_VECTOR (i, arcItems)
     {
@@ -507,7 +507,7 @@ static HRESULT Compress(
               if (rp.GetNewPath(false, mainName, dest))
               {
                 needRename = true;
-                dest.Add_Colon();
+                dest += ':';
                 dest += ai.Name.Ptr((unsigned)(colonPos + 1));
                 break;
               }
@@ -704,7 +704,7 @@ static HRESULT Compress(
         }
         else
           realPath = us2fs(archivePath.GetFinalPath());
-        if (outStreamSpec->Create_NEW(realPath))
+        if (outStreamSpec->Create(realPath, false))
         {
           tempFiles.Paths.Add(realPath);
           isOK = true;
@@ -763,7 +763,7 @@ static HRESULT Compress(
       outStreamSpec2 = new COutFileStream;
       sfxOutStream = outStreamSpec2;
       const FString realPath = us2fs(archivePath.GetFinalPath());
-      if (!outStreamSpec2->Create_NEW(realPath))
+      if (!outStreamSpec2->Create(realPath, false))
         return errorInfo.SetFromLastError("cannot open file", realPath);
     }
 
@@ -856,7 +856,7 @@ static HRESULT Compress(
 
   if (!updateCallbackSpec->AreAllFilesClosed())
   {
-    errorInfo.Message = "There are unclosed input files:";
+    errorInfo.Message = "There are unclosed input file:";
     errorInfo.FileNames = updateCallbackSpec->_openFiles_Paths;
     return E_FAIL;
   }
@@ -883,7 +883,7 @@ static HRESULT Compress(
         // updateCallbackSpec->StreamCallback_ArcMTime.Write_To_FiTime(ft);
         // we must normalize with precision from archive;
         if (!ft_Defined || Compare_FiTime(&ft, &updateCallbackSpec->LatestMTime) < 0)
-        ft = updateCallbackSpec->LatestMTime;
+          ft = updateCallbackSpec->LatestMTime;
         ft_Defined = true;
       }
       /*
@@ -1094,30 +1094,6 @@ typedef Z7_WIN_MAPISENDMAILW FAR *Z7_WIN_LPMAPISENDMAILW;
 #endif // MAPI_FORCE_UNICODE
 }
 #endif // _WIN32
-
-
-struct C_CopyFileProgress_to_IUpdateCallbackUI2 Z7_final:
-  public ICopyFileProgress
-{
-  IUpdateCallbackUI2 *Callback;
-  HRESULT CallbackResult;
-  // bool Disable_Break;
-
-  virtual DWORD CopyFileProgress(UInt64 total, UInt64 current) Z7_override
-  {
-    const HRESULT res = Callback->MoveArc_Progress(total, current);
-    CallbackResult = res;
-    // if (Disable_Break && res == E_ABORT) res = S_OK;
-    return res == S_OK ? PROGRESS_CONTINUE : PROGRESS_CANCEL;
-  }
-
-  C_CopyFileProgress_to_IUpdateCallbackUI2(
-      IUpdateCallbackUI2 *callback) :
-    Callback(callback),
-    CallbackResult(S_OK)
-    // , Disable_Break(false)
-    {}
-};
 
 
 HRESULT UpdateArchive(
@@ -1335,7 +1311,7 @@ HRESULT UpdateArchive(
       return E_NOTIMPL;
   }
 
-  const bool thereIsInArchive = arcLink.IsOpen;
+  bool thereIsInArchive = arcLink.IsOpen;
   if (!thereIsInArchive && renameMode)
     return E_FAIL;
   
@@ -1355,14 +1331,12 @@ HRESULT UpdateArchive(
   if (options.StdInMode)
   {
     CDirItem di;
-    // di.ClearBase();
-    // di.Size = (UInt64)(Int64)-1;
-    if (!di.SetAs_StdInFile())
-      return GetLastError_noZero_HRESULT();
+    di.ClearBase();
     di.Name = options.StdInFileName;
-    // di.Attrib_IsDefined = false;
-    // NTime::GetCurUtc_FiTime(di.MTime);
-    // di.CTime = di.ATime = di.MTime;
+    di.Size = (UInt64)(Int64)-1;
+    di.SetAsFile();
+    NTime::GetCurUtc_FiTime(di.MTime);
+    di.CTime = di.ATime = di.MTime;
     dirItems.Items.Add(di);
   }
   else
@@ -1387,7 +1361,7 @@ HRESULT UpdateArchive(
       dirItems.ScanAltStreams = options.AltStreams.Val;
       dirItems.ExcludeDirItems = censor.ExcludeDirItems;
       dirItems.ExcludeFileItems = censor.ExcludeFileItems;
-
+      
       dirItems.ShareForWrite = options.OpenShareForWrite;
 
      #ifndef _WIN32
@@ -1612,14 +1586,7 @@ HRESULT UpdateArchive(
   multiStreams.DisableDeletion();
   RINOK(multiStreams.Destruct())
 
-  // here we disable deleting of temp archives.
-  // note: archive moving can fail, or it can be interrupted,
-  // if we move new temp update from another volume.
-  // And we still want to keep temp archive in that case,
-  // because we will have deleted original archive.
-  tempFiles.NeedDeleteFiles = false;
-  // tempFiles.Paths.Clear();
-
+  tempFiles.Paths.Clear();
   if (createTempFile)
   {
     try
@@ -1634,52 +1601,13 @@ HRESULT UpdateArchive(
         if (!DeleteFileAlways(us2fs(arcPath)))
           return errorInfo.SetFromLastError("cannot delete the file", us2fs(arcPath));
       }
-
-      UInt64 totalArcSize = 0;
+      
+      if (!MyMoveFile(tempPath, us2fs(arcPath)))
       {
-        NFind::CFileInfo fi;
-        if (fi.Find(tempPath))
-          totalArcSize = fi.Size;
-      }
-      RINOK(callback->MoveArc_Start(fs2us(tempPath), arcPath,
-          totalArcSize, BoolToInt(thereIsInArchive)))
-
-      C_CopyFileProgress_to_IUpdateCallbackUI2 prox(callback);
-      // if we update archive, we have removed original archive.
-      // So if we break archive moving, we will have only temporary archive.
-      // We can disable breaking here:
-      // prox.Disable_Break = thereIsInArchive;
-
-      if (!MyMoveFile_with_Progress(tempPath, us2fs(arcPath), &prox))
-      {
-        errorInfo.SystemError = ::GetLastError();
-        errorInfo.Message = "cannot move the file";
-        if (errorInfo.SystemError == ERROR_INVALID_PARAMETER)
-        {
-          if (totalArcSize > (UInt32)(Int32)-1)
-          {
-            // bool isFsDetected = false;
-            // if (NSystem::Is_File_LimitedBy_4GB(us2fs(arcPath), isFsDetected) || !isFsDetected)
-            {
-              errorInfo.Message.Add_LF();
-              errorInfo.Message += "Archive file size exceeds 4 GB";
-            }
-          }
-        }
-        // if there was no input archive, and we have operation breaking.
-        // then we can remove temporary archive, because we still have original uncompressed files.
-        if (!thereIsInArchive
-            && prox.CallbackResult == E_ABORT)
-          tempFiles.NeedDeleteFiles = true;
-        errorInfo.FileNames.Add(tempPath);
+        errorInfo.SetFromLastError("cannot move the file", tempPath);
         errorInfo.FileNames.Add(us2fs(arcPath));
-        RINOK(prox.CallbackResult)
         return errorInfo.Get_HRESULT_Error();
       }
-
-      // MoveArc_Finish() can return delayed user break (E_ABORT) status,
-      // if callback callee ignored interruption to finish archive creation operation.
-      RINOK(callback->MoveArc_Finish())
       
       /*
       if (attrib != INVALID_FILE_ATTRIBUTES && (attrib & FILE_ATTRIBUTE_READONLY))
@@ -1698,8 +1626,6 @@ HRESULT UpdateArchive(
 
 
   #if defined(_WIN32) && !defined(UNDER_CE)
-
-Z7_DIAGNOSTIC_IGNORE_CAST_FUNCTION
   
   if (options.EMailMode)
   {
@@ -1769,7 +1695,7 @@ Z7_DIAGNOSTIC_IGNORE_CAST_FUNCTION
       Z7_WIN_MapiMessageW m;
       memset(&m, 0, sizeof(m));
       m.nFileCount = files.Size();
-      m.lpFiles = files.NonConstData();
+      m.lpFiles = &files.Front();
       
       const UString addr (options.EMailAddress);
       Z7_WIN_MapiRecipDescW rec;
@@ -1830,7 +1756,7 @@ Z7_DIAGNOSTIC_IGNORE_CAST_FUNCTION
       MapiMessage m;
       memset(&m, 0, sizeof(m));
       m.nFileCount = files.Size();
-      m.lpFiles = files.NonConstData();
+      m.lpFiles = &files.Front();
       
       const AString addr (GetAnsiString(options.EMailAddress));
       MapiRecipDesc rec;
@@ -1845,7 +1771,7 @@ Z7_DIAGNOSTIC_IGNORE_CAST_FUNCTION
       
       sendMail((LHANDLE)0, 0, &m, MAPI_DIALOG, 0);
     }
-  }
+   }
   }
   
   #endif
@@ -1920,7 +1846,7 @@ Z7_DIAGNOSTIC_IGNORE_CAST_FUNCTION
       if (NFind::DoesDirExist(phyPath))
       {
         RINOK(callback->DeletingAfterArchiving(phyPath, true))
-        RemoveDirAlways_if_Empty(phyPath);
+        RemoveDir(phyPath);
       }
     }
 

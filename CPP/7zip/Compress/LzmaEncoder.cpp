@@ -6,7 +6,6 @@
 
 #include "../Common/CWrappers.h"
 #include "../Common/StreamUtils.h"
-#include "../../Windows/System.h"
 
 #include "LzmaEncoder.h"
 
@@ -102,24 +101,6 @@ HRESULT SetLzmaProp(PROPID propID, const PROPVARIANT &prop, CLzmaEncProps &ep)
     return S_OK;
   }
 
-  if (propID == NCoderPropID::kAffinityInGroup)
-  {
-    if (prop.vt == VT_UI8)
-      ep.affinityInGroup = prop.uhVal.QuadPart;
-    else
-      return E_INVALIDARG;
-    return S_OK;
-  }
-
-  if (propID == NCoderPropID::kThreadGroup)
-  {
-    if (prop.vt == VT_UI4)
-      ep.affinityGroup = (Int32)(UInt32)prop.ulVal;
-    else
-      return E_INVALIDARG;
-    return S_OK;
-  }
-
   if (propID == NCoderPropID::kHashBits)
   {
     if (prop.vt == VT_UI4)
@@ -177,8 +158,7 @@ HRESULT SetLzmaProp(PROPID propID, const PROPVARIANT &prop, CLzmaEncProps &ep)
     SET_PROP_32(kPosStateBits, pb)
     SET_PROP_32(kLitPosBits, lp)
     SET_PROP_32(kLitContextBits, lc)
-    case NCoderPropID::kNumThreads:
-      ep.numThreads = (int)v >= 0 ? (int)(v ? v : 1) : NWindows::NSystem::GetNumberOfProcessors(); break;
+    SET_PROP_32(kNumThreads, numThreads)
     default: return E_INVALIDARG;
   }
   return S_OK;

@@ -122,7 +122,6 @@ struct CArcInfoEx
     int LibIndex;
     UInt32 FormatIndex;
     CLSID ClassID;
-    UInt32 LevelsMask;
   #endif
 
   int Compare(const CArcInfoEx &a) const
@@ -228,7 +227,6 @@ struct CArcInfoEx
       #endif
       #ifdef Z7_EXTERNAL_CODECS
       , LibIndex(-1)
-      , LevelsMask(0xFFFFFFFF)
       #endif
   {}
 };
@@ -341,7 +339,6 @@ public:
   HRESULT LoadCodecs();
   HRESULT LoadFormats();
   HRESULT LoadDll(const FString &path, bool needCheckDll, bool *loadedOK = NULL);
-  void UpdateCaseSensitive();
   HRESULT LoadDllsFromFolder(const FString &folderPrefix);
 
   HRESULT CreateArchiveHandler(const CArcInfoEx &ai, bool outHandler, void **archive) const

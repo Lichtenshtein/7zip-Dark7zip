@@ -60,14 +60,11 @@ struct CArcCmdLineOptions
   bool StdInMode;
   bool StdOutMode;
   bool EnableHeaders;
-  bool DisablePercents;
-
 
   bool YesToAll;
   bool ShowDialog;
   bool TechMode;
   bool ShowTime;
-  CBoolPair ListPathSeparatorSlash;
 
   CBoolPair NtSecurity;
   CBoolPair AltStreams;
@@ -88,7 +85,7 @@ struct CArcCmdLineOptions
 
   #ifndef Z7_NO_CRYPTO
   bool PasswordEnabled;
-  UString Password; // Wipe
+  UString Password;
   #endif
 
   UStringVector HashMethods;
@@ -109,9 +106,6 @@ struct CArcCmdLineOptions
   UString ArcType;
   UStringVector ExcludedArcTypes;
   
-  UInt64 ExtrOffset;
-  UInt64 ExtrLength;
-
   unsigned Number_for_Out;
   unsigned Number_for_Errors;
   unsigned Number_for_Percents;
@@ -137,7 +131,6 @@ struct CArcCmdLineOptions
       StdOutMode(false),
 
       EnableHeaders(false),
-      DisablePercents(false),
       
       YesToAll(false),
       ShowDialog(false),
@@ -146,26 +139,13 @@ struct CArcCmdLineOptions
 
       ConsoleCodePage(-1),
 
-      ExtrOffset(0),
-      ExtrLength(UINT64_MAX),
-
       Number_for_Out(k_OutStream_stdout),
       Number_for_Errors(k_OutStream_stderr),
       Number_for_Percents(k_OutStream_stdout),
 
       LogLevel(0)
   {
-    ListPathSeparatorSlash.Val =
-#ifdef _WIN32
-        false;
-#else
-        true;
-#endif
   }
-
-  #ifndef _NO_CRYPTO
-  ~CArcCmdLineOptions() { Password.Wipe_and_Empty(); }
-  #endif
 };
 
 class CArcCmdLineParser
@@ -176,7 +156,5 @@ public:
   void Parse1(const UStringVector &commandStrings, CArcCmdLineOptions &options);
   void Parse2(CArcCmdLineOptions &options);
 };
-
-Int32 FindCharset(UString name, bool byteOnlyCodePages);
 
 #endif

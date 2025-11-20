@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 
-<?define VerMajor = "25" ?>
+<?define VerMajor = "23" ?>
 <?define VerMinor = "01" ?>
 <?define VerBuild = "00" ?>
 <?define MmVer = "$(var.VerMajor).$(var.VerMinor)" ?>
@@ -187,7 +187,7 @@
 
           <Component Id="Fm" Guid="$(var.CompFm)" DiskId="1" Win64="$(var.Is64)">
             <File Id="_7zFM.exe" Name="7zFM.exe">
-              <Shortcut Id="startmenuFmShortcut" Directory="PMenu" Name="7zipFM" LongName="7-Zip ZS File Manager" />
+              <Shortcut Id="startmenuFmShortcut" Directory="PMenu" Name="7zipFM" LongName="7-Zip File Manager" />
             </File>
           </Component>
 

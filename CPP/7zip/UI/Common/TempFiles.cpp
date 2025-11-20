@@ -13,8 +13,7 @@ void CTempFiles::Clear()
 {
   while (!Paths.IsEmpty())
   {
-    if (NeedDeleteFiles)
-      NDir::DeleteFileAlways(Paths.Back());
+    NDir::DeleteFileAlways(Paths.Back());
     Paths.DeleteBack();
   }
 }

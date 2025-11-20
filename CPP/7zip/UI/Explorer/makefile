@@ -7,8 +7,7 @@ CFLAGS = $(CFLAGS) \
 LIBS = $(LIBS) Commctrl.lib
 !ELSE
 LIBS = $(LIBS) htmlhelp.lib comdlg32.lib Mpr.lib Gdi32.lib
-# CFLAGS = $(CFLAGS) -DZ7_LONG_PATH
-# -DZ7_NO_LARGE_PAGES
+CFLAGS = $(CFLAGS) -DZ7_LONG_PATH
 !ENDIF
 
 EXPLORER_OBJS = \
@@ -21,7 +20,6 @@ COMMON_OBJS = \
   $O\Lang.obj \
   $O\MyString.obj \
   $O\MyVector.obj \
-  $O\MyWindows.obj \
   $O\NewHandler.obj \
   $O\Random.obj \
   $O\StringConvert.obj \
@@ -43,7 +41,6 @@ WIN_OBJS = \
   $O\ResourceString.obj \
   $O\Shell.obj \
   $O\Synchronization.obj \
-  $O\TimeUtils.obj \
   $O\Window.obj \
 
 !IFDEF UNDER_CE
@@ -70,11 +67,10 @@ FM_OBJS = \
   $O\ProgramLocation.obj \
   $O\PropertyName.obj \
   $O\RegistryUtils.obj \
-  $O\StringUtils.obj \
 
 C_OBJS = \
   $O\CpuArch.obj \
+  $O\Sort.obj \
   $O\Threads.obj \
 
-!include "../../Sort.mak"
 !include "../../7zip.mak"

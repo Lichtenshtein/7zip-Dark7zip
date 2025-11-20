@@ -20,9 +20,6 @@ using namespace NWindows;
 namespace NArchive {
 namespace N7z {
 
-static const UInt32 k_decoderCompatibilityVersion = 2301;
-// 7-Zip version 2301 supports ARM64 filter
-
 #define k_LZMA_Name "LZMA"
 #define kDefaultMethodName "LZMA2"
 #define k_Copy_Name "Copy"
@@ -111,8 +108,8 @@ HRESULT CHandler::SetMainMethod(CCompressionMethodMode &methodMode)
     }
   }
 
-  const UInt64 kSolidBytes_Min = 1 << 24;
-  const UInt64 kSolidBytes_Max = (UInt64)1 << 32;  // for non-LZMA2 methods
+  const UInt64 kSolidBytes_Min = (1 << 24);
+  const UInt64 kSolidBytes_Max = ((UInt64)1 << 32);
 
   bool needSolid = false;
   
@@ -122,24 +119,22 @@ HRESULT CHandler::SetMainMethod(CCompressionMethodMode &methodMode)
 
     SetGlobalLevelTo(oneMethodInfo);
 
-#ifndef Z7_ST
+    #ifndef Z7_ST
     const bool numThreads_WasSpecifiedInMethod = (oneMethodInfo.Get_NumThreads() >= 0);
     if (!numThreads_WasSpecifiedInMethod)
     {
       // here we set the (NCoderPropID::kNumThreads) property in each method, only if there is no such property already
       CMultiMethodProps::SetMethodThreadsTo_IfNotFinded(oneMethodInfo, methodMode.NumThreads);
     }
-    if (methodMode.NumThreadGroups > 1)
-      CMultiMethodProps::Set_Method_NumThreadGroups_IfNotFinded(oneMethodInfo, methodMode.NumThreadGroups);
-#endif
+    #endif
 
     CMethodFull &methodFull = methodMode.Methods.AddNew();
     RINOK(PropsMethod_To_FullMethod(methodFull, oneMethodInfo))
 
-#ifndef Z7_ST
+    #ifndef Z7_ST
     methodFull.Set_NumThreads = true;
     methodFull.NumThreads = methodMode.NumThreads;
-#endif
+    #endif
 
     if (methodFull.Id != k_Copy)
       needSolid = true;
@@ -163,7 +158,7 @@ HRESULT CHandler::SetMainMethod(CCompressionMethodMode &methodMode)
     if (methodFull.Id == k_ZSTD)
     {
       // continue;
-      NCompress::NZSTD::CEncoderProps encoderProps;
+      NCompress::NZstd::CEncoderProps encoderProps;
       RINOK(oneMethodInfo.Set_PropsTo_zstd(encoderProps));
       CZstdEncProps &zstdProps = encoderProps.EncProps;
       ZstdEncProps_NormalizeFull(&zstdProps);
@@ -219,18 +214,19 @@ HRESULT CHandler::SetMainMethod(CCompressionMethodMode &methodMode)
       // here we get real chunkSize
       cs = oneMethodInfo.Get_Xz_BlockSize();
       if (dicSize > cs)
-          dicSize = cs;
+        dicSize = cs;
 
-      const UInt64 kSolidBytes_Lzma2_Max = (UInt64)1 << 34;
+      const UInt64 kSolidBytes_Lzma2_Max = ((UInt64)1 << 34);
       if (numSolidBytes > kSolidBytes_Lzma2_Max)
-          numSolidBytes = kSolidBytes_Lzma2_Max;
+        numSolidBytes = kSolidBytes_Lzma2_Max;
 
       methodFull.Set_NumThreads = false; // we don't use ICompressSetCoderMt::SetNumberOfThreads() for LZMA2 encoder
 
       #ifndef Z7_ST
       if (!numThreads_WasSpecifiedInMethod
           && !methodMode.NumThreads_WasForced
-          && methodMode.MemoryUsageLimit_WasSet)
+          && methodMode.MemoryUsageLimit_WasSet
+          )
       {
         const UInt32 lzmaThreads = oneMethodInfo.Get_Lzma_NumThreads();
         const UInt32 numBlockThreads_Original = methodMode.NumThreads / lzmaThreads;
@@ -274,14 +270,14 @@ HRESULT CHandler::SetMainMethod(CCompressionMethodMode &methodMode)
     {
       numSolidBytes = (UInt64)dicSize << 7;
       if (numSolidBytes > kSolidBytes_Max)
-          numSolidBytes = kSolidBytes_Max;
+        numSolidBytes = kSolidBytes_Max;
     }
 
     if (_numSolidBytesDefined)
       continue;
 
     if (numSolidBytes < kSolidBytes_Min)
-        numSolidBytes = kSolidBytes_Min;
+      numSolidBytes = kSolidBytes_Min;
     _numSolidBytes = numSolidBytes;
     _numSolidBytesDefined = true;
   }
@@ -441,23 +437,6 @@ Z7_COM7F_IMF(CHandler::UpdateItems(ISequentialOutStream *outStream, UInt32 numIt
     if (!TimeOptions.Write_ATime.Def) need_ATime = !db->ATime.Defs.IsEmpty();
     if (!TimeOptions.Write_MTime.Def) need_MTime = !db->MTime.Defs.IsEmpty();
     if (!Write_Attrib.Def) need_Attrib = !db->Attrib.Defs.IsEmpty();
-  }
-
-  // if no methods specified in options (and not pure copy) - try to obtain it from archived item,
-  // (at the moment only once for 1st item block, because otherwise we'd need to rewrite every interface to set codecs per item):
-  if (_methods.IsEmpty() && _level != 0) {
-    CHandler::MethodInfo mInfo;
-    if (ObtainMethodFromBlocks(&mInfo)) {
-      //printf("************ fnd-block-method: %s, lev: %d\n", mInfo.methName.Ptr(), mInfo.level);
-      // set as default method (also _methods is not empty now, so this shall not be invoked anymore):
-      if (!mInfo.methName.IsEmpty()) {
-        COneMethodInfo &m = _methods.AddNew();
-        m.MethodName = mInfo.methName;
-        if ((_level == -1) && (mInfo.level != -1)) {
-          _level = mInfo.level;
-        }
-      }
-    }
   }
 
   // UString s;
@@ -722,9 +701,6 @@ Z7_COM7F_IMF(CHandler::UpdateItems(ISequentialOutStream *outStream, UInt32 numIt
     methodMode.NumThreads = numThreads;
     methodMode.NumThreads_WasForced = _numThreads_WasForced;
     methodMode.MultiThreadMixer = _useMultiThreadMixer;
-#ifdef _WIN32
-    methodMode.NumThreadGroups = _numThreadGroups; // _change it
-#endif
     // headerMethod.NumThreads = 1;
     headerMethod.MultiThreadMixer = _useMultiThreadMixer;
   }
@@ -797,11 +773,6 @@ Z7_COM7F_IMF(CHandler::UpdateItems(ISequentialOutStream *outStream, UInt32 numIt
   options.UseFilters = (level != 0 && _autoFilter && !methodMode.Filter_was_Inserted);
   options.MaxFilter = (level >= 8);
   options.AnalysisLevel = GetAnalysisLevel();
-
-  options.SetFilterSupporting_ver_enabled_disabled(
-      _decoderCompatibilityVersion,
-      _enabledFilters,
-      _disabledFilters);
 
   options.HeaderOptions.CompressMainHeader = compressMainHeader;
   /*
@@ -887,10 +858,6 @@ void COutHandler::InitProps7z()
 
   InitSolid();
   _useTypeSorting = false;
-
-  _decoderCompatibilityVersion = k_decoderCompatibilityVersion;
-  _enabledFilters.Clear();
-  _disabledFilters.Clear();
 }
 
 void COutHandler::InitProps()
@@ -977,29 +944,6 @@ static HRESULT PROPVARIANT_to_BoolPair(const PROPVARIANT &prop, CBoolPair &dest)
   return S_OK;
 }
 
-struct C_Id_Name_pair
-{
-  UInt32 Id;
-  const char *Name;
-};
-
-static const C_Id_Name_pair g_filter_pairs[] =
-{
-  { k_Delta, "Delta" },
-  { k_ARM64, "ARM64" },
-  { k_RISCV, "RISCV" },
-  { k_SWAP2, "SWAP2" },
-  { k_SWAP4, "SWAP4" },
-  { k_BCJ,   "BCJ" },
-  { k_BCJ2 , "BCJ2" },
-  { k_PPC,   "PPC" },
-  { k_IA64,  "IA64" },
-  { k_ARM,   "ARM" },
-  { k_ARMT,  "ARMT" },
-  { k_SPARC, "SPARC" }
-};
-
-
 HRESULT COutHandler::SetProperty(const wchar_t *nameSpec, const PROPVARIANT &value)
 {
   UString name = nameSpec;
@@ -1053,49 +997,12 @@ HRESULT COutHandler::SetProperty(const wchar_t *nameSpec, const PROPVARIANT &val
         return S_OK;
       }
     }
-    
+
     if (name.IsEqualTo("tr")) return PROPVARIANT_to_BoolPair(value, Write_Attrib);
     
     if (name.IsEqualTo("mtf")) return PROPVARIANT_to_bool(value, _useMultiThreadMixer);
 
     if (name.IsEqualTo("qs")) return PROPVARIANT_to_bool(value, _useTypeSorting);
-
-    if (name.IsPrefixedBy_Ascii_NoCase("yv"))
-    {
-      name.Delete(0, 2);
-      UInt32 v = 1 << 16;  // if no number is noit specified, we use big value
-      RINOK(ParsePropToUInt32(name, value, v))
-      _decoderCompatibilityVersion = v;
-      // if (v == 0) _decoderCompatibilityVersion = k_decoderCompatibilityVersion;
-      return S_OK;
-    }
-
-    if (name.IsPrefixedBy_Ascii_NoCase("yf"))
-    {
-      name.Delete(0, 2);
-      CUIntVector *vec;
-           if (name.IsEqualTo_Ascii_NoCase("a")) vec = &_enabledFilters;
-      else if (name.IsEqualTo_Ascii_NoCase("d")) vec = &_disabledFilters;
-      else return E_INVALIDARG;
-
-      if (value.vt != VT_BSTR)
-        return E_INVALIDARG;
-      for (unsigned k = 0;; k++)
-      {
-        if (k == Z7_ARRAY_SIZE(g_filter_pairs))
-        {
-          // maybe we can ignore unsupported filter names here?
-          return E_INVALIDARG;
-        }
-        const C_Id_Name_pair &pair = g_filter_pairs[k];
-        if (StringsAreEqualNoCase_Ascii(value.bstrVal, pair.Name))
-        {
-          vec->AddToUniqueSorted(pair.Id);
-          break;
-        }
-      }
-      return S_OK;
-    }
 
     // if (name.IsEqualTo("v"))  return PROPVARIANT_to_bool(value, _volumeMode);
   }

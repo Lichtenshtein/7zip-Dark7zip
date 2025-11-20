@@ -1,5 +1,5 @@
 /* Xz.h - Xz interface
-Igor Pavlov : Public domain */
+2023-04-13 : Igor Pavlov : Public domain */
 
 #ifndef ZIP7_INC_XZ_H
 #define ZIP7_INC_XZ_H
@@ -18,7 +18,6 @@ EXTERN_C_BEGIN
 #define XZ_ID_ARMT  8
 #define XZ_ID_SPARC 9
 #define XZ_ID_ARM64 0xa
-#define XZ_ID_RISCV 0xb
 #define XZ_ID_LZMA2 0x21
 
 unsigned Xz_ReadVarInt(const Byte *p, size_t maxSize, UInt64 *value);
@@ -121,7 +120,6 @@ typedef struct
   UInt64 startOffset;
 } CXzStream;
 
-#define Xz_CONSTRUCT(p) { (p)->numBlocks = 0;  (p)->blocks = NULL;  (p)->flags = 0; }
 void Xz_Construct(CXzStream *p);
 void Xz_Free(CXzStream *p, ISzAllocPtr alloc);
 
@@ -137,13 +135,8 @@ typedef struct
   CXzStream *streams;
 } CXzs;
 
-#define Xzs_CONSTRUCT(p) { (p)->num = 0;  (p)->numAllocated = 0;  (p)->streams = NULL; }
 void Xzs_Construct(CXzs *p);
 void Xzs_Free(CXzs *p, ISzAllocPtr alloc);
-/*
-Xzs_ReadBackward() must be called for empty CXzs object.
-Xzs_ReadBackward() can return non empty object with (p->num != 0) even in case of error.
-*/
 SRes Xzs_ReadBackward(CXzs *p, ILookInStreamPtr inStream, Int64 *startOffset, ICompressProgressPtr progress, ISzAllocPtr alloc);
 
 UInt64 Xzs_GetNumBlocks(const CXzs *p);
@@ -240,13 +233,13 @@ typedef enum
 typedef struct
 {
   EXzState state;
-  unsigned pos;
+  UInt32 pos;
   unsigned alignPos;
   unsigned indexPreSize;
 
   CXzStreamFlags streamFlags;
   
-  unsigned blockHeaderSize;
+  UInt32 blockHeaderSize;
   UInt64 packSize;
   UInt64 unpackSize;
 
@@ -274,8 +267,8 @@ typedef struct
   size_t outBufSize;
   size_t outDataWritten; // the size of data in (outBuf) that were fully unpacked
 
-  UInt32 shaDigest32[SHA256_DIGEST_SIZE / 4];
-  Byte buf[XZ_BLOCK_HEADER_SIZE_MAX]; // it must be aligned for 4-bytes
+  Byte shaDigest[SHA256_DIGEST_SIZE];
+  Byte buf[XZ_BLOCK_HEADER_SIZE_MAX];
 } CXzUnpacker;
 
 /* alloc : aligned for cache line allocation is better */

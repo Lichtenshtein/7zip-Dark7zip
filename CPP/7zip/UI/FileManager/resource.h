@@ -20,30 +20,12 @@
 #define IDB_DELETE2  155
 #define IDB_INFO2    156
 
-#define IDB_NAVIBAR  200
-
-#define NAVIBAR_BACK               0
-#define NAVIBAR_FORWARD            1
-#define NAVIBAR_UP                 2
-#define NAVIBAR_COUNT              3
-
 #define IDM_HASH_ALL             101
 #define IDM_CRC32                102
 #define IDM_CRC64                103
-#define IDM_XXH32                104
-#define IDM_XXH64                105
-#define IDM_MD2                  106
-#define IDM_MD4                  107
-#define IDM_MD5                  108
-#define IDM_SHA1                 109
-#define IDM_SHA2_256             110
-#define IDM_SHA2_384             111
-#define IDM_SHA2_512             112
-#define IDM_BLAKE2sp             113
-#define IDM_BLAKE3               114
-#define IDM_SHA3_256             115
-#define IDM_SHA3_384             116
-#define IDM_SHA3_512             117
+#define IDM_SHA1                 104
+#define IDM_SHA256               105
+
 
 #define IDM_FILE                 500
 #define IDM_EDIT                 501
@@ -51,7 +33,6 @@
 #define IDM_FAVORITES            503
 #define IDM_TOOLS                504
 #define IDM_HELP                 505
-#define IDM_NAME_ENCODING        506
 
 #define IDM_OPEN                 540
 #define IDM_OPEN_INSIDE          541
@@ -73,6 +54,8 @@
 // #define IDM_EXIT                 557
 #define IDM_LINK                 558
 #define IDM_ALT_STREAMS          559
+#define IDM_FIND_FZF            560
+#define IDM_FIND_IGREP          561
 
 #define IDM_VER_EDIT             580
 #define IDM_VER_COMMIT           581
@@ -81,6 +64,11 @@
 
 #define IDM_OPEN_INSIDE_ONE      590
 #define IDM_OPEN_INSIDE_PARSER   591
+
+#define IDM_OPEN_VSCODE          592
+#define IDM_OPEN_TERMINAL        593
+#define IDM_OPEN_EXPLORER        594
+#define IDM_COPY_PATH            595
 
 #define IDM_SELECT_ALL           600
 #define IDM_DESELECT_ALL         601
@@ -99,16 +87,13 @@
 #define IDM_VIEW_ARANGE_BY_TYPE  711
 #define IDM_VIEW_ARANGE_BY_DATE  712
 #define IDM_VIEW_ARANGE_BY_SIZE  713
-#define IDM_VIEW_ARANGE_NO_SORT  714
 
-#define IDM_OPEN_BACK_FOLDER     720
-#define IDM_OPEN_FORWARD_FOLDER  721
-#define IDM_OPEN_PARENT_FOLDER   722
-#define IDM_OPEN_ROOT_FOLDER     723
-
+#define IDM_VIEW_ARANGE_NO_SORT  730
 #define IDM_VIEW_FLAT_VIEW       731
 #define IDM_VIEW_TWO_PANELS      732
 #define IDM_VIEW_TOOLBARS        733
+#define IDM_OPEN_ROOT_FOLDER     734
+#define IDM_OPEN_PARENT_FOLDER   735
 #define IDM_FOLDERS_HISTORY      736
 #define IDM_VIEW_REFRESH         737
 #define IDM_VIEW_AUTO_REFRESH    738
@@ -122,36 +107,13 @@
 
 #define IDM_VIEW_TIME_POPUP      760
 #define IDM_VIEW_TIME            761
-#define IDM_VIEW_TIME_UTC        799
 
 #define IDM_ADD_TO_FAVORITES     800
 #define IDS_BOOKMARK             801
 
-#define IDM_NAME_ENCODING_DEFAULT 805
-#define IDM_NAME_ENCODING_65001   806
-#define IDM_NAME_ENCODING_1252    807
-#define IDM_NAME_ENCODING_437     808
-#define IDM_NAME_ENCODING_850     809
-#define IDM_NAME_ENCODING_852     810
-#define IDM_NAME_ENCODING_866     811
-#define IDM_NAME_ENCODING_874     812
-#define IDM_NAME_ENCODING_932     813
-#define IDM_NAME_ENCODING_936     814
-#define IDM_NAME_ENCODING_949     815
-#define IDM_NAME_ENCODING_950     816
-#define IDM_NAME_ENCODING_1250    817
-#define IDM_NAME_ENCODING_1251    818
-#define IDM_NAME_ENCODING_1253    819
-#define IDM_NAME_ENCODING_1254    820
-#define IDM_NAME_ENCODING_1255    821
-#define IDM_NAME_ENCODING_1256    822
-#define IDM_NAME_ENCODING_1257    823
-#define IDM_NAME_ENCODING_1258    824
-
 #define IDM_OPTIONS              900
 #define IDM_BENCHMARK            901
 #define IDM_BENCHMARK2           902
-#define IDM_TEMP_DIR             910
 
 #define IDM_HELP_CONTENTS        960
 #define IDM_ABOUT                961
@@ -175,7 +137,7 @@
 #define IDS_COPY_TO                     6002
 #define IDS_MOVE_TO                     6003
 #define IDS_COPYING                     6004
-// #define IDS_MOVING                      6005
+#define IDS_MOVING                      6005
 #define IDS_RENAMING                    6006
 
 #define IDS_OPERATION_IS_NOT_SUPPORTED  6008
@@ -223,7 +185,6 @@
 #define IDS_BUTTON_MOVE                 7204
 #define IDS_BUTTON_DELETE               7205
 #define IDS_BUTTON_INFO                 7206
-#define IDS_AUTOEXTRACT                 7207
 
 #define IDS_SPLITTING                   7303
 #define IDS_SPLIT_CONFIRM_TITLE         7304

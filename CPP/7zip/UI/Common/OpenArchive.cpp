@@ -350,7 +350,6 @@ Z7_COM7F_IMF(CHandler::GetProperty(UInt32 index, PROPID propID, PROPVARIANT *val
     case kpidMTime: if (item.FileTime_Defined) prop = item.FileTime; break;
     case kpidComment: if (!item.Comment.IsEmpty()) prop = item.Comment; break;
     case kpidType: if (!item.ArcType.IsEmpty()) prop = item.ArcType; break;
-    default: break;
   }
   prop.Detach(value);
   return S_OK;
@@ -585,7 +584,7 @@ HRESULT CArc::GetItem_PathToParent(UInt32 index, UInt32 parent, UStringVector &p
     {
       {
         UString &s2 = parts[parts.Size() - 2];
-        s2.Add_Colon();
+        s2 += ':';
         s2 += parts.Back();
       }
       parts.DeleteBack();
@@ -1123,7 +1122,6 @@ static const char * const k_Formats_with_simple_signuature[] =
   , "rar"
   , "bzip2"
   , "gzip"
-  , "lzip"
   , "cab"
   , "wim"
   , "rpm"
@@ -1180,14 +1178,6 @@ Z7_COM7F_IMF(CArchiveOpenCallback_Offset::CryptoGetTextPassword(BSTR *password))
   COM_TRY_BEGIN
   if (GetTextPassword)
     return GetTextPassword->CryptoGetTextPassword(password);
-  return E_NOTIMPL;
-  COM_TRY_END
-}
-Z7_COM7F_IMF(CArchiveOpenCallback_Offset::CryptoGetPasswordIfAny(bool& passwordIsDefined, UString& password))
-{
-  COM_TRY_BEGIN
-  if (GetTextPassword)
-    return GetTextPassword->CryptoGetPasswordIfAny(passwordIsDefined, password);
   return E_NOTIMPL;
   COM_TRY_END
 }
@@ -2511,7 +2501,7 @@ HRESULT CArc::OpenStream2(const COpenOptions &op)
           // printf("\nRead ask = %d", (unsigned)processedSize);
           UInt64 seekPos = bufPhyPos + bytesInBuf;
           RINOK(InStream_SeekSet(op.stream, bufPhyPos + bytesInBuf))
-          RINOK(ReadStream(op.stream, byteBuffer.NonConstData() + bytesInBuf, &processedSize))
+          RINOK(ReadStream(op.stream, byteBuffer + bytesInBuf, &processedSize))
           // printf("   processed = %d", (unsigned)processedSize);
           if (processedSize == 0)
           {
@@ -2533,7 +2523,7 @@ HRESULT CArc::OpenStream2(const COpenOptions &op)
           {
             size_t keepSize = (size_t)(kBeforeSize - skipSize);
             // printf("\nmemmove skip = %d", (int)keepSize);
-            memmove(byteBuffer, byteBuffer.ConstData() + bytesInBuf - keepSize, keepSize);
+            memmove(byteBuffer, byteBuffer + bytesInBuf - keepSize, keepSize);
             bytesInBuf = keepSize;
             bufPhyPos = pos - keepSize;
             continue;
@@ -2549,7 +2539,7 @@ HRESULT CArc::OpenStream2(const COpenOptions &op)
         {
           size_t beg = (size_t)posInBuf - kBeforeSize;
           // printf("\nmemmove for after beg = %d", (int)beg);
-          memmove(byteBuffer, byteBuffer.ConstData() + beg, bytesInBuf - beg);
+          memmove(byteBuffer, byteBuffer + beg, bytesInBuf - beg);
           bufPhyPos += beg;
           bytesInBuf -= beg;
           continue;
@@ -2607,14 +2597,14 @@ HRESULT CArc::OpenStream2(const COpenOptions &op)
 
       scanSize++;
 
-      const Byte *buf = byteBuffer.ConstData() + (size_t)posInBuf;
+      const Byte *buf = byteBuffer + (size_t)posInBuf;
       const Byte *bufLimit = buf + scanSize;
       size_t ppp = 0;
       
       if (!needCheckStartOpen)
       {
         for (; buf < bufLimit && hash[HASH_VAL(buf)] == 0xFF; buf++);
-        ppp = (size_t)(buf - (byteBuffer.ConstData() + (size_t)posInBuf));
+        ppp = (size_t)(buf - (byteBuffer + (size_t)posInBuf));
         pos += ppp;
         if (buf == bufLimit)
           continue;
@@ -2695,7 +2685,7 @@ HRESULT CArc::OpenStream2(const COpenOptions &op)
           const size_t offsetInBuf = (size_t)(startArcPos - bufPhyPos);
           if (offsetInBuf < bytesInBuf)
           {
-            const UInt32 isArcRes = ai.IsArcFunc(byteBuffer.ConstData() + offsetInBuf, bytesInBuf - offsetInBuf);
+            const UInt32 isArcRes = ai.IsArcFunc(byteBuffer + offsetInBuf, bytesInBuf - offsetInBuf);
             if (isArcRes == k_IsArc_Res_NO)
               continue;
             if (isArcRes == k_IsArc_Res_NEED_MORE && endOfFile)
@@ -3095,12 +3085,7 @@ HRESULT CArc::OpenStreamOrFile(COpenOptions &op)
   
   if (op.stdInMode)
   {
-#if 1
     seqStream = new CStdInFileStream;
-#else
-    if (!CreateStdInStream(seqStream))
-      return GetLastError_noZero_HRESULT();
-#endif
     op.seqStream = seqStream;
   }
   else if (!op.stream)
@@ -3592,7 +3577,6 @@ static bool ParseTypeParams(const UString &s, COpenType &type)
       case 'e': type.EachPos = true; return true;
       case 'a': type.CanReturnArc = true; return true;
       case 'r': type.Recursive = true; return true;
-      default: break;
     }
     return false;
   }

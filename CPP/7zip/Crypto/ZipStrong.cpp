@@ -24,31 +24,30 @@ static const UInt16 kAES128 = 0x660E;
   if (method != AES && method != 3DES), probably we need another code.
 */
 
-static void DeriveKey2(const UInt32 *digest32, Byte c, UInt32 *dest32)
+static void DeriveKey2(const Byte *digest, Byte c, Byte *dest)
 {
-  const unsigned kBufSize = 64;
   MY_ALIGN (16)
-  UInt32 buf32[kBufSize / 4];
-  memset(buf32, c, kBufSize);
-  for (unsigned i = 0; i < NSha1::kNumDigestWords; i++)
-    buf32[i] ^= digest32[i];
+  Byte buf[64];
+  memset(buf, c, 64);
+  for (unsigned i = 0; i < NSha1::kDigestSize; i++)
+    buf[i] ^= digest[i];
   MY_ALIGN (16)
   NSha1::CContext sha;
   sha.Init();
-  sha.Update((const Byte *)buf32, kBufSize);
-  sha.Final((Byte *)dest32);
+  sha.Update(buf, 64);
+  sha.Final(dest);
 }
  
 static void DeriveKey(NSha1::CContext &sha, Byte *key)
 {
   MY_ALIGN (16)
-  UInt32 digest32[NSha1::kNumDigestWords];
-  sha.Final((Byte *)digest32);
+  Byte digest[NSha1::kDigestSize];
+  sha.Final(digest);
   MY_ALIGN (16)
-  UInt32 temp32[NSha1::kNumDigestWords * 2];
-  DeriveKey2(digest32, 0x36, temp32);
-  DeriveKey2(digest32, 0x5C, temp32 + NSha1::kNumDigestWords);
-  memcpy(key, temp32, 32);
+  Byte temp[NSha1::kDigestSize * 2];
+  DeriveKey2(digest, 0x36, temp);
+  DeriveKey2(digest, 0x5C, temp + NSha1::kDigestSize);
+  memcpy(key, temp, 32);
 }
 
 void CKeyInfo::SetPassword(const Byte *data, UInt32 size)
@@ -123,24 +122,24 @@ HRESULT CDecoder::Init_and_CheckPassword(bool &passwOK)
   passwOK = false;
   if (_remSize < 16)
     return E_NOTIMPL;
-  Byte * const p = _bufAligned;
-  const unsigned format = GetUi16a(p);
+  Byte *p = _bufAligned;
+  const unsigned format = GetUi16(p);
   if (format != 3)
     return E_NOTIMPL;
-  unsigned algId = GetUi16a(p + 2);
+  unsigned algId = GetUi16(p + 2);
   if (algId < kAES128)
     return E_NOTIMPL;
   algId -= kAES128;
   if (algId > 2)
     return E_NOTIMPL;
-  const unsigned bitLen = GetUi16a(p + 4);
-  const unsigned flags = GetUi16a(p + 6);
+  const unsigned bitLen = GetUi16(p + 4);
+  const unsigned flags = GetUi16(p + 6);
   if (algId * 64 + 128 != bitLen)
     return E_NOTIMPL;
   _key.KeySize = 16 + algId * 8;
   const bool cert = ((flags & 2) != 0);
 
-  if (flags & 0x4000)
+  if ((flags & 0x4000) != 0)
   {
     // Use 3DES for rd data
     return E_NOTIMPL;
@@ -156,7 +155,7 @@ HRESULT CDecoder::Init_and_CheckPassword(bool &passwOK)
       return E_NOTIMPL;
   }
 
-  UInt32 rdSize = GetUi16a(p + 8);
+  UInt32 rdSize = GetUi16(p + 8);
 
   if (rdSize + 16 > _remSize)
     return E_NOTIMPL;
@@ -175,7 +174,7 @@ HRESULT CDecoder::Init_and_CheckPassword(bool &passwOK)
     // PKCS7 padding
     if (rdSize < kPadSize)
       return E_NOTIMPL;
-    if (rdSize & (kPadSize - 1))
+    if ((rdSize & (kPadSize - 1)) != 0)
       return E_NOTIMPL;
   }
 

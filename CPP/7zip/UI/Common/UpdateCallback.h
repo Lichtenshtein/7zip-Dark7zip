@@ -47,7 +47,6 @@ Z7_PURE_INTERFACES_BEGIN
   /* virtual HRESULT SetPassword(const UString &password) x */ \
   virtual HRESULT CryptoGetTextPassword2(Int32 *passwordIsDefined, BSTR *password) x \
   virtual HRESULT CryptoGetTextPassword(BSTR *password) x \
-  virtual HRESULT CryptoGetPasswordIfAny(bool& passwordIsDefined, UString& password) x \
   virtual HRESULT ShowDeleteFile(const wchar_t *name, bool isDir) x \
 
   /*
@@ -161,10 +160,6 @@ public:
   FString VolName;
   FString VolExt;
   UString ArcFileName; // without path prefix
-  FString VolPrefix;
-  FString VolPostfix;
-  bool VolNumberAfterExt;
-  UInt32 DigitCount;
 
   const UStringVector *NewNames;
   const UString *Comment;

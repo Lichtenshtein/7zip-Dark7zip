@@ -1,32 +1,20 @@
 COMMON_OBJS = \
-  $O\Blake3Reg.obj \
   $O\CRC.obj \
   $O\CrcReg.obj \
   $O\DynLimBuf.obj \
   $O\IntToString.obj \
   $O\LzFindPrepare.obj \
-  $O\Md2Reg.obj \
-  $O\Md4Reg.obj \
-  $O\Md5Reg.obj \
   $O\MyMap.obj \
   $O\MyString.obj \
   $O\MyVector.obj \
-  $O\MyWindows.obj \
   $O\MyXml.obj \
   $O\NewHandler.obj \
   $O\Sha1Reg.obj \
   $O\Sha256Reg.obj \
-  $O\Sha3Reg.obj \
-  $O\Sha512Reg.obj \
-  $O\Sha512Prepare.obj \
-  $O\Sha3-384Reg.obj \
-  $O\Sha3-512Reg.obj \
   $O\StringConvert.obj \
   $O\StringToInt.obj \
   $O\UTFConvert.obj \
   $O\Wildcard.obj \
-  $O\XXH32Reg.obj \
-  $O\Xxh64Reg.obj \
   $O\XzCrc64Init.obj \
   $O\XzCrc64Reg.obj \
 
@@ -71,7 +59,6 @@ AR_OBJS = \
   $O\ArHandler.obj \
   $O\ArjHandler.obj \
   $O\Base64Handler.obj \
-  $O\BrotliHandler.obj \
   $O\Bz2Handler.obj \
   $O\ComHandler.obj \
   $O\CpioHandler.obj \
@@ -82,17 +69,12 @@ AR_OBJS = \
   $O\ExtHandler.obj \
   $O\FatHandler.obj \
   $O\FlvHandler.obj \
-  $O\FontHandler.obj \
   $O\GzHandler.obj \
   $O\GptHandler.obj \
   $O\HandlerCont.obj \
   $O\HfsHandler.obj \
   $O\IhexHandler.obj \
   $O\LpHandler.obj \
-  $O\LzHandler.obj \
-  $O\Lz4Handler.obj \
-  $O\Lz5Handler.obj \
-  $O\LizardHandler.obj \
   $O\LzhHandler.obj \
   $O\LzmaHandler.obj \
   $O\MachoHandler.obj \
@@ -116,7 +98,6 @@ AR_OBJS = \
   $O\XarHandler.obj \
   $O\XzHandler.obj \
   $O\ZHandler.obj \
-  $O\ZstdHandler.obj \
 
 AR_COMMON_OBJS = \
   $O\CoderMixer2.obj \
@@ -252,12 +233,10 @@ COMPRESS_OBJS = \
   $O\ZlibDecoder.obj \
   $O\ZlibEncoder.obj \
   $O\ZDecoder.obj \
-  $O\ZstdDecoder.obj \
 
 CRYPTO_OBJS = \
   $O\7zAes.obj \
   $O\7zAesRegister.obj \
-  $O\AesStream.obj \
   $O\HmacSha1.obj \
   $O\HmacSha256.obj \
   $O\MyAes.obj \
@@ -270,14 +249,6 @@ CRYPTO_OBJS = \
   $O\WzAes.obj \
   $O\ZipCrypto.obj \
   $O\ZipStrong.obj \
-
-HASHES_OBJS = \
-  $O\blake3.obj \
-  $O\md2.obj \
-  $O\md4.obj \
-  $O\md5c.obj \
-  $O\sha3c.obj \
-  $O\sha512c.obj \
 
 C_OBJS = \
   $O\7zBuf2.obj \
@@ -300,7 +271,6 @@ C_OBJS = \
   $O\Lzma2Enc.obj \
   $O\LzmaDec.obj \
   $O\LzmaEnc.obj \
-  $O\Md5.obj \
   $O\MtCoder.obj \
   $O\MtDec.obj \
   $O\Ppmd7.obj \
@@ -310,12 +280,9 @@ C_OBJS = \
   $O\Ppmd8.obj \
   $O\Ppmd8Dec.obj \
   $O\Ppmd8Enc.obj \
-  $O\Sha3.obj \
-  $O\Sha512.obj \
-  $O\Sha512Opt.obj \
+  $O\Sort.obj \
   $O\SwapBytes.obj \
   $O\Threads.obj \
-  $O\Xxh64.obj \
   $O\Xz.obj \
   $O\XzDec.obj \
   $O\XzEnc.obj \
@@ -328,4 +295,3 @@ C_OBJS = \
 !include "../../LzmaDec.mak"
 !include "../../Sha1.mak"
 !include "../../Sha256.mak"
-!include "../../Sort.mak"

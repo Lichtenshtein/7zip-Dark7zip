@@ -1,10 +1,10 @@
 LIBS = $(LIBS) oleaut32.lib ole32.lib
-CFLAGS = $(CFLAGS) /wd4566 /D_DISABLE_DEPRECATE_LTL_MESSAGE
-LFLAGS = $(LFLAGS) /LTCG
+LFLAGS = $(LFLAGS) /debug
+CFLAGS = $(CFLAGS) /Zi
+CXXFLAGS = $(CXXFLAGS) /Zi
 
-# CFLAGS = $(CFLAGS) -DZ7_NO_UNICODE
 !IFNDEF MY_NO_UNICODE
-# CFLAGS = $(CFLAGS) -DUNICODE -D_UNICODE
+CFLAGS = $(CFLAGS) -DUNICODE -D_UNICODE
 !ENDIF
 
 !IF "$(CC)" != "clang-cl"
@@ -24,19 +24,14 @@ O=o
 # CFLAGS = $(CFLAGS) -FAsc -Fa$O/asm/
 !ENDIF
 
-# LFLAGS = $(LFLAGS) /guard:cf
-
 
 !IF "$(PLATFORM)" == "x64"
-MY_ML = ml64
-!ELSEIF "$(PLATFORM)" == "arm64"
-MY_ML = armasm64
+MY_ML = ml64 -WX
+#-Dx64
 !ELSEIF "$(PLATFORM)" == "arm"
-MY_ML = armasm
-!ELSEIF "$(PLATFORM)" == "arm64"
-MY_ML = armasm
+MY_ML = armasm -WX
 !ELSE
-MY_ML = ml
+MY_ML = ml -WX
 # -DABI_CDECL
 !ENDIF
 
@@ -50,7 +45,7 @@ LFLAGS = $(LFLAGS) /ENTRY:mainACRTStartup
 !ENDIF
 !ELSE
 !IFDEF OLD_COMPILER
-LFLAGS = $(LFLAGS)
+LFLAGS = $(LFLAGS) -OPT:NOWIN98
 !ENDIF
 !IF "$(PLATFORM)" != "arm" && "$(PLATFORM)" != "arm64"
 CFLAGS = $(CFLAGS) -Gr
@@ -59,8 +54,6 @@ LIBS = $(LIBS) user32.lib advapi32.lib shell32.lib
 !ENDIF
 
 !IF "$(PLATFORM)" == "arm"
-COMPL_ASM = $(MY_ML) $** $O/$(*B).obj
-!ELSEIF "$(PLATFORM)" == "arm64"
 COMPL_ASM = $(MY_ML) $** $O/$(*B).obj
 !ELSE
 COMPL_ASM = $(MY_ML) -c -Fo$O/ $**
@@ -72,8 +65,7 @@ CFLAGS_WARN_LEVEL = -W4
 CFLAGS_WARN_LEVEL = -Wall
 !ENDIF
 
-# CFLAGS = $(CFLAGS) -nologo -c -Fo$O/ $(CFLAGS_WARN_LEVEL) -EHsc -Gy -MT -MP -GR- -GL -Gw
-CFLAGS = $(CFLAGS) -nologo -c -Fo$O/ -W4 -EHsc -Gy -MT -MP -GR- -GL -Gw -std:c++20 -GF
+CFLAGS = $(CFLAGS) -nologo -c -Fo$O/ $(CFLAGS_WARN_LEVEL) -EHsc -Gy -GR- -GF
 
 !IF "$(CC)" == "clang-cl"
 
@@ -86,8 +78,7 @@ CFLAGS = $(CFLAGS) \
 
 !ENDIF
 
-# !IFDEF MY_DYNAMIC_LINK
-!IF "$(MY_DYNAMIC_LINK)" != ""
+!IFDEF MY_DYNAMIC_LINK
 CFLAGS = $(CFLAGS) -MD
 !ELSE
 !IFNDEF MY_SINGLE_THREAD
@@ -115,13 +106,7 @@ CFLAGS = $(CFLAGS) -Zc:forScope
 
 !IFNDEF UNDER_CE
 !IF "$(CC)" != "clang-cl"
-MP_NPROC = 16
-!IFDEF NUMBER_OF_PROCESSORS
-!IF $(NUMBER_OF_PROCESSORS) < $(MP_NPROC)
-MP_NPROC = $(NUMBER_OF_PROCESSORS)
-!ENDIF
-!ENDIF
-CFLAGS = $(CFLAGS) -MP$(MP_NPROC)
+CFLAGS = $(CFLAGS) -MP4
 !ENDIF
 !IFNDEF PLATFORM
 # CFLAGS = $(CFLAGS) -arch:IA32
@@ -141,33 +126,42 @@ CFLAGS = $(CFLAGS) -D_ARM_WINAPI_PARTITION_DESKTOP_SDK_AVAILABLE
 !ENDIF
 !ENDIF
 
-!IFNDEF DEBUG
+!IF "$(PLATFORM)" == "x64"
 CFLAGS_O1 = $(CFLAGS) -O1
-CFLAGS_O2 = $(CFLAGS) -O2 /Ob3
 !ELSE
-CFLAGS = $(CFLAGS) -Od /Zi -D_DEBUG -DDEBUG
-LFLAGS = $(LFLAGS) /DEBUG
-CFLAGS_O1 = $(CFLAGS)
-CFLAGS_O2 = $(CFLAGS)
+CFLAGS_O1 = $(CFLAGS) -O1
 !ENDIF
+CFLAGS_O2 = $(CFLAGS) -O2
 
-LFLAGS = $(LFLAGS) -nologo -OPT:REF -OPT:ICF -INCREMENTAL:NO -LTCG
+LFLAGS = $(LFLAGS) -nologo -OPT:REF -OPT:ICF -INCREMENTAL:NO
 
 !IFNDEF UNDER_CE
-LFLAGS = $(LFLAGS) /LTCG /LARGEADDRESSAWARE /DEPENDENTLOADFLAG:0x800
+LFLAGS = $(LFLAGS) /LARGEADDRESSAWARE
 !ENDIF
 
 !IFDEF DEF_FILE
 LFLAGS = $(LFLAGS) -DLL -DEF:$(DEF_FILE)
+!ELSE
+!IF defined(MY_FIXED) && "$(PLATFORM)" != "arm" && "$(PLATFORM)" != "arm64"
+LFLAGS = $(LFLAGS) /FIXED
+!ELSE
+LFLAGS = $(LFLAGS) /FIXED:NO
+!ENDIF
+# /BASE:0x400000
 !ENDIF
 
 !IF "$(PLATFORM)" == "arm64"
 # we can get better compression ratio with ARM64 filter if we change alignment to 4096
 # LFLAGS = $(LFLAGS) /FILEALIGN:4096
 !ENDIF
+
+
+
+# !IF "$(PLATFORM)" == "x64"
+
 !IFDEF SUB_SYS_VER
 
-MY_SUB_SYS_VER=6.00
+MY_SUB_SYS_VER=5.02
 
 !IFDEF MY_CONSOLE
 LFLAGS = $(LFLAGS) /SUBSYSTEM:console,$(MY_SUB_SYS_VER)
@@ -178,22 +172,13 @@ LFLAGS = $(LFLAGS) /SUBSYSTEM:windows,$(MY_SUB_SYS_VER)
 !ENDIF
 
 
-!IF "$(PLATFORM)" == "arm64"
-CLANG_FLAGS_TARGET = --target=arm64-pc-windows-msvc
-!ENDIF
-
-COMPL_CLANG_SPEC=clang-cl $(CLANG_FLAGS_TARGET)
-COMPL_ASM_CLANG = $(COMPL_CLANG_SPEC) -nologo -c -Fo$O/ $(CFLAGS_WARN_LEVEL) $**
-# COMPL_C_CLANG   = $(COMPL_CLANG_SPEC) $(CFLAGS_O2)
-
-
 PROGPATH = $O\$(PROG)
 
 COMPL_O1   = $(CC) $(CFLAGS_O1) $**
 COMPL_O2   = $(CC) $(CFLAGS_O2) $**
 COMPL_PCH  = $(CC) $(CFLAGS_O1) -Yc"StdAfx.h" -Fp$O/a.pch $**
 COMPL      = $(CC) $(CFLAGS_O1) -Yu"StdAfx.h" -Fp$O/a.pch $**
-COMPLB    = $(CC) $(CFLAGS_O1) -Yu"StdAfx.h" -Fp$O/a.pch $<
+COMPLB     = $(CC) $(CFLAGS_O1) -Yu"StdAfx.h" -Fp$O/a.pch $<
 COMPLB_O2  = $(CC) $(CFLAGS_O2) $<
 # COMPLB_O2  = $(CC) $(CFLAGS_O2) -Yu"StdAfx.h" -Fp$O/a.pch $<
 
@@ -208,7 +193,7 @@ CCOMPLB     = $(CC) $(CFLAGS_C_ALL) $<
 !IF "$(CC)" == "clang-cl"
 COMPL  = $(COMPL) -FI StdAfx.h
 COMPLB = $(COMPLB) -FI StdAfx.h
-CCOMPL_USE = $(CCOMPL_USE) -FI Precomp.h
+CCOMPL_USE  = $(CCOMPL_USE) -FI Precomp.h
 CCOMPLB_USE = $(CCOMPLB_USE) -FI Precomp.h
 !ENDIF
 

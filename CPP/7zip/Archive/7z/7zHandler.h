@@ -54,13 +54,11 @@ public:
   CBoolPair Write_Attrib;
 
   bool _useMultiThreadMixer;
+
   bool _removeSfxBlock;
+  
   // bool _volumeMode;
 
-  UInt32 _decoderCompatibilityVersion;
-  CUIntVector _enabledFilters;
-  CUIntVector _disabledFilters;
-  
   void InitSolidFiles() { _numSolidFiles = (UInt64)(Int64)(-1); }
   void InitSolidSize()  { _numSolidBytes = (UInt64)(Int64)(-1); }
   void InitSolid()
@@ -159,13 +157,6 @@ private:
   CRecordVector<UInt64> _fileInfoPopIDs;
   void FillPopIDs();
   void AddMethodName(AString &s, UInt64 id);
-
-  typedef struct MethodInfo {
-    AString methName;
-    int level;
-  } MethodInfo;
-  bool ObtainMethodFromBlocks(MethodInfo *info) const;
-  HRESULT ObtainBlockMethods(CNum folderIndex, PROPVARIANT *prop, MethodInfo *info) const;
   HRESULT SetMethodToProp(CNum folderIndex, PROPVARIANT *prop) const;
 
   #endif

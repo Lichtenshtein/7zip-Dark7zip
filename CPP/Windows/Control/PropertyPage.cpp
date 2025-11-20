@@ -8,8 +8,6 @@
 
 #include "PropertyPage.h"
 
-#include "../../../DarkMode/src/DarkModeSubclass.h"
-
 extern HINSTANCE g_hInstance;
 #ifndef _UNICODE
 extern bool g_IsNT;
@@ -33,13 +31,7 @@ APIENTRY MyProperyPageProcedure(HWND dialogHWND, UINT message, WPARAM wParam, LP
   if (dialog == NULL)
     return FALSE;
   if (message == WM_INITDIALOG)
-    {
-      dialog->Attach(dialogHWND);
-      DarkMode::setDarkWndNotifySafeEx(::GetParent(*dialog), true, true);
-      DarkMode::setWindowCtlColorSubclass(*dialog);
-      DarkMode::setWindowNotifyCustomDrawSubclass(*dialog);
-      DarkMode::setChildCtrlsSubclassAndTheme(*dialog);
-    }
+    dialog->Attach(dialogHWND);
   try { return BoolToBOOL(dialog->OnMessage(message, wParam, lParam)); }
   catch(...) { return TRUE; }
 }
@@ -149,7 +141,7 @@ INT_PTR MyPropertySheet(const CObjectVector<CPageInfo> &pagesInfo, HWND hwndPare
     sheet.pszCaption = titleA;
     sheet.nPages = pagesA.Size();
     sheet.nStartPage = 0;
-    sheet.ppsp = (LPCPROPSHEETPAGEA)(const void *)pagesA.ConstData();
+    sheet.ppsp = (LPCPROPSHEETPAGEA)(const void *)&pagesA.Front();
     sheet.pfnCallback = NULL;
     return ::PropertySheetA(&sheet);
   }
@@ -164,7 +156,7 @@ INT_PTR MyPropertySheet(const CObjectVector<CPageInfo> &pagesInfo, HWND hwndPare
     sheet.pszCaption = title;
     sheet.nPages = pagesW.Size();
     sheet.nStartPage = 0;
-    sheet.ppsp = (LPCPROPSHEETPAGEW)(const void *)pagesW.ConstData();
+    sheet.ppsp = (LPCPROPSHEETPAGEW)(const void *)&pagesW.Front();
     sheet.pfnCallback = NULL;
     return ::PropertySheetW(&sheet);
   }

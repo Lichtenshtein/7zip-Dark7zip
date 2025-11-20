@@ -4,7 +4,6 @@
 #define ZIP7_INC_IPASSWORD_H
 
 #include "../Common/MyTypes.h"
-#include "../Common/MyString.h"
 
 #include "IDecl.h"
 
@@ -25,8 +24,7 @@ out: The callee rewrites BSTR variable (*password) with new allocated string poi
 */
 
 #define Z7_IFACEM_ICryptoGetTextPassword(x) \
-  x(CryptoGetTextPassword(BSTR *password)) \
-  x(CryptoGetPasswordIfAny(bool& passwordIsDefined, UString& password))
+  x(CryptoGetTextPassword(BSTR *password))
 Z7_IFACE_CONSTR_PASSWORD(ICryptoGetTextPassword, 0x10)
 
 

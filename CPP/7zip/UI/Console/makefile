@@ -12,7 +12,6 @@ COMMON_OBJS = \
   $O\StdInStream.obj \
   $O\StdOutStream.obj \
   $O\MyString.obj \
-  $O\MyWindows.obj \
   $O\StringConvert.obj \
   $O\StringToInt.obj \
   $O\UTFConvert.obj \
@@ -60,10 +59,10 @@ COMPRESS_OBJS = \
 C_OBJS = $(C_OBJS) \
   $O\Alloc.obj \
   $O\CpuArch.obj \
+  $O\Sort.obj \
   $O\Threads.obj \
 
 !include "../../Crc.mak"
-!include "../../Sort.mak"
 !include "Console.mak"
 
 !include "../../7zip.mak"

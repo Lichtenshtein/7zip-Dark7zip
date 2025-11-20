@@ -1,11 +1,10 @@
 /* 7zipUninstall.c - 7-Zip Uninstaller
-2024-03-21 : Igor Pavlov : Public domain */
+2022-07-15 : Igor Pavlov : Public domain */
 
 #include "Precomp.h"
 
 // #define SZ_ERROR_ABORT 100
 
-#include "../../7zTypes.h"
 #include "../../7zWindows.h"
 
 #if defined(_MSC_VER) && _MSC_VER < 1600
@@ -32,7 +31,16 @@ typedef enum {
 
 #include "resource.h"
 
+#if (defined(__GNUC__) && (__GNUC__ >= 8)) || defined(__clang__)
+  // #pragma GCC diagnostic ignored "-Wcast-function-type"
+#endif
 
+#if defined(_MSC_VER) && _MSC_VER > 1920
+#define MY_CAST_FUNC  (void *)
+// #pragma warning(disable : 4191) // 'type cast': unsafe conversion from 'FARPROC' to 'void (__cdecl *)()'
+#else
+#define MY_CAST_FUNC
+#endif
 
 
 #define LLL_(quote) L##quote
@@ -42,7 +50,7 @@ typedef enum {
 #define wcslen (size_t)lstrlenW
 #define wcscpy lstrcpyW
 
-// static LPCWSTR const k_7zip = L"7-Zip-Zstandard";
+// static LPCWSTR const k_7zip = L"7-Zip";
 
 // #define Z7_64BIT_INSTALLER 1
 
@@ -50,7 +58,7 @@ typedef enum {
   #define Z7_64BIT_INSTALLER 1
 #endif
 
-#define k_7zip_with_Ver_base L"7-Zip ZS " LLL(MY_VERSION)
+#define k_7zip_with_Ver_base L"7-Zip " LLL(MY_VERSION)
 
 #ifdef Z7_64BIT_INSTALLER
 
@@ -75,7 +83,7 @@ typedef enum {
 
 static LPCWSTR const k_7zip_with_Ver_Uninstall = k_7zip_with_Ver L" Uninstall";
 
-static LPCWSTR const k_Reg_Software_7zip = L"Software\\7-Zip-Zstandard";
+static LPCWSTR const k_Reg_Software_7zip = L"Software\\7-Zip";
 
 static LPCWSTR const k_Reg_Path = L"Path";
  
@@ -93,15 +101,13 @@ static LPCWSTR const k_Reg_Path32 = L"Path"
   #define k_Reg_WOW_Flag 0
 #endif
 
-#ifdef USE_7ZIP_32_DLL
 #ifdef _WIN64
   #define k_Reg_WOW_Flag_32 KEY_WOW64_32KEY
 #else
   #define k_Reg_WOW_Flag_32 0
 #endif
-#endif
 
-#define k_7zip_CLSID L"{23170F69-20BB-278A-1000-000100020000}"
+#define k_7zip_CLSID L"{23170F69-40C1-278A-1000-000100020000}"
 
 static LPCWSTR const k_Reg_CLSID_7zip = L"CLSID\\" k_7zip_CLSID;
 static LPCWSTR const k_Reg_CLSID_7zip_Inproc = L"CLSID\\" k_7zip_CLSID L"\\InprocServer32";
@@ -118,19 +124,9 @@ static HWND g_Path_HWND;
 static HWND g_InfoLine_HWND;
 static HWND g_Progress_HWND;
 
-// RegDeleteKeyExW is supported starting from win2003sp1/xp-pro-x64
-// Z7_WIN32_WINNT_MIN < 0x0600  // Vista
-#if !defined(Z7_WIN32_WINNT_MIN) \
-    || Z7_WIN32_WINNT_MIN  < 0x0502  /* < win2003 */ \
-    || Z7_WIN32_WINNT_MIN == 0x0502 && !defined(_M_AMD64)
-#define Z7_USE_DYN_RegDeleteKeyExW
-#endif
-
-#ifdef Z7_USE_DYN_RegDeleteKeyExW
-Z7_DIAGNOSTIC_IGNORE_CAST_FUNCTION
+// WINADVAPI
 typedef LONG (APIENTRY *Func_RegDeleteKeyExW)(HKEY hKey, LPCWSTR lpSubKey, REGSAM samDesired, DWORD Reserved);
 static Func_RegDeleteKeyExW func_RegDeleteKeyExW;
-#endif
 
 static WCHAR cmd[MAX_PATH + 4];
 static WCHAR cmdError[MAX_PATH + 4];
@@ -251,18 +247,13 @@ static LONG MyRegistry_OpenKey_ReadWrite(HKEY parentKey, LPCWSTR name, HKEY *des
 
 static LONG MyRegistry_DeleteKey(HKEY parentKey, LPCWSTR name)
 {
-#if k_Reg_WOW_Flag != 0
-#ifdef Z7_USE_DYN_RegDeleteKeyExW
-    if (!func_RegDeleteKeyExW)
-      return E_FAIL;
-    return func_RegDeleteKeyExW
-#else
-    return      RegDeleteKeyExW
-#endif
-      (parentKey, name, k_Reg_WOW_Flag, 0);
-#else
+  #if k_Reg_WOW_Flag != 0
+    if (func_RegDeleteKeyExW)
+      return func_RegDeleteKeyExW(parentKey, name, k_Reg_WOW_Flag, 0);
+    return E_FAIL;
+  #else
     return RegDeleteKeyW(parentKey, name);
-#endif
+  #endif
 }
 
 #ifdef USE_7ZIP_32_DLL
@@ -287,18 +278,13 @@ static LONG MyRegistry_OpenKey_ReadWrite_32(HKEY parentKey, LPCWSTR name, HKEY *
 
 static LONG MyRegistry_DeleteKey_32(HKEY parentKey, LPCWSTR name)
 {
-#if k_Reg_WOW_Flag_32 != 0
-#ifdef Z7_USE_DYN_RegDeleteKeyExW
-    if (!func_RegDeleteKeyExW)
-      return E_FAIL;
-    return func_RegDeleteKeyExW
-#else
-    return      RegDeleteKeyExW
-#endif
-      (parentKey, name, k_Reg_WOW_Flag_32, 0);
-#else
+  #if k_Reg_WOW_Flag_32 != 0
+    if (func_RegDeleteKeyExW)
+      return func_RegDeleteKeyExW(parentKey, name, k_Reg_WOW_Flag_32, 0);
+    return E_FAIL;
+  #else
     return RegDeleteKeyW(parentKey, name);
-#endif
+  #endif
 }
 
 #endif
@@ -394,7 +380,7 @@ static void SetShellProgramsGroup(HWND hwndOwner)
       continue;
 
     NormalizePrefix(link);
-    CatAscii(link, "7-Zip-Zstandard\\");
+    CatAscii(link, "7-Zip\\");
     
     {
       const size_t baseLen = wcslen(link);
@@ -404,7 +390,7 @@ static void SetShellProgramsGroup(HWND hwndOwner)
       for (k = 0; k < 2; k++)
       {
         CpyAscii(link + baseLen, k == 0 ?
-            "7-Zip ZS File Manager.lnk" :
+            "7-Zip File Manager.lnk" :
             "7-Zip Help.lnk");
         wcscpy(destPath, path);
         CatAscii(destPath, k == 0 ?
@@ -443,7 +429,7 @@ static LPCWSTR const k_Shell_Approved = L"Software\\Microsoft\\Windows\\CurrentV
 
 static LPCWSTR const k_AppPaths_7zFm = L"Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\7zFM.exe";
 #define k_REG_Uninstall L"Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\"
-static LPCWSTR const k_Uninstall_7zip = k_REG_Uninstall L"7-Zip-Zstandard";
+static LPCWSTR const k_Uninstall_7zip = k_REG_Uninstall L"7-Zip";
 
 
 static void RemoveQuotes(wchar_t *s)
@@ -484,7 +470,7 @@ static void WriteCLSID(void)
         {
           WCHAR destPath[MAX_PATH];
           CpyAscii(destPath, k_ShellEx_Items[i]);
-          CatAscii(destPath, "\\7-Zip-Zstandard");
+          CatAscii(destPath, "\\7-Zip");
           
           MyRegistry_DeleteKey(HKEY_CLASSES_ROOT, destPath);
         }
@@ -521,7 +507,7 @@ static void WriteCLSID(void)
         {
           WCHAR destPath[MAX_PATH];
           CpyAscii(destPath, k_ShellEx_Items[i]);
-          CatAscii(destPath, "\\7-Zip-Zstandard");
+          CatAscii(destPath, "\\7-Zip");
           
           MyRegistry_DeleteKey_32(HKEY_CLASSES_ROOT, destPath);
         }
@@ -697,9 +683,6 @@ static const char * const k_Names =
   " 7z.sfx"
   " 7zCon.sfx"
   " 7z.exe"
-  " 7za.exe"
-  " 7za.dll"
-  " 7zxa.dll"
   " 7zG.exe"
   " 7z.dll"
   " 7zFM.exe"
@@ -947,17 +930,14 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
   UNUSED_VAR(lpCmdLine)
   UNUSED_VAR(nCmdShow)
 
-#ifndef UNDER_CE
+  #ifndef UNDER_CE
   CoInitialize(NULL);
-#endif
+  #endif
 
-#ifndef UNDER_CE
-#ifdef Z7_USE_DYN_RegDeleteKeyExW
-   func_RegDeleteKeyExW =
-  (Func_RegDeleteKeyExW) Z7_CAST_FUNC_C GetProcAddress(GetModuleHandleW(L"advapi32.dll"),
-       "RegDeleteKeyExW");
-#endif
-#endif
+  #ifndef UNDER_CE
+  func_RegDeleteKeyExW = (Func_RegDeleteKeyExW) MY_CAST_FUNC
+      GetProcAddress(GetModuleHandleW(L"advapi32.dll"), "RegDeleteKeyExW");
+  #endif
 
   {
     const wchar_t *s = GetCommandLineW();

@@ -20,7 +20,6 @@
 #include "../../../Common/StringConvert.h"
 
 #include "../../../Windows/FileDir.h"
-#include "../../../Windows/FileName.h"
 #include "../../../Windows/NtCheck.h"
 
 #include "../Common/ArchiveCommandLine.h"
@@ -47,18 +46,8 @@ const CExternalCodecs *g_ExternalCodecs_Ptr;
 extern
 HINSTANCE g_hInstance;
 HINSTANCE g_hInstance;
-extern
-bool g_DisableUserQuestions;
-bool g_DisableUserQuestions;
 
 #ifndef UNDER_CE
-
-#if !defined(Z7_WIN32_WINNT_MIN) || Z7_WIN32_WINNT_MIN < 0x0500  // win2000
-#define Z7_USE_DYN_ComCtl32Version
-#endif
-
-#ifdef Z7_USE_DYN_ComCtl32Version
-Z7_DIAGNOSTIC_IGNORE_CAST_FUNCTION
 
 extern
 DWORD g_ComCtl32Version;
@@ -89,7 +78,6 @@ static DWORD GetDllVersion(LPCTSTR dllName)
 }
 
 #endif
-#endif
 
 extern
 bool g_LVN_ITEMACTIVATE_Support;
@@ -99,8 +87,7 @@ DECLARE_AND_SET_CLIENT_VERSION_VAR
 
 static void ErrorMessage(LPCWSTR message)
 {
-  if (!g_DisableUserQuestions)
-    MessageBoxW(NULL, message, L"7-Zip ZS", MB_ICONERROR | MB_OK);
+  MessageBoxW(NULL, message, L"7-Zip", MB_ICONERROR | MB_OK);
 }
 
 static void ErrorMessage(const char *s)
@@ -146,7 +133,7 @@ static int Main2()
   #endif
   if (commandStrings.Size() == 0)
   {
-    MessageBoxW(NULL, L"Specify command", L"7-Zip ZS", 0);
+    MessageBoxW(NULL, L"Specify command", L"7-Zip", 0);
     return 0;
   }
 
@@ -154,7 +141,6 @@ static int Main2()
   CArcCmdLineParser parser;
 
   parser.Parse1(commandStrings, options);
-  g_DisableUserQuestions = options.YesToAll;
   parser.Parse2(options);
 
   CREATE_CODECS_OBJECT
@@ -171,7 +157,6 @@ static int Main2()
     codecs->GetCodecsErrorMessage(s);
     if (!s.IsEmpty())
     {
-      if (!g_DisableUserQuestions)
       MessageBoxW(NULL, s, L"7-Zip", MB_ICONERROR);
     }
   
@@ -262,9 +247,7 @@ static int Main2()
     eo.StdInMode = options.StdInMode;
     eo.StdOutMode = options.StdOutMode;
     eo.YesToAll = options.YesToAll;
-    ecs->YesToAll = options.YesToAll;
     eo.TestMode = options.Command.IsTestCommand();
-    ecs->TestMode = eo.TestMode;
 
     #ifndef Z7_SFX
     eo.Properties = options.Properties;
@@ -326,49 +309,6 @@ static int Main2()
     }
     if (!ecs->IsOK())
       return NExitCode::kFatalError;
-
-    if (eo.DeleteArchive.Val && !eo.StdInMode)
-    {
-      UStringVector uniquePaths;
-      FOR_VECTOR (i, ArchivePathsFullSorted)
-      {
-        const UString &fullPath = ArchivePathsFullSorted[i];
-        bool already = false;
-        FOR_VECTOR (j, uniquePaths)
-          if (uniquePaths[j].IsEqualTo_NoCase(fullPath))
-          {
-            already = true;
-            break;
-          }
-        if (!already)
-          uniquePaths.Add(fullPath);
-      }
-
-      UStringVector failedPaths;
-      FOR_VECTOR (i, uniquePaths)
-      {
-        const FString fullPathFs = us2fs(uniquePaths[i]);
-        if (!NWindows::NFile::NDir::DeleteFileAlways(fullPathFs))
-        {
-          const DWORD error = ::GetLastError();
-          if (error != ERROR_FILE_NOT_FOUND && error != ERROR_PATH_NOT_FOUND)
-            failedPaths.Add(uniquePaths[i]);
-        }
-      }
-
-      if (!failedPaths.IsEmpty())
-      {
-        UString message = LangString(IDS_EXTRACT_DELETE_ARCHIVE_FAILED);
-        message.Add_LF();
-        FOR_VECTOR (i, failedPaths)
-        {
-          message += failedPaths[i];
-          if (i + 1 != failedPaths.Size())
-            message.Add_LF();
-        }
-        ErrorMessage(message);
-      }
-    }
   }
   else if (options.Command.IsFromUpdateGroup())
   {
@@ -465,10 +405,10 @@ int APIENTRY WinMain(HINSTANCE  hInstance, HINSTANCE /* hPrevInstance */,
 
   InitCommonControls();
 
-#ifdef Z7_USE_DYN_ComCtl32Version
+  #ifndef UNDER_CE
   g_ComCtl32Version = ::GetDllVersion(TEXT("comctl32.dll"));
   g_LVN_ITEMACTIVATE_Support = (g_ComCtl32Version >= MAKELONG(71, 4));
-#endif
+  #endif
 
   // OleInitialize is required for ProgressBar in TaskBar.
   #ifndef UNDER_CE

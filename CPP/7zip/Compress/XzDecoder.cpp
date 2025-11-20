@@ -26,7 +26,6 @@ static HRESULT SResToHRESULT_Code(SRes res) throw()
     case SZ_OK: return S_OK;
     case SZ_ERROR_MEM: return E_OUTOFMEMORY;
     case SZ_ERROR_UNSUPPORTED: return E_NOTIMPL;
-    default: break;
   }
   return S_FALSE;
 }
@@ -136,7 +135,7 @@ Z7_COM7F_IMF(CComDecoder::GetInStreamProcessedSize(UInt64 *value))
 
 Z7_COM7F_IMF(CComDecoder::SetNumberOfThreads(UInt32 numThreads))
 {
-  _numThreads = numThreads > 1 ? numThreads : 1;
+  _numThreads = numThreads;
   return S_OK;
 }
 

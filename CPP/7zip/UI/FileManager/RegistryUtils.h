@@ -25,11 +25,6 @@ struct CFmSettings
   bool ShowGrid;
   bool SingleClick;
   bool AlternativeSelection;
-  bool ArcHistory;
-  bool PathHistory;
-  bool CopyHistory;
-  bool FolderHistory;
-  bool LowercaseHashes;
   // bool Underline;
 
   bool ShowSystemMenu;
@@ -44,26 +39,14 @@ struct CFmSettings
 bool ReadLockMemoryEnable();
 void SaveLockMemoryEnable(bool enable);
 
-bool WantArcHistory();
-bool WantPathHistory();
-bool WantCopyHistory();
-bool WantFolderHistory();
-bool WantLowercaseHashes();
-
-bool WantArcHistory();
-bool WantPathHistory();
-bool WantCopyHistory();
-bool WantFolderHistory();
-
 void SaveFlatView(UInt32 panelIndex, bool enable);
 bool ReadFlatView(UInt32 panelIndex);
+void SavePanelMode(UInt32 mode);
+UInt32 ReadPanelMode();
 
 /*
 void Save_ShowDeleted(bool enable);
 bool Read_ShowDeleted();
 */
-
-void Save_ClrMode(UInt32 clrMode);
-UInt32 Read_ClrMode();
 
 #endif

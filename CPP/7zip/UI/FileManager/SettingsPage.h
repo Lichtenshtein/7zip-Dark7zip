@@ -11,13 +11,6 @@ class CSettingsPage: public NWindows::NControl::CPropertyPage
 {
   bool _wasChanged;
   bool _largePages_wasChanged;
-  bool _memx_wasChanged;
-  bool _initMode;
-
-  bool _clrMode_wasChanged;
-  int _curClrMode;
-  NWindows::NControl::CComboBox _clrModeCombo;
-
   /*
   bool _wasChanged_MemLimit;
   NWindows::NControl::CComboBox _memCombo;
@@ -29,13 +22,11 @@ class CSettingsPage: public NWindows::NControl::CPropertyPage
   */
 
   // void EnableSubItems();
-  bool OnCommand(unsigned code, unsigned itemID, LPARAM param) Z7_override;
+  // bool OnCommand(unsigned code, unsigned itemID, LPARAM param) Z7_override;
   virtual bool OnButtonClicked(unsigned buttonID, HWND buttonHWND) Z7_override;
   virtual bool OnInit() Z7_override;
   virtual void OnNotifyHelp() Z7_override;
   virtual LONG OnApply() Z7_override;
-
-  void EnableSpin(bool enable);
 public:
 };
 

@@ -24,7 +24,7 @@ static const TCHAR * const kDefaultIconKeyName = TEXT("DefaultIcon");
 static const TCHAR * const kShellKeyName = TEXT("shell");
 static const TCHAR * const kOpenKeyName = TEXT("open");
 static const TCHAR * const kCommandKeyName = TEXT("command");
-static const char * const k7zipPrefix = "7-Zip-Zstandard.";
+static const char * const k7zipPrefix = "7-Zip.";
 
 static CSysString GetExtProgramKeyName(const CSysString &ext)
 {
@@ -143,7 +143,7 @@ LONG AddShellExtensionInfo(HKEY hkey,
       iconIndex = 0;
     // if (iconIndex >= 0)
     {
-      iconPathFull.Add_Char(',');
+      iconPathFull += ',';
       iconPathFull.Add_UInt32((UInt32)iconIndex);
     }
     iconKey.Create(programKey, kDefaultIconKeyName);

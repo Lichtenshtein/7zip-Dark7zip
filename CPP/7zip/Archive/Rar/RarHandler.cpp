@@ -435,13 +435,13 @@ bool CInArchive::ReadHeaderReal(const Byte *p, unsigned size, CItem &item)
       size -= sizeof(item.Salt);
       p += sizeof(item.Salt);
     }
-    if (item.Name.IsEqualTo("ACL") && size == 0)
+    if (item.Name == "ACL" && size == 0)
     {
       item.IsAltStream = true;
       item.Name.Empty();
       item.UnicodeName.SetFromAscii(".ACL");
     }
-    else if (item.Name.IsEqualTo("STM") && size != 0 && (size & 1) == 0)
+    else if (item.Name == "STM" && size != 0 && (size & 1) == 0)
     {
       item.IsAltStream = true;
       item.Name.Empty();
@@ -957,7 +957,7 @@ static void RarTimeToProp(const CRarTime &rarTime, NCOM::CPropVariant &prop)
 {
   FILETIME localFileTime, utc;
   if (RarTimeToFileTime(rarTime, localFileTime)
-      && LocalFileTimeToFileTime2(&localFileTime, &utc))
+      && LocalFileTimeToFileTime(&localFileTime, &utc))
     prop.SetAsTimeFrom_FT_Prec(utc, k_PropVar_TimePrec_100ns);
   /*
   else

@@ -202,12 +202,9 @@ struct CExtentInfo
   // PartitionUUID
   // DeviceIdentifier
 
-  bool IsType_ZERO() const { return Type.IsEqualTo("ZERO"); }
-  // bool IsType_FLAT() const { return Type.IsEqualTo("FLAT"); }
-  bool IsType_Flat() const
-    { return Type.IsEqualTo("FLAT")
-          || Type.IsEqualTo("VMFS")
-          || Type.IsEqualTo("VMFSRAW"); }
+  bool IsType_ZERO() const { return Type == "ZERO"; }
+  // bool IsType_FLAT() const { return Type == "FLAT"; }
+  bool IsType_Flat() const { return Type == "FLAT" || Type == "VMFS" || Type == "VMFSRAW"; }
   
   bool Parse(const char *s);
 };
@@ -818,7 +815,7 @@ Z7_COM7F_IMF(CHandler::GetArchiveProperty(PROPID propID, PROPVARIANT *value))
 
       bool zlib = false;
       bool marker = false;
-      Int32 algo = -1;
+      int algo = -1;
 
       FOR_VECTOR (i, _extents)
       {
@@ -832,7 +829,7 @@ Z7_COM7F_IMF(CHandler::GetArchiveProperty(PROPID propID, PROPVARIANT *value))
         {
           if (h.algo == 1)
             zlib = true;
-          else if (algo != h.algo)
+          else if (algo != (int)h.algo)
           {
             s.Add_Space_if_NotEmpty();
             s.Add_UInt32(h.algo);

@@ -2,29 +2,21 @@
 
 #include "StdAfx.h"
 
-#include <CommCtrl.h>
-
 // #include "../../../Common/IntToString.h"
 // #include "../../../Common/StringConvert.h"
-#include "../../../Common/StringToInt.h"
 
 #ifndef UNDER_CE
-#include "../../../Windows/ErrorMsg.h"
 #include "../../../Windows/MemoryLock.h"
-#include "../../../Windows/System.h"
+// #include "../../../Windows/System.h"
 #endif
 
-#include "../Explorer/MyMessages.h"
-
-#include "../Common/ZipRegistry.h"
+// #include "../Common/ZipRegistry.h"
 
 #include "HelpUtils.h"
 #include "LangUtils.h"
 #include "RegistryUtils.h"
 #include "SettingsPage.h"
 #include "SettingsPageRes.h"
-
-#include "../../../../DarkMode/src/DarkModeSubclass.h"
 
 using namespace NWindows;
 
@@ -38,13 +30,7 @@ static const UInt32 kLangIDs[] =
   IDX_SETTINGS_SHOW_GRID,
   IDX_SETTINGS_SINGLE_CLICK,
   IDX_SETTINGS_ALTERNATIVE_SELECTION,
-  IDX_SETTINGS_LARGE_PAGES,
-  IDX_SETTINGS_WANT_ARC_HISTORY,
-  IDX_SETTINGS_WANT_PATH_HISTORY,
-  IDX_SETTINGS_WANT_COPY_HISTORY,
-  IDX_SETTINGS_WANT_FOLDER_HISTORY,
-  IDX_SETTINGS_LOWERCASE_HASHES,
-  IDT_MEM_USAGE_EXTRACT
+  IDX_SETTINGS_LARGE_PAGES
   // , IDT_COMPRESS_MEMORY
 };
 #endif
@@ -120,13 +106,8 @@ int CSettingsPage::AddMemComboItem(UInt64 size, UInt64 percents, bool isDefault)
 
 bool CSettingsPage::OnInit()
 {
-  _initMode = true;
   _wasChanged = false;
   _largePages_wasChanged = false;
-  _memx_wasChanged = false;
-
-  _clrMode_wasChanged = false;
-
   /*
   _wasChanged_MemLimit = false;
   _memLimitStrings.Clear();
@@ -171,7 +152,7 @@ bool CSettingsPage::OnInit()
     needSetCur = false;
   }
   {
-    _ramSize = (size_t)sizeof(size_t) << 29;
+    _ramSize = (UInt64)(sizeof(size_t)) << 29;
     _ramSize_Defined = NSystem::GetRamSize(_ramSize);
     UString s;
     if (_ramSize_Defined)
@@ -204,94 +185,10 @@ bool CSettingsPage::OnInit()
   }
   */
   
-  CheckButton(IDX_SETTINGS_WANT_ARC_HISTORY, st.ArcHistory);
-  CheckButton(IDX_SETTINGS_WANT_PATH_HISTORY, st.PathHistory);
-  CheckButton(IDX_SETTINGS_WANT_COPY_HISTORY, st.CopyHistory);
-  CheckButton(IDX_SETTINGS_WANT_FOLDER_HISTORY, st.FolderHistory);
-  CheckButton(IDX_SETTINGS_LOWERCASE_HASHES, st.LowercaseHashes);
   // EnableSubItems();
 
-
-  {
-    size_t ramSize = (size_t)sizeof(size_t) << 29;
-    const bool ramSize_defined = NWindows::NSystem::GetRamSize(ramSize);
-    // ramSize *= 10; // for debug
-    UInt32 ramSize_GB = (UInt32)(((UInt64)ramSize + (1u << 29)) >> 30);
-    if (ramSize_GB == 0)
-      ramSize_GB = 1;
-    UString s ("GB");
-    if (ramSize_defined)
-    {
-      s += " / ";
-      s.Add_UInt64(ramSize_GB);
-      s += " GB (RAM)";
-    }
-    SetItemText(IDT_SETTINGS_MEM_GB, s);
-
-    const UINT valMin = 1;
-    UINT valMax = 64; // 64GB for RAR7
-    if (ramSize_defined /* && ramSize_GB > valMax */)
-    {
-      const UINT k_max_val = 1u << 14;
-      if (ramSize_GB >= k_max_val)
-        valMax = k_max_val;
-      else if (ramSize_GB > 1)
-        valMax = (UINT)ramSize_GB - 1;
-      else
-        valMax = 1;
-    }
-    
-    UInt32 limit = NExtract::Read_LimitGB();
-    if (limit != 0 && limit != (UInt32)(Int32)-1)
-      CheckButton(IDX_SETTINGS_MEM_SET, true);
-    else
-    {
-      limit = 4;
-      EnableSpin(false);
-    }
-    SendItemMessage(IDC_SETTINGS_MEM_SPIN, UDM_SETRANGE, 0, MAKELPARAM(valMax, valMin)); // Sets the controls direction
-    // UDM_SETPOS doesn't set value larger than max value (valMax) of range:
-    SendItemMessage(IDC_SETTINGS_MEM_SPIN, UDM_SETPOS, 0, limit);
-    s.Empty();
-    s.Add_UInt32(limit);
-    SetItemText(IDE_SETTINGS_MEM_SPIN_EDIT, s);
-  }
-
-  {
-    const bool isININotUsed = !DarkMode::doesConfigFileExist();
-    EnableItem(IDC_COLOR_MODE, isININotUsed);
-
-    _clrModeCombo.Attach(GetItem(IDC_COLOR_MODE));
-
-    if (isININotUsed)
-    {
-      _curClrMode = Read_ClrMode();
-      const wchar_t* modes[] = { L"classic", L"dark", L"system" };
-      for (const auto& mode : modes)
-      {
-        _clrModeCombo.AddString(mode);
-      }
-      _clrModeCombo.SetCurSel(_curClrMode);
-    }
-    else
-    {
-      const wchar_t* mode = L"INI used";
-      _clrModeCombo.AddString(mode);
-      _clrModeCombo.SetCurSel(0);
-    }
-  }
-
-  _initMode = false;
   return CPropertyPage::OnInit();
 }
-
-
-void CSettingsPage::EnableSpin(bool enable)
-{
-  EnableItem(IDC_SETTINGS_MEM_SPIN, enable);
-  EnableItem(IDE_SETTINGS_MEM_SPIN_EDIT, enable);
-}
-
 
 /*
 void CSettingsPage::EnableSubItems()
@@ -319,11 +216,6 @@ LONG CSettingsPage::OnApply()
     st.ShowGrid = IsButtonCheckedBool(IDX_SETTINGS_SHOW_GRID);
     st.SingleClick = IsButtonCheckedBool(IDX_SETTINGS_SINGLE_CLICK);
     st.AlternativeSelection = IsButtonCheckedBool(IDX_SETTINGS_ALTERNATIVE_SELECTION);
-    st.ArcHistory = IsButtonCheckedBool(IDX_SETTINGS_WANT_ARC_HISTORY);
-    st.PathHistory = IsButtonCheckedBool(IDX_SETTINGS_WANT_PATH_HISTORY);
-    st.CopyHistory = IsButtonCheckedBool(IDX_SETTINGS_WANT_COPY_HISTORY);
-    st.FolderHistory = IsButtonCheckedBool(IDX_SETTINGS_WANT_FOLDER_HISTORY);
-    st.LowercaseHashes = IsButtonCheckedBool(IDX_SETTINGS_LOWERCASE_HASHES);
     // st.Underline = IsButtonCheckedBool(IDX_SETTINGS_UNDERLINE);
     
     st.ShowSystemMenu = IsButtonCheckedBool(IDX_SETTINGS_SHOW_SYSTEM_MENU);
@@ -344,67 +236,6 @@ LONG CSettingsPage::OnApply()
     _largePages_wasChanged = false;
   }
   #endif
-
-  if (_memx_wasChanged)
-  {
-    UInt32 val = (UInt32)(Int32)-1;
-    if (IsButtonCheckedBool(IDX_SETTINGS_MEM_SET))
-    {
-      UString s;
-      GetItemText(IDE_SETTINGS_MEM_SPIN_EDIT, s);
-      const wchar_t *end;
-      val = ConvertStringToUInt32(s.Ptr(), &end);
-      if (s.IsEmpty() || *end != 0 || val > (1u << 30))
-      {
-        // L"Incorrect value"
-        ShowErrorMessage(*this, NError::MyFormatMessage(E_INVALIDARG));
-        return PSNRET_INVALID;
-      }
-    }
-    NExtract::Save_LimitGB(val);
-    _memx_wasChanged = false;
-  }
-
-  if (_clrMode_wasChanged)
-  {
-    _curClrMode = _clrModeCombo.GetCurSel();
-    Save_ClrMode(_curClrMode);
-    switch (_curClrMode)
-    {
-      case 0:
-      {
-        DarkMode::setDarkModeConfigEx(static_cast<UINT>(DarkMode::DarkModeType::classic));
-        break;
-      }
-
-      case 2:
-      {
-        DarkMode::setDarkModeConfig();
-        break;
-      }
-
-      //case 1:
-      default:
-      {
-        DarkMode::setDarkModeConfigEx(static_cast<UINT>(DarkMode::DarkModeType::dark));
-        break;
-      }
-    }
-
-    DarkMode::setDefaultColors(true);
-
-    HWND hOption = GetParent();
-    DarkMode::setChildCtrlsTheme(hOption);
-    DarkMode::setDarkTitleBarEx(hOption, true);
-    RedrawWindow(hOption, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_UPDATENOW | RDW_FRAME);
-
-    HWND hMain = ::GetParent(GetParent());
-    DarkMode::setChildCtrlsTheme(hMain);
-    DarkMode::setDarkTitleBarEx(hMain, true);
-    RedrawWindow(hMain, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_UPDATENOW | RDW_FRAME);
-
-    _clrMode_wasChanged = false;
-  }
 
   /*
   if (_wasChanged_MemLimit)
@@ -473,23 +304,9 @@ void CSettingsPage::OnNotifyHelp()
   ShowHelpWindow(kSettingsTopic);
 }
 
+/*
 bool CSettingsPage::OnCommand(unsigned code, unsigned itemID, LPARAM param)
 {
-  if (!_initMode)
-  {
-    if (code == EN_CHANGE && itemID == IDE_SETTINGS_MEM_SPIN_EDIT)
-    {
-      _memx_wasChanged = true;
-      Changed();
-    }
-
-    if (code == CBN_SELCHANGE && itemID == IDC_COLOR_MODE)
-    {
-      _clrMode_wasChanged = true;
-      Changed();
-    }
-
-    /*
   if (code == CBN_SELCHANGE)
   {
     switch (itemID)
@@ -502,10 +319,9 @@ bool CSettingsPage::OnCommand(unsigned code, unsigned itemID, LPARAM param)
       }
     }
   }
-    */
-  }
   return CPropertyPage::OnCommand(code, itemID, param);
 }
+*/
 
 bool CSettingsPage::OnButtonClicked(unsigned buttonID, HWND buttonHWND)
 {
@@ -522,24 +338,12 @@ bool CSettingsPage::OnButtonClicked(unsigned buttonID, HWND buttonHWND)
     case IDX_SETTINGS_FULL_ROW:
     case IDX_SETTINGS_SHOW_GRID:
     case IDX_SETTINGS_ALTERNATIVE_SELECTION:
-    case IDX_SETTINGS_WANT_ARC_HISTORY:
-    case IDX_SETTINGS_WANT_PATH_HISTORY:
-    case IDX_SETTINGS_WANT_COPY_HISTORY:
-    case IDX_SETTINGS_WANT_FOLDER_HISTORY:
-    case IDX_SETTINGS_LOWERCASE_HASHES:
       _wasChanged = true;
       break;
 
     case IDX_SETTINGS_LARGE_PAGES:
       _largePages_wasChanged = true;
       break;
-
-    case IDX_SETTINGS_MEM_SET:
-    {
-      _memx_wasChanged = true;
-      EnableSpin(IsButtonCheckedBool(IDX_SETTINGS_MEM_SET));
-      break;
-    }
 
     default:
       return CPropertyPage::OnButtonClicked(buttonID, buttonHWND);

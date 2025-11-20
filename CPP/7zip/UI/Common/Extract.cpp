@@ -2,6 +2,8 @@
 
 #include "StdAfx.h"
 
+#include "../../../../C/Sort.h"
+
 #include "../../../Common/StringConvert.h"
 
 #include "../../../Windows/FileDir.h"
@@ -199,8 +201,6 @@ static HRESULT DecompressArchive(
       removePathParts, false,
       packSize);
 
-  ecs->Is_elimPrefix_Mode = elimIsPossible;
-
   
   #ifdef SUPPORT_LINKS
   
@@ -227,13 +227,7 @@ static HRESULT DecompressArchive(
       ConvertPropVariantToUInt64(prop, stdInProcessed);
   }
   else
-  {
-    // v23.02: we reset completed value that could be set by Open() operation
-    IArchiveExtractCallback *aec = ecs;
-    const UInt64 val = 0;
-    RINOK(aec->SetCompleted(&val))
-    result = archive->Extract(realIndices.ConstData(), realIndices.Size(), testMode, aec);
-  }
+    result = archive->Extract(&realIndices.Front(), realIndices.Size(), testMode, ecs);
   
   const HRESULT res2 = ecsCloser.Close();
   if (result == S_OK)
@@ -323,9 +317,6 @@ HRESULT Extract(
   CArchiveExtractCallback *ecs = new CArchiveExtractCallback;
   CMyComPtr<IArchiveExtractCallback> ec(ecs);
   
-  ecs->ExtrOffset = extractCallback->ExtrOffset;
-  ecs->ExtrLength = extractCallback->ExtrLength;
-  
   const bool multi = (numArcs > 1);
   
   ecs->InitForMulti(multi,
@@ -358,10 +349,11 @@ HRESULT Extract(
     if (options.StdInMode)
     {
       // do we need ctime and mtime?
-      // fi.ClearBase();
-      // fi.Size = 0; // (UInt64)(Int64)-1;
-      if (!fi.SetAs_StdInFile())
-        return GetLastError_noZero_HRESULT();
+      fi.ClearBase();
+      fi.Size = 0; // (UInt64)(Int64)-1;
+      fi.SetAsFile();
+      // NTime::GetCurUtc_FiTime(fi.MTime);
+      // fi.CTime = fi.ATime = fi.MTime;
     }
     else
     {
@@ -392,7 +384,7 @@ HRESULT Extract(
       {
         UString s = arcPath.Ptr(pos + 1);
         int index = codecs->FindFormatForExtension(s);
-        if (index >= 0 && s.IsEqualTo("001"))
+        if (index >= 0 && s == L"001")
         {
           s = arcPath.Left(pos);
           pos = s.ReverseFind(L'.');
@@ -574,6 +566,5 @@ HRESULT Extract(
   st.AltStreams_UnpackSize = ecs->AltStreams_UnpackSize;
   st.NumArchives = arcPaths.Size();
   st.PackSize = ecs->LocalProgressSpec->InSize;
-  st.FirstExtractedPath = ecs->FirstExtractedPath;
   return S_OK;
 }

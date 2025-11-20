@@ -35,7 +35,15 @@ if (name.IsEmpty() && prop.vt == VT_EMPTY), it doesn't change (resValue) and ret
 HRESULT ParsePropToUInt32(const UString &name, const PROPVARIANT &prop, UInt32 &resValue);
 
 /* input: (numThreads = the_number_of_processors) */
-HRESULT ParseMtProp(const UString &name, const PROPVARIANT &prop, UInt32 numCPUs, UInt32 &numThreads);
+HRESULT ParseMtProp2(const UString &name, const PROPVARIANT &prop, UInt32 &numThreads, bool &force);
+
+inline HRESULT ParseMtProp(const UString &name, const PROPVARIANT &prop, UInt32 numCPUs, UInt32 &numThreads)
+{
+  bool forced = false;
+  numThreads = numCPUs;
+  return ParseMtProp2(name, prop, numThreads, forced);
+}
+
 
 struct CProp
 {
@@ -72,17 +80,12 @@ struct CProps
   }
 
   HRESULT SetCoderProps(ICompressSetCoderProperties *scp, const UInt64 *dataSizeReduce = NULL) const;
-  HRESULT SetCoderProps_DSReduce_Aff(ICompressSetCoderProperties *scp,
-      const UInt64 *dataSizeReduce,
-      const UInt64 *affinity,
-      const UInt32 *affinityGroup,
-      const UInt64 *affinityInGroup) const;
+  HRESULT SetCoderProps_DSReduce_Aff(ICompressSetCoderProperties *scp, const UInt64 *dataSizeReduce, const UInt64 *affinity) const;
 };
 
 class CMethodProps: public CProps
 {
   HRESULT SetParam(const UString &name, const UString &value);
-  void setMaxCompression();
 public:
   unsigned GetLevel() const;
   int Get_NumThreads() const
@@ -122,7 +125,7 @@ public:
 
   UInt32 Get_Lzma_Algo() const
   {
-    const int i = FindProp(NCoderPropID::kAlgorithm);
+    int i = FindProp(NCoderPropID::kAlgorithm);
     if (i >= 0)
     {
       const NWindows::NCOM::CPropVariant &val = Props[(unsigned)i].Value;
@@ -138,11 +141,11 @@ public:
     if (Get_DicSize(v))
       return v;
     const unsigned level = GetLevel();
-    const UInt32 dictSize = level <= 4 ?
-        (UInt32)1 << (level * 2 + 16) :
-        level <= sizeof(size_t) / 2 + 4 ?
-          (UInt32)1 << (level + 20) :
-          (UInt32)1 << (sizeof(size_t) / 2 + 24);
+    const UInt32 dictSize =
+        ( level <= 3 ? ((UInt32)1 << (level * 2 + 16)) :
+        ( level <= 6 ? ((UInt32)1 << (level + 19)) :
+        ( level <= 7 ? ((UInt32)1 << 25) : ((UInt32)1 << 26)
+        )));
     return dictSize;
   }
 

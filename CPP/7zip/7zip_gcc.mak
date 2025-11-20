@@ -7,11 +7,9 @@
 
 MY_ARCH_2 = $(MY_ARCH)
 
-ifndef MY_ASM
+MY_ASM = asmc
 ifdef USE_JWASM
 MY_ASM = jwasm
-MY_ASM = asmc
-endif
 endif
 
 ifndef RC
@@ -26,43 +24,22 @@ PROGPATH_STATIC = $(O)/$(PROG)s
 
 
 ifneq ($(CC), xlc)
-CFLAGS_WARN_WALL = -Wall -Wextra
-endif
-
-ifndef CFLAGS_OPT
-CFLAGS_OPT = -O2
+CFLAGS_WARN_WALL = -Werror -Wall -Wextra
 endif
 
 # for object file
 # -Wa,-aln=test.s
 # -save-temps
-FLAGS_BASE = -mbranch-protection=standard  -march=armv8.5-a
-FLAGS_BASE = -mbranch-protection=standard
-FLAGS_BASE =
-# FLAGS_BASE = -DZ7_NO_UNICODE
-
 CFLAGS_BASE_LIST = -c
-
-
-#DEBUG_BUILD=1
-
-ifdef DEBUG_BUILD
-CFLAGS_DEBUG = -g
-else
-CFLAGS_DEBUG = -DNDEBUG
-ifneq ($(CC), $(CROSS_COMPILE)clang)
-LFLAGS_STRIP = -s
-endif
-endif
-
 # CFLAGS_BASE_LIST = -S
-CFLAGS_BASE = $(CFLAGS_OPT) $(CFLAGS_BASE_LIST) $(CFLAGS_WARN_WALL) $(CFLAGS_WARN) \
- $(CFLAGS_DEBUG) -D_REENTRANT -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE \
+CFLAGS_BASE = -O2 $(CFLAGS_BASE_LIST) $(CFLAGS_WARN_WALL) $(CFLAGS_WARN) \
+ -DNDEBUG -D_REENTRANT -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE \
  -fPIC
 
 FLAGS_FLTO = -ffunction-sections
 FLAGS_FLTO = -flto
-FLAGS_FLTO = $(FLAGS_BASE)
+FLAGS_FLTO =
+# 
 # -DZ7_AFFINITY_DISABLE
 
 
@@ -91,7 +68,7 @@ endif
 endif
 endif
 
-LDFLAGS_STATIC = $(CFLAGS_DEBUG) $(LDFLAGS_STATIC_2) $(LDFLAGS_STATIC_3)
+LDFLAGS_STATIC = -DNDEBUG $(LDFLAGS_STATIC_2)
 
 ifndef O
   ifdef IS_MINGW
@@ -118,7 +95,6 @@ endif
 else
 
 LDFLAGS = $(LDFLAGS_STATIC)
-# -z force-bti
 # -s is not required for clang, do we need it for GCC ???
 
 #-static -static-libgcc -static-libstdc++
@@ -151,8 +127,7 @@ endif
 LIB2_GUI = -lOle32 -lGdi32 -lComctl32 -lComdlg32 -lShell32 $(LIB_HTMLHELP)
 LIB2 = -loleaut32 -luuid -ladvapi32 -lUser32 $(LIB2_GUI)
 
-# v24.00: -DUNICODE and -D_UNICODE are defined in precompilation header files
-# CXXFLAGS_EXTRA = -DUNICODE -D_UNICODE
+CXXFLAGS_EXTRA = -DUNICODE -D_UNICODE
 # -Wno-delete-non-virtual-dtor
 
  
@@ -167,7 +142,6 @@ DEL_OBJ_EXE = -$(RM) $(PROGPATH) $(PROGPATH_STATIC) $(OBJS)
 
 # LOCAL_LIBS=-lpthread
 # LOCAL_LIBS_DLL=$(LOCAL_LIBS) -ldl
-LIB2 = -lpthread
 LIB2 = -lpthread -ldl
 
 
@@ -216,7 +190,7 @@ CXX_WARN_FLAGS =
 #-Wno-invalid-offsetof
 #-Wno-reorder
 
-CXXFLAGS = $(MY_ARCH_2) $(LOCAL_FLAGS) $(CXXFLAGS_BASE2) $(CFLAGS_BASE) $(FLAGS_FLTO) $(CXXFLAGS_EXTRA) $(CC_SHARED) $(CXX_WARN_FLAGS) $(CXX_STD_FLAGS) $(CXX_INCLUDE_FLAGS) -o $@
+CXXFLAGS = $(MY_ARCH_2) $(LOCAL_FLAGS) $(CXXFLAGS_BASE2) $(CFLAGS_BASE) $(FLAGS_FLTO) $(CXXFLAGS_EXTRA) $(CC_SHARED) $(CXX_WARN_FLAGS) $(CXX_STD_FLAGS) -o $@
 
 STATIC_TARGET=
 ifdef COMPL_STATIC
@@ -226,9 +200,6 @@ endif
 
 all: $(O) $(PROGPATH) $(STATIC_TARGET)
 
-# we need $(O) as order-only-prerequisites:
-$(OBJS): | $(O)
-
 $(O):
 	$(MY_MKDIR) $(O)
 
@@ -236,28 +207,11 @@ $(O):
 # LDFLAGS3= -Wl,--gc-sections
 # -Wl,--print-gc-sections
 
-ifndef IS_MINGW
-
-# LFLAGS_NOEXECSTACK=
-
-ifdef Z7_USE_OS_UNAME_FOR_NOEXECSTACK
-Z7_OS := $(shell uname)
-show_os:
-	echo $(Z7_OS)
-
-# ifeq ($(CXX), $(CROSS_COMPILE)g++)
-ifeq ($(Z7_OS), Linux)
-LFLAGS_NOEXECSTACK ?= -z noexecstack
+ifneq ($(CC), $(CROSS_COMPILE)clang)
+LFLAGS_STRIP = -s
 endif
 
-else
-LFLAGS_NOEXECSTACK ?= $(shell echo 'int main(){return 0;}' | $(CC) $(MY_ARCH_2) -z noexecstack -o /dev/null -x c - 2>/dev/null && echo -z noexecstack || echo)
-endif
-
-endif
-
-
-LFLAGS_ALL = $(LFLAGS_STRIP) $(MY_ARCH_2) $(LDFLAGS) $(FLAGS_FLTO) $(LD_arch) $(LFLAGS_NOEXECSTACK) $(OBJS) $(MY_LIBS) $(LIB2)
+LFLAGS_ALL = $(LFLAGS_STRIP) $(MY_ARCH_2) $(LDFLAGS) $(FLAGS_FLTO) $(LD_arch) $(OBJS) $(MY_LIBS) $(LIB2)
 
 # -s : GCC : Remove all symbol table and relocation information from the executable.
 # -s : CLANG : unsupported
@@ -308,8 +262,6 @@ $O/ListFileUtils.o: ../../../Common/ListFileUtils.cpp
 	$(CXX) $(CXXFLAGS) $<
 $O/LzFindPrepare.o: ../../../Common/LzFindPrepare.cpp
 	$(CXX) $(CXXFLAGS) $<
-$O/Md5Reg.o: ../../../Common/Md5Reg.cpp
-	$(CXX) $(CXXFLAGS) $<
 $O/MyMap.o: ../../../Common/MyMap.cpp
 	$(CXX) $(CXXFLAGS) $<
 $O/MyString.o: ../../../Common/MyString.cpp
@@ -334,12 +286,6 @@ $O/Sha256Prepare.o: ../../../Common/Sha256Prepare.cpp
 	$(CXX) $(CXXFLAGS) $<
 $O/Sha256Reg.o: ../../../Common/Sha256Reg.cpp
 	$(CXX) $(CXXFLAGS) $<
-$O/Sha3Reg.o: ../../../Common/Sha3Reg.cpp
-	$(CXX) $(CXXFLAGS) $<
-$O/Sha512Prepare.o: ../../../Common/Sha512Prepare.cpp
-	$(CXX) $(CXXFLAGS) $<
-$O/Sha512Reg.o: ../../../Common/Sha512Reg.cpp
-	$(CXX) $(CXXFLAGS) $<
 $O/StdInStream.o: ../../../Common/StdInStream.cpp
 	$(CXX) $(CXXFLAGS) $<
 $O/StdOutStream.o: ../../../Common/StdOutStream.cpp
@@ -357,8 +303,6 @@ $O/Wildcard.o: ../../../Common/Wildcard.cpp
 $O/XzCrc64Init.o: ../../../Common/XzCrc64Init.cpp
 	$(CXX) $(CXXFLAGS) $<
 $O/XzCrc64Reg.o: ../../../Common/XzCrc64Reg.cpp
-	$(CXX) $(CXXFLAGS) $<
-$O/Xxh64Reg.o: ../../../Common/Xxh64Reg.cpp
 	$(CXX) $(CXXFLAGS) $<
 
 
@@ -534,8 +478,6 @@ $O/FatHandler.o: ../../Archive/FatHandler.cpp
 	$(CXX) $(CXXFLAGS) $<
 $O/FlvHandler.o: ../../Archive/FlvHandler.cpp
 	$(CXX) $(CXXFLAGS) $<
-$O/FontHandler.o: ../../Archive/FontHandler.cpp
-	$(CXX) $(CXXFLAGS) $<
 $O/GptHandler.o: ../../Archive/GptHandler.cpp
 	$(CXX) $(CXXFLAGS) $<
 $O/GzHandler.o: ../../Archive/GzHandler.cpp
@@ -547,8 +489,6 @@ $O/HfsHandler.o: ../../Archive/HfsHandler.cpp
 $O/IhexHandler.o: ../../Archive/IhexHandler.cpp
 	$(CXX) $(CXXFLAGS) $<
 $O/LpHandler.o: ../../Archive/LpHandler.cpp
-	$(CXX) $(CXXFLAGS) $<
-$O/LvmHandler.o: ../../Archive/LvmHandler.cpp
 	$(CXX) $(CXXFLAGS) $<
 $O/LzhHandler.o: ../../Archive/LzhHandler.cpp
 	$(CXX) $(CXXFLAGS) $<
@@ -595,8 +535,6 @@ $O/XarHandler.o: ../../Archive/XarHandler.cpp
 $O/XzHandler.o: ../../Archive/XzHandler.cpp
 	$(CXX) $(CXXFLAGS) $<
 $O/ZHandler.o: ../../Archive/ZHandler.cpp
-	$(CXX) $(CXXFLAGS) $<
-$O/ZstdHandler.o: ../../Archive/ZstdHandler.cpp
 	$(CXX) $(CXXFLAGS) $<
 
 
@@ -704,7 +642,7 @@ $O/WimRegister.o: ../../Archive/Wim/WimRegister.cpp
 $O/ZipAddCommon.o: ../../Archive/Zip/ZipAddCommon.cpp
 	$(CXX) $(CXXFLAGS) $<
 $O/ZipHandler.o: ../../Archive/Zip/ZipHandler.cpp
-	$(CXX) $(CXXFLAGS) $(ZIP_FLAGS) $<
+	$(CXX) $(CXXFLAGS) $<
 $O/ZipHandlerOut.o: ../../Archive/Zip/ZipHandlerOut.cpp
 	$(CXX) $(CXXFLAGS) $<
 $O/ZipIn.o: ../../Archive/Zip/ZipIn.cpp
@@ -825,56 +763,11 @@ $O/ZlibDecoder.o: ../../Compress/ZlibDecoder.cpp
 	$(CXX) $(CXXFLAGS) $<
 $O/ZlibEncoder.o: ../../Compress/ZlibEncoder.cpp
 	$(CXX) $(CXXFLAGS) $<
-$O/ZstdDecoder.o: ../../Compress/ZstdDecoder.cpp
-	$(CXX) $(CXXFLAGS) $<
-$O/ZstdRegister.o: ../../Compress/ZstdRegister.cpp
-	$(CXX) $(CXXFLAGS) $<
-
-
-$O/BrotliDecoder.o: ../../Compress/BrotliDecoder.cpp
-	$(CXX) $(CXXFLAGS) $<
-$O/BrotliEncoder.o: ../../Compress/BrotliEncoder.cpp
-	$(CXX) $(CXXFLAGS) $<
-$O/BrotliRegister.o: ../../Compress/BrotliRegister.cpp
-	$(CXX) $(CXXFLAGS) $<
-
-$O/Lz4Decoder.o: ../../Compress/Lz4Decoder.cpp
-	$(CXX) $(CXXFLAGS) $<
-$O/Lz4Encoder.o: ../../Compress/Lz4Encoder.cpp
-	$(CXX) $(CXXFLAGS) $<
-$O/Lz4Register.o: ../../Compress/Lz4Register.cpp
-	$(CXX) $(CXXFLAGS) $<
-
-$O/Lz5Decoder.o: ../../Compress/Lz5Decoder.cpp
-	$(CXX) $(CXXFLAGS) $<
-$O/Lz5Encoder.o: ../../Compress/Lz5Encoder.cpp
-	$(CXX) $(CXXFLAGS) $<
-$O/Lz5Register.o: ../../Compress/Lz5Register.cpp
-	$(CXX) $(CXXFLAGS) $<
-
-$O/LizardDecoder.o: ../../Compress/LizardDecoder.cpp
-	$(CXX) $(CXXFLAGS) $<
-$O/LizardEncoder.o: ../../Compress/LizardEncoder.cpp
-	$(CXX) $(CXXFLAGS) $<
-$O/LizardRegister.o: ../../Compress/LizardRegister.cpp
-	$(CXX) $(CXXFLAGS) $<
-
-$O/ZstdDecoder.o: ../../Compress/ZstdDecoder.cpp
-	$(CXX) $(CXXFLAGS) $<
-$O/ZstdEncoder.o: ../../Compress/ZstdEncoder.cpp
-	$(CXX) $(CXXFLAGS) $<
-$O/ZstdRegister.o: ../../Compress/ZstdRegister.cpp
-	$(CXX) $(CXXFLAGS) $<
-
-$O/FastLzma2Register.o: ../../Compress/FastLzma2Register.cpp
-	$(CXX) $(CXXFLAGS) $<
 
 
 $O/7zAes.o: ../../Crypto/7zAes.cpp
 	$(CXX) $(CXXFLAGS) $<
 $O/7zAesRegister.o: ../../Crypto/7zAesRegister.cpp
-	$(CXX) $(CXXFLAGS) $<
-$O/AesStream.o: ../../Crypto/AesStream.cpp
 	$(CXX) $(CXXFLAGS) $<
 $O/HmacSha1.o: ../../Crypto/HmacSha1.cpp
 	$(CXX) $(CXXFLAGS) $<
@@ -1060,8 +953,6 @@ $O/App.o: ../../UI/FileManager/App.cpp
 	$(CXX) $(CXXFLAGS) $<
 $O/BrowseDialog.o: ../../UI/FileManager/BrowseDialog.cpp
 	$(CXX) $(CXXFLAGS) $<
-$O/BrowseDialog2.o: ../../UI/FileManager/BrowseDialog2.cpp
-	$(CXX) $(CXXFLAGS) $<
 $O/ClassDefs.o: ../../UI/FileManager/ClassDefs.cpp
 	$(CXX) $(CXXFLAGS) $<
 $O/ComboDialog.o: ../../UI/FileManager/ComboDialog.cpp
@@ -1101,8 +992,6 @@ $O/LangUtils.o: ../../UI/FileManager/LangUtils.cpp
 $O/LinkDialog.o: ../../UI/FileManager/LinkDialog.cpp
 	$(CXX) $(CXXFLAGS) $<
 $O/ListViewDialog.o: ../../UI/FileManager/ListViewDialog.cpp
-	$(CXX) $(CXXFLAGS) $<
-$O/MemDialog.o: ../../UI/FileManager/MemDialog.cpp
 	$(CXX) $(CXXFLAGS) $<
 $O/MenuPage.o: ../../UI/FileManager/MenuPage.cpp
 	$(CXX) $(CXXFLAGS) $<
@@ -1264,8 +1153,6 @@ $O/Lzma2Enc.o: ../../../../C/Lzma2Enc.c
 	$(CC) $(CFLAGS) $<
 $O/LzmaLib.o: ../../../../C/LzmaLib.c
 	$(CC) $(CFLAGS) $<
-$O/Md5.o: ../../../../C/Md5.c
-	$(CC) $(CFLAGS) $<
 $O/MtCoder.o: ../../../../C/MtCoder.c
 	$(CC) $(CFLAGS) $<
 $O/MtDec.o: ../../../../C/MtDec.c
@@ -1288,15 +1175,9 @@ $O/Sha1.o: ../../../../C/Sha1.c
 	$(CC) $(CFLAGS) $<
 $O/Sha256.o: ../../../../C/Sha256.c
 	$(CC) $(CFLAGS) $<
-$O/Sha3.o: ../../../../C/Sha3.c
-	$(CC) $(CFLAGS) $<
-$O/Sha512.o: ../../../../C/Sha512.c
-	$(CC) $(CFLAGS) $<
-$O/Sha512Opt.o: ../../../../C/Sha512Opt.c
+$O/Sort.o: ../../../../C/Sort.c
 	$(CC) $(CFLAGS) $<
 $O/SwapBytes.o: ../../../../C/SwapBytes.c
-	$(CC) $(CFLAGS) $<
-$O/Xxh64.o: ../../../../C/Xxh64.c
 	$(CC) $(CFLAGS) $<
 $O/Xz.o: ../../../../C/Xz.c
 	$(CC) $(CFLAGS) $<
@@ -1330,8 +1211,6 @@ $O/Sha1Opt.o: ../../../../Asm/x86/Sha1Opt.asm
 	$(MY_ASM) $(AFLAGS) $<
 $O/Sha256Opt.o: ../../../../Asm/x86/Sha256Opt.asm
 	$(MY_ASM) $(AFLAGS) $<
-$O/Sort.o: ../../../../Asm/x86/Sort.asm
-	$(MY_ASM) $(AFLAGS) $<
 
 ifndef USE_JWASM
 USE_X86_ASM_AES=1
@@ -1345,8 +1224,6 @@ $O/XzCrc64Opt.o: ../../../../C/XzCrc64Opt.c
 $O/Sha1Opt.o: ../../../../C/Sha1Opt.c
 	$(CC) $(CFLAGS) $<
 $O/Sha256Opt.o: ../../../../C/Sha256Opt.c
-	$(CC) $(CFLAGS) $<
-$O/Sort.o: ../../../../C/Sort.c
 	$(CC) $(CFLAGS) $<
 endif
 
@@ -1377,7 +1254,7 @@ endif
 
 ifdef IS_ARM64
 $O/LzmaDecOpt.o: ../../../../Asm/arm64/LzmaDecOpt.S ../../../../Asm/arm64/7zAsm.S
-	$(CC) $(CFLAGS) $(ASM_FLAGS) $<
+	$(CC) $(CFLAGS) $<
 endif
 
 $O/LzmaDec.o: ../../../../C/LzmaDec.c
@@ -1391,49 +1268,6 @@ $O/LzmaDec.o: ../../../../C/LzmaDec.c
 endif
 
 
-
-
-ifdef BROTLI_OBJS
-.SECONDEXPANSION:
-$(BROTLI_OBJS): ../../../../C/brotli/$$(basename $$(@F)).c
-	$(CC) $(CFLAGS) $<
-endif
-
-ifdef LIZARD_OBJS
-.SECONDEXPANSION:
-$(LIZARD_OBJS): ../../../../C/lizard/$$(basename $$(@F)).c
-	$(CC) $(CFLAGS) $<
-endif
-
-ifdef LZ4_OBJS
-.SECONDEXPANSION:
-$(LZ4_OBJS): ../../../../C/lz4/$$(basename $$(@F)).c
-	$(CC) $(CFLAGS) $<
-endif
-
-ifdef LZ5_OBJS
-.SECONDEXPANSION:
-$(LZ5_OBJS): ../../../../C/lz5/$$(basename $$(@F)).c
-	$(CC) $(CFLAGS) $<
-endif
-
-ifdef ZSTD_OBJS
-.SECONDEXPANSION:
-$(ZSTD_OBJS): ../../../../C/zstd/$$(basename $$(@F)).c
-	$(CC) $(CFLAGS) $<
-endif
-
-ifdef ZSTDMT_OBJS
-.SECONDEXPANSION:
-$(ZSTDMT_OBJS): ../../../../C/zstdmt/$$(basename $$(@F)).c
-	$(CC) $(CFLAGS) -I../../../../C/brotli -I../../../../C/lizard -I../../../../C/lz4 -I../../../../C/lz5 $<
-endif
-
-ifdef FASTLZMA2_OBJS
-.SECONDEXPANSION:
-$(FASTLZMA2_OBJS): ../../../../C/fast-lzma2/$$(basename $$(@F)).c
-	$(CC) $(CFLAGS) -DNO_XXHASH -DFL2_7ZIP_BUILD $<
-endif
 
 
 $O/7zMain.o: ../../../../C/Util/7z/7zMain.c

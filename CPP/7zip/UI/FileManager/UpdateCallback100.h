@@ -16,7 +16,6 @@
 class CUpdateCallback100Imp Z7_final:
   public IFolderArchiveUpdateCallback,
   public IFolderArchiveUpdateCallback2,
-  public IFolderArchiveUpdateCallback_MoveArc,
   public IFolderScanProgress,
   public ICryptoGetTextPassword2,
   public ICryptoGetTextPassword,
@@ -25,10 +24,9 @@ class CUpdateCallback100Imp Z7_final:
   public CUpdateCallbackGUI2,
   public CMyUnknownImp
 {
-  Z7_COM_UNKNOWN_IMP_8(
+  Z7_COM_UNKNOWN_IMP_7(
     IFolderArchiveUpdateCallback,
     IFolderArchiveUpdateCallback2,
-    IFolderArchiveUpdateCallback_MoveArc,
     IFolderScanProgress,
     ICryptoGetTextPassword2,
     ICryptoGetTextPassword,
@@ -38,7 +36,6 @@ class CUpdateCallback100Imp Z7_final:
   Z7_IFACE_COM7_IMP(IProgress)
   Z7_IFACE_COM7_IMP(IFolderArchiveUpdateCallback)
   Z7_IFACE_COM7_IMP(IFolderArchiveUpdateCallback2)
-  Z7_IFACE_COM7_IMP(IFolderArchiveUpdateCallback_MoveArc)
   Z7_IFACE_COM7_IMP(IFolderScanProgress)
   Z7_IFACE_COM7_IMP(ICryptoGetTextPassword2)
   Z7_IFACE_COM7_IMP(ICryptoGetTextPassword)

@@ -3,7 +3,6 @@
 #ifndef ZIP7_INC_ISTREAM_H
 #define ZIP7_INC_ISTREAM_H
 
-#include "../Common/Common0.h"
 #include "../Common/MyTypes.h"
 #include "../Common/MyWindows.h"
 
@@ -14,9 +13,6 @@ Z7_PURE_INTERFACES_BEGIN
 #define Z7_IFACE_CONSTR_STREAM_SUB(i, base, n) \
   Z7_DECL_IFACE_7ZIP_SUB(i, base, 3, n) \
   { Z7_IFACE_COM7_PURE(i) };
-
-#define Z7_IFACE_CONSTR_STREAM_WIMPL(i, n) \
-  Z7_DECL_IFACE_7ZIP_SUB(i, IUnknown, 3, n)
 
 #define Z7_IFACE_CONSTR_STREAM(i, n) \
         Z7_IFACE_CONSTR_STREAM_SUB(i, IUnknown, n)
@@ -70,17 +66,7 @@ ISequentialOutStream::Write()
 */
 #define Z7_IFACEM_ISequentialOutStream(x) \
   x(Write(const void *data, UInt32 size, UInt32 *processedSize))
-Z7_IFACE_CONSTR_STREAM_WIMPL(ISequentialOutStream, 0x02)
-{
-  Z7_IFACE_COM7_PURE(ISequentialOutStream)
-
-  bool Finalize = false;
-  /*
-  If set then the following write attempts are finalization.
-  So for instance AES wouldn't wait for AES_BLOCK_SIZE, rather simply does padding
-  and writes remaining part.
-  */
-};
+Z7_IFACE_CONSTR_STREAM(ISequentialOutStream, 0x02)
 
 
 #ifdef _WIN32
@@ -159,18 +145,10 @@ IStreamSetRestriction::SetRestriction(UInt64 begin, UInt64 end)
   
   It sets region of data in output stream that is restricted.
   For restricted region it's expected (or allowed)
-  that the caller can write to same region with different calls of Write()/SetSize().
+  to change data with different calls of Write()/SetSize().
   Another regions of output stream will be supposed as non-restricted:
     - The callee usually doesn't flush the data in restricted region.
-    - The callee usually can flush data from non-restricted region after writing.
-
-Actual restiction rules depend also from current stream position.
-It's recommended to call SetRestriction() just before the Write() call.
-So the callee can optimize writing and flushing, if that Write()
-operation is not restricted.
-
-Note: Each new call of SetRestriction() sets new restictions,
-so previous restrction calls has no effect anymore.
+    - The callee usually can flush data from non-restricted region.
 
 inputs:
  
@@ -178,29 +156,35 @@ inputs:
   
   if (begin == end)
   {
-    No restriction.
-    The caller will call Write() in sequential order.
-    After SetRestriction(begin, begin), but before next call of SetRestriction()
-    {
-      Additional condition:
-        it's expected that current stream seek position is equal to stream size.
-      The callee can make final flushing for any data before current stream seek position.
-      For each Write(size) call:
-        The callee can make final flushing for that new written data.
-    }
-    The pair of values (begin == 0 && end == 0) is recommended to remove write restriction.
+    it means that there is no region restriction for flushing.
+    The callee is allowed to flush already written data and
+    is allowed to flush all data in future calls of
+    ISequentialOutStream::Write(), but before next call of SetRestriction().
+    The pair of values (begin == 0 && end == 0) is recommended to
+    remove all restrictions.
   }
   
   if (begin < end)
   {
-    it means that callee must NOT flush any data in region [begin, end).
+    it means that callee must NOT to flush any data in region [begin, end).
     The caller is allowed to Seek() to that region and rewrite the
     data in that restriction region.
-    if (end == (UInt64)(Int64)-1)
+    if (end == (UInt64(Int64)-1)
     {
       there is no upper bound for restricted region.
       So non-restricted region will be [0, begin) in that case
     }
+
+    Note: it's not expected that some already written region was marked as
+    non-restricted by old call SetRestriction() and later the part of
+    that region was marked as restricted with new call SetRestriction().
+    For example, for different calls with non-empty restricted regions:
+     (begin_new >= begin_old) is expected :
+     {
+       SetRestriction(begin_old, ...)
+       ...
+       SetRestriction(begin_new, ...)
+     }
   }
 
  returns:
@@ -211,7 +195,7 @@ inputs:
  
  Note: IOutStream::SetSize() also can change the data.
     So it's not expected the call
-    IOutStream::SetSize() to region that was written before as unrestricted.
+    IOutStream::SetSize() to unrestricted already written region.
 */
 
 #define Z7_IFACEM_IStreamSetRestriction(x) \

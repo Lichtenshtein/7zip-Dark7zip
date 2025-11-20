@@ -87,18 +87,16 @@ public:
   #ifndef Z7_SFX
   // CBoolPair AltStreams;
   CBoolPair NtSecurity;
-  CBoolPair OpnTrgFold;
   #endif
 
   CBoolPair ElimDup;
-  CBoolPair DeleteArchive;
 
   INT_PTR Create(HWND aWndParent = NULL)
   {
     #ifdef Z7_SFX
     BIG_DIALOG_SIZE(240, 64);
     #else
-    BIG_DIALOG_SIZE(300, 180);
+    BIG_DIALOG_SIZE(300, 160);
     #endif
     return CModalDialog::Create(SIZED_DIALOG(IDD_EXTRACT), aWndParent);
   }
@@ -108,7 +106,6 @@ public:
     OverwriteMode_Force(false)
   {
     ElimDup.Val = true;
-    DeleteArchive.Val = false;
   }
 
 };

@@ -88,21 +88,21 @@ BSTR SysAllocString(const OLECHAR *s)
 void SysFreeString(BSTR bstr)
 {
   if (bstr)
-    FreeForBSTR((CBstrSizeType *)(void *)bstr - 1);
+    FreeForBSTR((CBstrSizeType *)bstr - 1);
 }
 
 UINT SysStringByteLen(BSTR bstr)
 {
   if (!bstr)
     return 0;
-  return *((CBstrSizeType *)(void *)bstr - 1);
+  return *((CBstrSizeType *)bstr - 1);
 }
 
 UINT SysStringLen(BSTR bstr)
 {
   if (!bstr)
     return 0;
-  return *((CBstrSizeType *)(void *)bstr - 1) / (UINT)sizeof(OLECHAR);
+  return *((CBstrSizeType *)bstr - 1) / (UINT)sizeof(OLECHAR);
 }
 
 
@@ -290,27 +290,3 @@ BOOL WINAPI FileTimeToSystemTime(const FILETIME *ft, SYSTEMTIME *st)
 }
 
 #endif
-
-bool FileTimeToLocalFileTime2(const FILETIME *fileTime, FILETIME *localFileTime)
-{
-#ifdef _WIN32
-  SYSTEMTIME sysTime, locSysTime;
-  if (!FileTimeToSystemTime(fileTime, &sysTime)) return 0;
-  if (!SystemTimeToTzSpecificLocalTime(NULL, &sysTime, &locSysTime)) return 0;
-  return SystemTimeToFileTime(&locSysTime, localFileTime);
-#else
-  return FileTimeToLocalFileTime(fileTime, localFileTime);
-#endif
-}
-
-bool LocalFileTimeToFileTime2(const FILETIME *localFileTime, FILETIME *fileTime)
-{
-#ifdef _WIN32
-  SYSTEMTIME sysTime, locSysTime;
-  if (!FileTimeToSystemTime(localFileTime, &sysTime)) return 0;
-  if (!TzSpecificLocalTimeToSystemTime(NULL, &sysTime, &locSysTime)) return 0;
-  return SystemTimeToFileTime(&locSysTime, fileTime);
-#else
-  return LocalFileTimeToFileTime2(localFileTime, fileTime);
-#endif
-}

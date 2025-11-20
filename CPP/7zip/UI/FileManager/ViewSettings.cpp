@@ -10,13 +10,12 @@
 #include "../../../Windows/Registry.h"
 #include "../../../Windows/Synchronization.h"
 
-#include "RegistryUtils.h"
 #include "ViewSettings.h"
 
 using namespace NWindows;
 using namespace NRegistry;
 
-#define REG_PATH_FM TEXT("Software") TEXT(STRING_PATH_SEPARATOR) TEXT("7-Zip-Zstandard") TEXT(STRING_PATH_SEPARATOR) TEXT("FM")
+#define REG_PATH_FM TEXT("Software") TEXT(STRING_PATH_SEPARATOR) TEXT("7-Zip") TEXT(STRING_PATH_SEPARATOR) TEXT("FM")
 
 static LPCTSTR const kCUBasePath = REG_PATH_FM;
 static LPCTSTR const kCulumnsKeyName = REG_PATH_FM TEXT(STRING_PATH_SEPARATOR) TEXT("Columns");
@@ -82,15 +81,15 @@ void CListViewInfo::Read(const UString &id)
 {
   Clear();
   CByteBuffer buf;
+  UInt32 size;
   {
     NSynchronization::CCriticalSectionLock lock(g_CS);
     CKey key;
     if (key.Open(HKEY_CURRENT_USER, kCulumnsKeyName, KEY_READ) != ERROR_SUCCESS)
       return;
-    if (key.QueryValue_Binary(GetSystemString(id), buf) != ERROR_SUCCESS)
+    if (key.QueryValue(GetSystemString(id), buf, size) != ERROR_SUCCESS)
       return;
   }
-  unsigned size = (unsigned)buf.Size();
   if (size < kListViewHeaderSize)
     return;
   UInt32 version;
@@ -105,9 +104,7 @@ void CListViewInfo::Read(const UString &id)
   size -= kListViewHeaderSize;
   if (size % kColumnInfoSize != 0)
     return;
-  if (size > 1000 * kColumnInfoSize)
-    return;
-  const unsigned numItems = size / kColumnInfoSize;
+  unsigned numItems = size / kColumnInfoSize;
   Columns.ClearAndReserve(numItems);
   for (unsigned i = 0; i < numItems; i++)
   {
@@ -164,7 +161,8 @@ void CWindowInfo::Save() const
 
 static bool QueryBuf(CKey &key, LPCTSTR name, CByteBuffer &buf, UInt32 dataSize)
 {
-  return key.QueryValue_Binary(name, buf) == ERROR_SUCCESS && buf.Size() == dataSize;
+  UInt32 size;
+  return key.QueryValue(name, buf, size) == ERROR_SUCCESS && size == dataSize;
 }
 
 void CWindowInfo::Read(bool &windowPosDefined, bool &panelInfoDefined)
@@ -208,7 +206,7 @@ static bool ReadUi32Val(const TCHAR *name, UInt32 &value)
   CKey key;
   if (key.Open(HKEY_CURRENT_USER, kCUBasePath, KEY_READ) != ERROR_SUCCESS)
     return false;
-  return key.GetValue_UInt32_IfOk(name, value) == ERROR_SUCCESS;
+  return key.QueryValue(name, value) == ERROR_SUCCESS;
 }
 
 void SaveToolbarsMask(UInt32 toolbarMask)
@@ -231,7 +229,7 @@ void CListMode::Save() const
 {
   UInt32 t = 0;
   for (int i = 0; i < 2; i++)
-    t |= (Panels[i] & 0xFF) << (i * 8);
+    t |= ((Panels[i]) & 0xFF) << (i * 8);
   SaveUi32Val(kListMode, t);
 }
 
@@ -243,7 +241,7 @@ void CListMode::Read()
     return;
   for (int i = 0; i < 2; i++)
   {
-    Panels[i] = t & 0xFF;
+    Panels[i] = (t & 0xFF);
     t >>= 8;
   }
 }
@@ -291,15 +289,7 @@ static void ReadStringList(LPCTSTR valueName, UStringVector &folders)
 }
 
 void SaveFolderHistory(const UStringVector &folders)
-{
-  if (WantFolderHistory())
-    SaveStringList(kFolderHistoryValueName, folders);
-  else {
-    UStringVector Empty;
-    SaveStringList(kFolderHistoryValueName, Empty);
-  }
-}
-
+  { SaveStringList(kFolderHistoryValueName, folders); }
 void ReadFolderHistory(UStringVector &folders)
   { ReadStringList(kFolderHistoryValueName, folders); }
 
@@ -309,15 +299,7 @@ void ReadFastFolders(UStringVector &folders)
   { ReadStringList(kFastFoldersValueName, folders); }
 
 void SaveCopyHistory(const UStringVector &folders)
-{
-  if (WantCopyHistory())
-    SaveStringList(kCopyHistoryValueName, folders);
-  else {
-    UStringVector Empty;
-    SaveStringList(kCopyHistoryValueName, Empty);
-  }
-}
-
+  { SaveStringList(kCopyHistoryValueName, folders); }
 void ReadCopyHistory(UStringVector &folders)
   { ReadStringList(kCopyHistoryValueName, folders); }
 

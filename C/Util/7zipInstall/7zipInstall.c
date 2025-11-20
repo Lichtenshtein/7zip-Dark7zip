@@ -1,5 +1,5 @@
 /* 7zipInstall.c - 7-Zip Installer
-2024-04-05 : Igor Pavlov : Public domain */
+2023-04-04 : Igor Pavlov : Public domain */
 
 #include "Precomp.h"
 
@@ -10,8 +10,6 @@
 #if defined(_MSC_VER) && _MSC_VER < 1600
 #pragma warning(disable : 4201) // nonstandard extension used : nameless struct/union
 #endif
-
-Z7_DIAGNOSTIC_IGNORE_CAST_FUNCTION
 
 #ifdef Z7_OLD_WIN_SDK
 struct IShellView;
@@ -43,6 +41,16 @@ typedef enum {
   // #pragma GCC diagnostic ignored "-Wcast-function-type"
 #endif
 
+#if defined(__clang__) || defined(__GNUC__)
+typedef void (*Z7_voidFunction)(void);
+#define MY_CAST_FUNC (Z7_voidFunction)
+#elif defined(_MSC_VER) && _MSC_VER > 1920
+#define MY_CAST_FUNC  (void *)
+// #pragma warning(disable : 4191) // 'type cast': unsafe conversion from 'FARPROC' to 'void (__cdecl *)()'
+#else
+#define MY_CAST_FUNC
+#endif
+
 #define LLL_(quote) L##quote
 #define LLL(quote) LLL_(quote)
 
@@ -56,9 +64,9 @@ typedef enum {
 #define Z7_7ZIP_CUR_VER ((MY_VER_MAJOR << 16) | MY_VER_MINOR)
 #define Z7_7ZIP_DLL_VER_COMPAT ((16 << 16) | 3)
 
-static LPCSTR const k_7zip = "7-Zip-Zstandard";
+static LPCSTR const k_7zip = "7-Zip";
 
-static LPCWSTR const k_Reg_Software_7zip = L"Software\\7-Zip-Zstandard";
+static LPCWSTR const k_Reg_Software_7zip = L"Software\\7-Zip";
 
 // #define Z7_64BIT_INSTALLER 1
 
@@ -66,7 +74,7 @@ static LPCWSTR const k_Reg_Software_7zip = L"Software\\7-Zip-Zstandard";
   #define Z7_64BIT_INSTALLER 1
 #endif
 
-#define k_7zip_with_Ver_base L"7-Zip ZS " LLL(MY_VERSION)
+#define k_7zip_with_Ver_base L"7-Zip " LLL(MY_VERSION)
 
 #ifdef Z7_64BIT_INSTALLER
 
@@ -110,15 +118,13 @@ static LPCWSTR const k_Reg_Path32 = L"Path"
   #define k_Reg_WOW_Flag 0
 #endif
 
-#ifdef USE_7ZIP_32_DLL
 #ifdef _WIN64
   #define k_Reg_WOW_Flag_32 KEY_WOW64_32KEY
 #else
   #define k_Reg_WOW_Flag_32 0
 #endif
-#endif
 
-#define k_7zip_CLSID L"{23170F69-20BB-278A-1000-000100020000}"
+#define k_7zip_CLSID L"{23170F69-40C1-278A-1000-000100020000}"
 
 static LPCWSTR const k_Reg_CLSID_7zip = L"CLSID\\" k_7zip_CLSID;
 static LPCWSTR const k_Reg_CLSID_7zip_Inproc = L"CLSID\\" k_7zip_CLSID L"\\InprocServer32";
@@ -128,7 +134,6 @@ static LPCWSTR const k_Reg_CLSID_7zip_Inproc = L"CLSID\\" k_7zip_CLSID L"\\Inpro
 static BoolInt g_Install_was_Pressed;
 static BoolInt g_Finished;
 static BoolInt g_SilentMode;
-static BoolInt g_NoRegistryModification;
 
 static HWND g_HWND;
 static HWND g_Path_HWND;
@@ -214,11 +219,11 @@ static DWORD GetFileVersion(LPCWSTR s)
       return 0;
   }
 
-  my_GetFileVersionInfoSizeW = (Func_GetFileVersionInfoSizeW) Z7_CAST_FUNC_C GetProcAddress(g_version_dll_hModule,
+  my_GetFileVersionInfoSizeW = (Func_GetFileVersionInfoSizeW) MY_CAST_FUNC GetProcAddress(g_version_dll_hModule,
     "GetFileVersionInfoSizeW");
-  my_GetFileVersionInfoW = (Func_GetFileVersionInfoW) Z7_CAST_FUNC_C GetProcAddress(g_version_dll_hModule,
+  my_GetFileVersionInfoW = (Func_GetFileVersionInfoW) MY_CAST_FUNC GetProcAddress(g_version_dll_hModule,
     "GetFileVersionInfoW");
-  my_VerQueryValueW = (Func_VerQueryValueW) Z7_CAST_FUNC_C GetProcAddress(g_version_dll_hModule,
+  my_VerQueryValueW = (Func_VerQueryValueW) MY_CAST_FUNC GetProcAddress(g_version_dll_hModule,
     "VerQueryValueW");
 
   if (!my_GetFileVersionInfoSizeW
@@ -619,9 +624,9 @@ static LPCWSTR FindSubString(LPCWSTR s1, const char *s2)
 static void Set7zipPostfix(WCHAR *s)
 {
   NormalizePrefix(s);
-  if (FindSubString(s, "7-Zip-Zstandard"))
+  if (FindSubString(s, "7-Zip"))
     return;
-  CatAscii(s, "7-Zip-Zstandard\\");
+  CatAscii(s, "7-Zip\\");
 }
     
 
@@ -826,7 +831,7 @@ static void SetShellProgramsGroup(HWND hwndOwner)
       for (k = 0; k < 2; k++)
       {
         CpyAscii(link + baseLen, k == 0 ?
-            "7-Zip ZS File Manager.lnk" :
+            "7-Zip File Manager.lnk" :
             "7-Zip Help.lnk"
            );
         wcscpy(destPath, path);
@@ -910,7 +915,7 @@ static void WriteShellEx(void)
   for (i = 0; i < Z7_ARRAY_SIZE(k_ShellEx_Items); i++)
   {
     CpyAscii(destPath, k_ShellEx_Items[i]);
-    CatAscii(destPath, "\\7-Zip-Zstandard");
+    CatAscii(destPath, "\\7-Zip");
 
     #ifdef USE_7ZIP_32_DLL
     MyRegistry_CreateKeyAndVal_32(HKEY_CLASSES_ROOT, destPath, NULL, k_7zip_CLSID);
@@ -941,7 +946,7 @@ static void WriteShellEx(void)
   
   {
     HKEY destKey = 0;
-    LONG res = MyRegistry_CreateKey(HKEY_LOCAL_MACHINE, L"Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\7-Zip-Zstandard", &destKey);
+    LONG res = MyRegistry_CreateKey(HKEY_LOCAL_MACHINE, L"Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\7-Zip", &destKey);
     if (res == ERROR_SUCCESS)
     {
       MyRegistry_SetString(destKey, L"DisplayName", k_7zip_with_Ver_str);
@@ -1078,10 +1083,6 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
             // RemoveQuotes(path);
             error = False;
           }
-          else if (cmd[1] == 'R')
-          {
-              g_NoRegistryModification = True;
-          }
         }
         s = s2;
         if (error && cmdError[0] == 0)
@@ -1101,7 +1102,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
   {
     BOOL isWow64 = FALSE;
     const Func_IsWow64Process func_IsWow64Process = (Func_IsWow64Process)
-        Z7_CAST_FUNC_C GetProcAddress(GetModuleHandleW(L"kernel32.dll"),
+        MY_CAST_FUNC GetProcAddress(GetModuleHandleW(L"kernel32.dll"),
         "IsWow64Process");
     
     if (func_IsWow64Process)
@@ -1110,13 +1111,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
     if (!isWow64)
     {
       if (!g_SilentMode)
-        PrintErrorMessage("This installation requires Windows "
-          #ifdef MY_CPU_X86_OR_AMD64
-            "x64"
-          #else
-            "64-bit"
-          #endif
-            , NULL);
+        PrintErrorMessage("This installation requires Windows " MY_CPU_NAME, NULL);
       return 1;
     }
   }
@@ -1610,7 +1605,7 @@ if (res == SZ_OK)
 
     path[pathLen] = 0;
 
-    if (i == db.NumFiles && !g_NoRegistryModification)
+    if (i == db.NumFiles)
     {
       SetRegKey_Path();
       WriteCLSID();

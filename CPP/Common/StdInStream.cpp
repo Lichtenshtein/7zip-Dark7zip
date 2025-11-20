@@ -9,8 +9,6 @@
 #include "StdInStream.h"
 #include "StringConvert.h"
 #include "UTFConvert.h"
-#include <io.h>
-#include <fcntl.h>
 
 // #define kEOFMessage "Unexpected end of input stream"
 // #define kReadErrorMessage "Error reading input stream"
@@ -45,59 +43,36 @@ bool CStdInStream::Close() throw()
 }
 */
 
-#define MAX_CH_READ 1024
-
-bool CStdInStream::ScanAStringUntilNewLine(AString &dest)
+bool CStdInStream::ScanAStringUntilNewLine(AString &s)
 {
-  char buf[MAX_CH_READ];
-  char *s;
-  dest.Empty();
+  s.Empty();
   for (;;)
   {
-    s = fgets(buf, MAX_CH_READ, _stream);
-    if (!s) {
-      return ferror(_stream) == 0; // true on eof, false on error
-    }
-    s = buf + strlen(buf) - 1; // end of current line
-    if (*s == '\n') {
-      *s = 0;
-      dest += buf;
+    int intChar = GetChar();
+    if (intChar == EOF)
       return true;
-    }
-    dest += buf;
+    char c = (char)intChar;
+    if (c == 0)
+      return false;
+    if (c == '\n')
+      return true;
+    s += c;
   }
 }
 
 bool CStdInStream::ScanUStringUntilNewLine(UString &dest)
 {
   dest.Empty();
+  AString s;
+  bool res = ScanAStringUntilNewLine(s);
   int codePage = CodePage;
   if (codePage == -1)
     codePage = CP_OEMCP;
-  if (codePage == CP_UNICODE) {
-    wchar_t buf[MAX_CH_READ];
-    wchar_t *s;
-    for (;;)
-    {
-      s = fgetws(buf, MAX_CH_READ, _stream);
-      if (!s) {
-        return ferror(_stream) == 0; // true on eof, false on error
-      }
-      s = buf + wcslen(buf) - 1; // end of current line
-      if (*s == '\n') {
-        *s = 0;
-        dest += buf;
-        return true;
-      }
-      dest += buf;
-    }
-  }
-  else {
-    AString s;
-    bool res = ScanAStringUntilNewLine(s);
-    MultiByteToUnicodeString2(dest, s, (UINT)(unsigned)codePage);
-    return res;
-  }
+  if (codePage == CP_UTF8)
+    ConvertUTF8ToUnicode(s, dest);
+  else
+    MultiByteToUnicodeString2(dest, s, (UINT)codePage);
+  return res;
 }
 
 /*
@@ -116,17 +91,6 @@ bool CStdInStream::ReadToString(AString &resultString)
   }
 }
 */
-
-int CStdInStream::SetCodePage(int codePage)
-{
-  CodePage = codePage;
-  if (codePage == CP_UNICODE) {
-    _setmode(_fileno(_stream), _O_WTEXT);
-  } else {
-    _setmode(_fileno(_stream), _O_TEXT);
-  }
-  return 0;
-}
 
 int CStdInStream::GetChar()
 {

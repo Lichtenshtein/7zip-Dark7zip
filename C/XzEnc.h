@@ -1,5 +1,5 @@
 /* XzEnc.h -- Xz Encode
-: Igor Pavlov : Public domain */
+2023-04-13 : Igor Pavlov : Public domain */
 
 #ifndef ZIP7_INC_XZ_ENC_H
 #define ZIP7_INC_XZ_ENC_H
@@ -31,7 +31,6 @@ typedef struct
   CLzma2EncProps lzma2Props;
   CXzFilterProps filterProps;
   unsigned checkId;
-  unsigned numThreadGroups; // 0 : no groups
   UInt64 blockSize;
   int numBlockThreads_Reduced;
   int numBlockThreads_Max;
@@ -51,8 +50,7 @@ void XzEnc_Destroy(CXzEncHandle p);
 SRes XzEnc_SetProps(CXzEncHandle p, const CXzProps *props);
 void XzEnc_SetDataSize(CXzEncHandle p, UInt64 expectedDataSiize);
 SRes XzEnc_Encode(CXzEncHandle p, ISeqOutStreamPtr outStream, ISeqInStreamPtr inStream, ICompressProgressPtr progress);
-SRes XzEnc_Encode_Part(CXzEncHandle p, ISeqOutStreamPtr outStream, ISeqInStreamPtr inStream,
-                       ICompressProgressPtr progress,int isWriteHead,int isWriteFooter);
+
 SRes Xz_Encode(ISeqOutStreamPtr outStream, ISeqInStreamPtr inStream,
     const CXzProps *props, ICompressProgressPtr progress);
 

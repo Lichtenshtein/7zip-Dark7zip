@@ -41,22 +41,22 @@ HRESULT CCopyStateIO::MyCopyFile(CFSTR inPath, CFSTR outPath, DWORD attrib)
   {
     const size_t kBufSize = 1 << 16;
     CByteArr buf(kBufSize);
-    
+
     NIO::CInFile inFile;
     NIO::COutFile outFile;
-    
+
     if (!inFile.Open(inPath))
     {
       ErrorFileIndex = 0;
       return S_OK;
     }
-    
-    if (!outFile.Create_ALWAYS(outPath))
+
+    if (!outFile.Create(outPath, true))
     {
       ErrorFileIndex = 1;
       return S_OK;
     }
-    
+
     for (;;)
     {
       UInt32 num;
@@ -67,7 +67,7 @@ HRESULT CCopyStateIO::MyCopyFile(CFSTR inPath, CFSTR outPath, DWORD attrib)
       }
       if (num == 0)
         break;
-      
+
       UInt32 written = 0;
       if (!outFile.Write(buf, num, written))
       {
@@ -91,7 +91,7 @@ HRESULT CCopyStateIO::MyCopyFile(CFSTR inPath, CFSTR outPath, DWORD attrib)
   /* SetFileAttrib("path:alt_stream_name") sets attributes for main file "path".
      But we don't want to change attributes of main file, when we write alt stream.
      So we need INVALID_FILE_ATTRIBUTES for alt stream here */
-  
+
   if (attrib != INVALID_FILE_ATTRIBUTES)
     SetFileAttrib(outPath, attrib);
 
@@ -103,7 +103,7 @@ HRESULT CCopyStateIO::MyCopyFile(CFSTR inPath, CFSTR outPath, DWORD attrib)
       return S_OK;
     }
   }
-  
+
   return S_OK;
 }
 
@@ -184,12 +184,6 @@ static DWORD CALLBACK CopyProgressRoutine(
   return (pi.ProgressResult == S_OK ? PROGRESS_CONTINUE : PROGRESS_CANCEL);
 }
 
-#if !defined(Z7_WIN32_WINNT_MIN) || Z7_WIN32_WINNT_MIN < 0x0500  // win2000
-#define Z7_USE_DYN_MoveFileWithProgressW
-#endif
-
-#ifdef Z7_USE_DYN_MoveFileWithProgressW
-// nt4
 typedef BOOL (WINAPI * Func_CopyFileExA)(
     IN LPCSTR lpExistingFileName,
     IN LPCSTR lpNewFileName,
@@ -199,7 +193,6 @@ typedef BOOL (WINAPI * Func_CopyFileExA)(
     IN DWORD dwCopyFlags
     );
 
-// nt4
 typedef BOOL (WINAPI * Func_CopyFileExW)(
     IN LPCWSTR lpExistingFileName,
     IN LPCWSTR lpNewFileName,
@@ -209,7 +202,6 @@ typedef BOOL (WINAPI * Func_CopyFileExW)(
     IN DWORD dwCopyFlags
     );
 
-// win2000
 typedef BOOL (WINAPI * Func_MoveFileWithProgressW)(
     IN LPCWSTR lpExistingFileName,
     IN LPCWSTR lpNewFileName,
@@ -217,7 +209,6 @@ typedef BOOL (WINAPI * Func_MoveFileWithProgressW)(
     IN LPVOID lpData OPTIONAL,
     IN DWORD dwFlags
     );
-#endif
 
 struct CCopyState
 {
@@ -227,8 +218,6 @@ struct CCopyState
   bool UseReadWriteMode;
   bool IsAltStreamsDest;
 
-#ifdef Z7_USE_DYN_MoveFileWithProgressW
-private:
   Func_CopyFileExW my_CopyFileExW;
   #ifndef UNDER_CE
   Func_MoveFileWithProgressW my_MoveFileWithProgressW;
@@ -236,10 +225,8 @@ private:
   #ifndef _UNICODE
   Func_CopyFileExA my_CopyFileExA;
   #endif
-public:
-  CCopyState();
-#endif
 
+  void Prepare();
   bool CopyFile_NT(const wchar_t *oldFile, const wchar_t *newFile);
   bool CopyFile_Sys(CFSTR oldFile, CFSTR newFile);
   bool MoveFile_Sys(CFSTR oldFile, CFSTR newFile);
@@ -254,9 +241,7 @@ HRESULT CCopyState::CallProgress()
   return ProgressInfo.Progress->SetCompleted(&ProgressInfo.StartPos);
 }
 
-#ifdef Z7_USE_DYN_MoveFileWithProgressW
-
-CCopyState::CCopyState()
+void CCopyState::Prepare()
 {
   my_CopyFileExW = NULL;
   #ifndef UNDER_CE
@@ -291,8 +276,6 @@ CCopyState::CCopyState()
   }
 }
 
-#endif
-
 /* WinXP-64:
   CopyFileW(fromFile, toFile:altStream)
     OK                       - there are NO alt streams in fromFile
@@ -302,20 +285,10 @@ CCopyState::CCopyState()
 bool CCopyState::CopyFile_NT(const wchar_t *oldFile, const wchar_t *newFile)
 {
   BOOL cancelFlag = FALSE;
-#ifdef Z7_USE_DYN_MoveFileWithProgressW
   if (my_CopyFileExW)
-#endif
-    return BOOLToBool(
-#ifdef Z7_USE_DYN_MoveFileWithProgressW
-      my_CopyFileExW
-#else
-         CopyFileExW
-#endif
-      (oldFile, newFile, CopyProgressRoutine,
+    return BOOLToBool(my_CopyFileExW(oldFile, newFile, CopyProgressRoutine,
         &ProgressInfo, &cancelFlag, COPY_FILE_FAIL_IF_EXISTS));
-#ifdef Z7_USE_DYN_MoveFileWithProgressW
   return BOOLToBool(::CopyFileW(oldFile, newFile, TRUE));
-#endif
 }
 
 bool CCopyState::CopyFile_Sys(CFSTR oldFile, CFSTR newFile)
@@ -323,18 +296,10 @@ bool CCopyState::CopyFile_Sys(CFSTR oldFile, CFSTR newFile)
   #ifndef _UNICODE
   if (!g_IsNT)
   {
-#ifdef Z7_USE_DYN_MoveFileWithProgressW
     if (my_CopyFileExA)
-#endif
     {
       BOOL cancelFlag = FALSE;
-      if (
-#ifdef Z7_USE_DYN_MoveFileWithProgressW
-          my_CopyFileExA
-#else
-             CopyFileExA
-#endif
-          (fs2fas(oldFile), fs2fas(newFile),
+      if (my_CopyFileExA(fs2fas(oldFile), fs2fas(newFile),
           CopyProgressRoutine, &ProgressInfo, &cancelFlag, COPY_FILE_FAIL_IF_EXISTS))
         return true;
       if (::GetLastError() != ERROR_CALL_NOT_IMPLEMENTED)
@@ -371,19 +336,11 @@ bool CCopyState::MoveFile_Sys(CFSTR oldFile, CFSTR newFile)
   #ifndef UNDER_CE
   // if (IsItWindows2000orHigher())
   // {
-#ifdef Z7_USE_DYN_MoveFileWithProgressW
     if (my_MoveFileWithProgressW)
-#endif
     {
       IF_USE_MAIN_PATH_2(oldFile, newFile)
       {
-        if (
-#ifdef Z7_USE_DYN_MoveFileWithProgressW
-          my_MoveFileWithProgressW
-#else
-             MoveFileWithProgressW
-#endif
-          (fs2us(oldFile), fs2us(newFile), CopyProgressRoutine,
+        if (my_MoveFileWithProgressW(fs2us(oldFile), fs2us(newFile), CopyProgressRoutine,
             &ProgressInfo, MOVEFILE_COPY_ALLOWED))
           return true;
       }
@@ -395,13 +352,7 @@ bool CCopyState::MoveFile_Sys(CFSTR oldFile, CFSTR newFile)
         UString superPathOld, superPathNew;
         if (!GetSuperPaths(oldFile, newFile, superPathOld, superPathNew, USE_MAIN_PATH_2))
           return false;
-        if (
-#ifdef Z7_USE_DYN_MoveFileWithProgressW
-          my_MoveFileWithProgressW
-#else
-             MoveFileWithProgressW
-#endif
-            (superPathOld, superPathNew, CopyProgressRoutine,
+        if (my_MoveFileWithProgressW(superPathOld, superPathNew, CopyProgressRoutine,
             &ProgressInfo, MOVEFILE_COPY_ALLOWED))
           return true;
       }
@@ -473,7 +424,7 @@ static HRESULT CopyFile_Ask(
       fs2us(destPath),
       &destPathResult,
       &writeAskResult))
-  
+
   if (IntToBool(writeAskResult))
   {
     FString destPathNew = us2fs((LPCOLESTR)destPathResult);
@@ -489,7 +440,7 @@ static HRESULT CopyFile_Ask(
 
       RINOK(state2.MyCopyFile(srcPath, destPathNew,
           state.IsAltStreamsDest ? INVALID_FILE_ATTRIBUTES: srcFileInfo.Attrib))
-      
+
       if (state2.ErrorFileIndex >= 0)
       {
         if (state2.ErrorMessage.IsEmpty())
@@ -515,22 +466,8 @@ static HRESULT CopyFile_Ask(
       RINOK(state.ProgressInfo.ProgressResult)
       if (!res)
       {
-        const DWORD errorCode = GetLastError();
-        UString errorMessage = NError::MyFormatMessage(Return_LastError_or_FAIL());
-        if (errorCode == ERROR_INVALID_PARAMETER)
-        {
-          NFind::CFileInfo fi;
-          if (fi.Find(srcPath) &&
-              fi.Size > (UInt32)(Int32)-1)
-          {
-            // bool isFsDetected = false;
-            // if (NSystem::Is_File_LimitedBy_4GB(destPathNew, isFsDetected) || !isFsDetected)
-              errorMessage += " File size exceeds 4 GB";
-          }
-        }
-
         // GetLastError() is ERROR_REQUEST_ABORTED in case of PROGRESS_CANCEL.
-        RINOK(SendMessageError(state.Callback, errorMessage, destPathNew))
+        RINOK(SendMessageError(state.Callback, GetLastErrorMessage(), destPathNew))
         return E_ABORT;
       }
       state.ProgressInfo.StartPos += state.ProgressInfo.FileSize;
@@ -598,7 +535,7 @@ static HRESULT CopyFolder(
 
   CEnumerator enumerator;
   enumerator.SetDirPrefix(CombinePath(srcPath, FString()));
-  
+
   for (;;)
   {
     NFind::CFileInfo fi;
@@ -630,7 +567,7 @@ static HRESULT CopyFolder(
       return E_ABORT;
     }
   }
-  
+
   return S_OK;
 }
 
@@ -708,6 +645,7 @@ Z7_COM7F_IMF(CFSFolder::CopyTo(Int32 moveMode, const UInt32 *indices, UInt32 num
        if there are alt streams in fromFile.
      So we don't use CopyFileW() for alt Streams. */
   state.UseReadWriteMode = isAltDest;
+  state.Prepare();
 
   for (i = 0; i < numItems; i++)
   {
@@ -720,7 +658,7 @@ Z7_COM7F_IMF(CFSFolder::CopyTo(Int32 moveMode, const UInt32 *indices, UInt32 num
       destPath2 += fi.Name;
     FString srcPath;
     GetFullPath(fi, srcPath);
-  
+
     if (fi.IsDir())
     {
       if (isAltDest)
@@ -808,12 +746,13 @@ HRESULT CopyFileSystemItems(
        if there are alt streams in fromFile.
      So we don't use CopyFileW() for alt Streams. */
   state.UseReadWriteMode = isAltDest;
+  state.Prepare();
 
   FOR_VECTOR (i, itemsPaths)
   {
     const UString path = itemsPaths[i];
     CFileInfo fi;
-  
+
     if (!fi.Find(us2fs(path)))
     {
       RINOK(SendMessageError(callback, "Cannot find the file", us2fs(path)))
@@ -822,7 +761,7 @@ HRESULT CopyFileSystemItems(
 
     FString destPath = destDirPrefix;
     destPath += fi.Name;
-  
+
     if (fi.IsDir())
     {
       if (isAltDest)
@@ -846,21 +785,23 @@ HRESULT CopyFileSystemItems(
 /* we don't use CFSFolder::CopyFrom() because the caller of CopyFrom()
    is optimized for IFolderArchiveUpdateCallback interface,
    but we want to use IFolderOperationsExtractCallback interface instead */
-
-Z7_COM7F_IMF(CFSFolder::CopyFrom(Int32 /* moveMode */, const wchar_t * /* fromFolderPath */,
-    const wchar_t * const * /* itemsPaths */, UInt32 /* numItems */, IProgress * /* progress */))
+// Not used yet.
+Z7_COM7F_IMF(CFSFolder::CopyFrom(Int32 moveMode, const wchar_t * /*folderPrefix*/,
+    const wchar_t * const *itemsPaths, UInt32 numItems, IProgress *progress))
 {
-  /*
   Z7_DECL_CMyComPtr_QI_FROM(
       IFolderOperationsExtractCallback,
       callback, progress)
   if (!callback)
     return E_NOTIMPL;
-  return CopyFileSystemItems(_path,
-      moveMode, fromDirPrefix,
-      itemsPaths, numItems, callback);
-  */
-  return E_NOTIMPL;
+  // return CopyFileSystemItems(_path,
+  //     moveMode, fromDirPrefix,
+  //     itemsPaths, numItems, callback);
+
+  // UStringVector itemPathsVector(itemsPaths, itemsPaths + numItems);
+  CObjectVector<UString> itemPathsVector(itemsPaths, itemsPaths + numItems);
+  return CopyFileSystemItems(itemPathsVector, _path,
+      (bool)moveMode, callback);
 }
 
 Z7_COM7F_IMF(CFSFolder::CopyFromFile(UInt32 /* index */, const wchar_t * /* fullFilePath */, IProgress * /* progress */))

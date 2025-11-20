@@ -62,7 +62,7 @@ void MyStringUpper_Ascii(char *s) throw()
 {
   for (;;)
   {
-    const char c = *s;
+    char c = *s;
     if (c == 0)
       return;
     *s++ = MyCharUpper_Ascii(c);
@@ -73,7 +73,7 @@ void MyStringUpper_Ascii(wchar_t *s) throw()
 {
   for (;;)
   {
-    const wchar_t c = *s;
+    wchar_t c = *s;
     if (c == 0)
       return;
     *s++ = MyCharUpper_Ascii(c);
@@ -85,7 +85,7 @@ void MyStringLower_Ascii(char *s) throw()
 {
   for (;;)
   {
-    const char c = *s;
+    char c = *s;
     if (c == 0)
       return;
     *s++ = MyCharLower_Ascii(c);
@@ -96,7 +96,7 @@ void MyStringLower_Ascii(wchar_t *s) throw()
 {
   for (;;)
   {
-    const wchar_t c = *s;
+    wchar_t c = *s;
     if (c == 0)
       return;
     *s++ = MyCharLower_Ascii(c);
@@ -190,8 +190,8 @@ bool IsString1PrefixedByString2(const char *s1, const char *s2) throw()
 {
   for (;;)
   {
-    const char c2 = *s2++; if (c2 == 0) return true;
-    const char c1 = *s1++; if (c1 != c2) return false;
+    const unsigned char c2 = (unsigned char)*s2++; if (c2 == 0) return true;
+    const unsigned char c1 = (unsigned char)*s1++; if (c1 != c2) return false;
   }
 }
 
@@ -207,6 +207,35 @@ bool StringsAreEqualNoCase(const wchar_t *s1, const wchar_t *s2) throw()
 }
 
 // ---------- ASCII ----------
+
+bool AString::IsPrefixedBy_Ascii_NoCase(const char *s) const throw()
+{
+  const char *s1 = _chars;
+  for (;;)
+  {
+    const char c2 = *s++;
+    if (c2 == 0)
+      return true;
+    const char c1 = *s1++;
+    if (MyCharLower_Ascii(c1) !=
+        MyCharLower_Ascii(c2))
+      return false;
+  }
+}
+
+bool UString::IsPrefixedBy_Ascii_NoCase(const char *s) const throw()
+{
+  const wchar_t *s1 = _chars;
+  for (;;)
+  {
+    const char c2 = *s++;
+    if (c2 == 0)
+      return true;
+    const wchar_t c1 = *s1++;
+    if (MyCharLower_Ascii(c1) != (unsigned char)MyCharLower_Ascii(c2))
+      return false;
+  }
+}
 
 bool StringsAreEqual_Ascii(const char *u, const char *a) throw()
 {
@@ -373,7 +402,6 @@ void AString::InsertSpace(unsigned &index, unsigned size)
 }
 
 #define k_Alloc_Len_Limit (0x40000000 - 2)
-// #define k_Alloc_Len_Limit (((unsigned)1 << (sizeof(unsigned) * 8 - 2)) - 2)
 
 void AString::ReAlloc(unsigned newLimit)
 {
@@ -385,14 +413,9 @@ void AString::ReAlloc(unsigned newLimit)
   _limit = newLimit;
 }
 
-#define THROW_STRING_ALLOC_EXCEPTION  { throw 20130220; }
-
-#define CHECK_STRING_ALLOC_LEN(len) \
-  { if ((len) > k_Alloc_Len_Limit) THROW_STRING_ALLOC_EXCEPTION }
-
 void AString::ReAlloc2(unsigned newLimit)
 {
-  CHECK_STRING_ALLOC_LEN(newLimit)
+  if (newLimit > k_Alloc_Len_Limit) throw 20130220;
   // MY_STRING_REALLOC(_chars, char, (size_t)newLimit + 1, 0);
   char *newBuf = MY_STRING_NEW_char((size_t)newLimit + 1);
   newBuf[0] = 0;
@@ -410,7 +433,6 @@ void AString::SetStartLen(unsigned len)
   _limit = len;
 }
 
-Z7_NO_INLINE
 void AString::Grow_1()
 {
   unsigned next = _len;
@@ -421,7 +443,7 @@ void AString::Grow_1()
   if (next < _len || next > k_Alloc_Len_Limit)
     next = k_Alloc_Len_Limit;
   if (next <= _len)
-    THROW_STRING_ALLOC_EXCEPTION
+    throw 20130220;
   ReAlloc(next);
   // Grow(1);
 }
@@ -439,7 +461,7 @@ void AString::Grow(unsigned n)
   if (next < _len || next > k_Alloc_Len_Limit)
     next = k_Alloc_Len_Limit;
   if (next <= _len || next - _len < n)
-    THROW_STRING_ALLOC_EXCEPTION
+    throw 20130220;
   ReAlloc(next);
 }
 
@@ -485,7 +507,7 @@ AString operator+(const AString &s1, const char    *s2) { return AString(s1, s1.
 AString operator+(const char    *s1, const AString &s2) { return AString(s1, MyStringLen(s1), s2, s2.Len()); }
 
 static const unsigned kStartStringCapacity = 4;
- 
+
 AString::AString()
 {
   _chars = NULL;
@@ -616,14 +638,12 @@ void AString::SetFromBstr_if_Ascii(BSTR s)
 }
 */
 
-void AString::Add_Char(char c) { operator+=(c); }
 void AString::Add_Space() { operator+=(' '); }
 void AString::Add_Space_if_NotEmpty() { if (!IsEmpty()) Add_Space(); }
 void AString::Add_LF() { operator+=('\n'); }
 void AString::Add_Slash() { operator+=('/'); }
 void AString::Add_Dot() { operator+=('.'); }
 void AString::Add_Minus() { operator+=('-'); }
-void AString::Add_Colon() { operator+=(':'); }
 
 AString &AString::operator+=(const char *s)
 {
@@ -676,7 +696,6 @@ void AString::SetFrom(const char *s, unsigned len) // no check
 {
   if (len > _limit)
   {
-    CHECK_STRING_ALLOC_LEN(len)
     char *newBuf = MY_STRING_NEW_char((size_t)len + 1);
     MY_STRING_DELETE(_chars)
     _chars = newBuf;
@@ -686,12 +705,6 @@ void AString::SetFrom(const char *s, unsigned len) // no check
     memcpy(_chars, s, len);
   _chars[len] = 0;
   _len = len;
-}
-
-void AString::SetFrom_Chars_SizeT(const char *s, size_t len)
-{
-  CHECK_STRING_ALLOC_LEN(len)
-  SetFrom(s, (unsigned)len);
 }
 
 void AString::SetFrom_CalcLen(const char *s, unsigned len) // no check
@@ -842,7 +855,7 @@ void AString::Insert(unsigned index, const AString &s)
 void AString::RemoveChar(char ch) throw()
 {
   char *src = _chars;
-  
+
   for (;;)
   {
     char c = *src++;
@@ -853,7 +866,7 @@ void AString::RemoveChar(char ch) throw()
   }
 
   char *dest = src - 1;
-  
+
   for (;;)
   {
     char c = *src++;
@@ -862,7 +875,7 @@ void AString::RemoveChar(char ch) throw()
     if (c != ch)
       *dest++ = c;
   }
-  
+
   *dest = 0;
   _len = (unsigned)(dest - _chars);
 }
@@ -893,8 +906,8 @@ void AString::Replace(const AString &oldString, const AString &newString)
     return; // 0;
   if (oldString == newString)
     return; // 0;
-  const unsigned oldLen = oldString.Len();
-  const unsigned newLen = newString.Len();
+  unsigned oldLen = oldString.Len();
+  unsigned newLen = newString.Len();
   // unsigned number = 0;
   int pos = 0;
   while ((unsigned)pos < _len)
@@ -998,7 +1011,7 @@ void UString::ReAlloc(unsigned newLimit)
 
 void UString::ReAlloc2(unsigned newLimit)
 {
-  CHECK_STRING_ALLOC_LEN(newLimit)
+  if (newLimit > k_Alloc_Len_Limit) throw 20130221;
   // MY_STRING_REALLOC(_chars, wchar_t, newLimit + 1, 0);
   wchar_t *newBuf = MY_STRING_NEW_wchar_t((size_t)newLimit + 1);
   newBuf[0] = 0;
@@ -1016,7 +1029,6 @@ void UString::SetStartLen(unsigned len)
   _limit = len;
 }
 
-Z7_NO_INLINE
 void UString::Grow_1()
 {
   unsigned next = _len;
@@ -1027,7 +1039,7 @@ void UString::Grow_1()
   if (next < _len || next > k_Alloc_Len_Limit)
     next = k_Alloc_Len_Limit;
   if (next <= _len)
-    THROW_STRING_ALLOC_EXCEPTION
+    throw 20130220;
   ReAlloc(next);
 }
 
@@ -1044,7 +1056,7 @@ void UString::Grow(unsigned n)
   if (next < _len || next > k_Alloc_Len_Limit)
     next = k_Alloc_Len_Limit;
   if (next <= _len || next - _len < n)
-    THROW_STRING_ALLOC_EXCEPTION
+    throw 20130220;
   ReAlloc(next - 1);
 }
 
@@ -1123,13 +1135,6 @@ UString::UString(const wchar_t *s)
   wmemcpy(_chars, s, len + 1);
 }
 
-UString::UString(const wchar_t *s, unsigned len)
-{
-  SetStartLen(len);
-  wmemcpy(_chars, s, len);
-  _chars[len] = 0;
-}
-
 UString::UString(const char *s)
 {
   const unsigned len = MyStringLen(s);
@@ -1205,21 +1210,10 @@ UString &UString::operator=(const UString &s)
   return *this;
 }
 
-void UString::AddFrom(const wchar_t *s, unsigned len) // no check
-{
-  if (len) {
-    Grow(len);
-    wmemcpy(_chars + _len, s, len);
-    _len += len;
-    _chars[_len] = 0;
-  }
-}
-
 void UString::SetFrom(const wchar_t *s, unsigned len) // no check
 {
   if (len > _limit)
   {
-    CHECK_STRING_ALLOC_LEN(len)
     wchar_t *newBuf = MY_STRING_NEW_wchar_t((size_t)len + 1);
     MY_STRING_DELETE(_chars)
     _chars = newBuf;
@@ -1244,7 +1238,7 @@ void UString::SetFromBstr(LPCOLESTR s)
     if (c >= 0xd800 && c < 0xdc00 && i + 1 != len)
     {
       wchar_t c2 = s[i];
-      if (c2 >= 0xdc00 && c2 < 0xe000)
+      if (c2 >= 0xdc00 && c2 < 0x10000)
       {
         c = 0x10000 + ((c & 0x3ff) << 10) + (c2 & 0x3ff);
         i++;
@@ -1275,7 +1269,7 @@ void UString::SetFromBstr(LPCOLESTR s)
     if (c >= 0xd800 && c < 0xdc00 && i + 1 != len)
     {
       wchar_t c2 = *s;
-      if (c2 >= 0xdc00 && c2 < 0xe000)
+      if (c2 >= 0xdc00 && c2 < 0x10000)
       {
         s++;
         c = 0x10000 + ((c & 0x3ff) << 10) + (c2 & 0x3ff);
@@ -1289,7 +1283,7 @@ void UString::SetFromBstr(LPCOLESTR s)
 
   // if (s)
     wmemcpy(_chars, s, len + 1);
-  
+
   // #endif
 }
 
@@ -1311,14 +1305,20 @@ UString &UString::operator=(const char *s)
   return *this;
 }
 
-void UString::Add_Char(char c) { operator+=((wchar_t)(unsigned char)c); }
-// void UString::Add_WChar(wchar_t c) { operator+=(c); }
 void UString::Add_Dot() { operator+=(L'.'); }
 void UString::Add_Space() { operator+=(L' '); }
-void UString::Add_Minus() { operator+=(L'-'); }
-void UString::Add_Colon() { operator+=(L':'); }
-void UString::Add_LF() { operator+=(L'\n'); }
 void UString::Add_Space_if_NotEmpty() { if (!IsEmpty()) Add_Space(); }
+
+void UString::Add_LF()
+{
+  if (_limit == _len)
+    Grow_1();
+  unsigned len = _len;
+  wchar_t *chars = _chars;
+  chars[len++] = L'\n';
+  chars[len] = 0;
+  _len = len;
+}
 
 UString &UString::operator+=(const wchar_t *s)
 {
@@ -1405,7 +1405,7 @@ int UString::ReverseFind(wchar_t c) const throw()
       return (int)(p - _chars);
   }
   while (p != _chars);
-      return -1;
+  return -1;
 }
 
 int UString::ReverseFind_PathSepar() const throw()
@@ -1417,7 +1417,7 @@ int UString::ReverseFind_PathSepar() const throw()
     if (IS_PATH_SEPAR(c))
       return (int)(p - _chars);
   }
-      return -1;
+  return -1;
 }
 
 void UString::TrimLeft() throw()
@@ -1426,7 +1426,7 @@ void UString::TrimLeft() throw()
   for (;; p++)
   {
     wchar_t c = *p;
-    if (c != ' ' && c != '\n' && c != '\t')
+    if (c != ' ' && c != '\n' && c != '\t' && c != '\r')
       break;
   }
   unsigned pos = (unsigned)(p - _chars);
@@ -1444,7 +1444,24 @@ void UString::TrimRight() throw()
   for (i = _len; i != 0; i--)
   {
     wchar_t c = p[(size_t)i - 1];
-    if (c != ' ' && c != '\n' && c != '\t')
+    if (c != ' ' && c != '\n' && c != '\t' && c != '\r')
+      break;
+  }
+  if (i != _len)
+  {
+    _chars[i] = 0;
+    _len = i;
+  }
+}
+
+void UString::TrimPathSepar() throw()
+{
+  const wchar_t *p = _chars;
+  unsigned i;
+  for (i = _len; i != 0; i--)
+  {
+    wchar_t c = p[(size_t)i - 1];
+    if (c != '\\' && c != '/')
       break;
   }
   if (i != _len)
@@ -1497,7 +1514,7 @@ void UString::Insert(unsigned index, const UString &s)
 void UString::RemoveChar(wchar_t ch) throw()
 {
   wchar_t *src = _chars;
-  
+
   for (;;)
   {
     wchar_t c = *src++;
@@ -1508,7 +1525,7 @@ void UString::RemoveChar(wchar_t ch) throw()
   }
 
   wchar_t *dest = src - 1;
-  
+
   for (;;)
   {
     wchar_t c = *src++;
@@ -1517,7 +1534,7 @@ void UString::RemoveChar(wchar_t ch) throw()
     if (c != ch)
       *dest++ = c;
   }
-  
+
   *dest = 0;
   _len = (unsigned)(dest - _chars);
 }
@@ -1591,57 +1608,13 @@ void UString::DeleteFrontal(unsigned num) throw()
   }
 }
 
-unsigned UString::HexKeyToBytes(uint8_t phase)
-{
-  // hex, 2 chars = 1 byte, so we can convert in-place:
-  wchar_t c, *ch = GetBuf();
-  uint8_t *buf = (uint8_t*)ch;
-  unsigned len = Len();
-  uint8_t v = 0;
-  if (phase && *ch == PWD_IS_HEX_KEY_MARK) {
-    ch++; len--;
-  }
-  while (len >= 2) {
-    c = *ch;
-    if (c >= L'0' && c <= L'9') v = (uint8_t)(c - L'0');
-    else if (c >= L'A' && c <= L'F') v = (uint8_t)(10 + (c - L'A'));
-    else if (c >= L'a' && c <= L'f') v = (uint8_t)(10 + (c - L'a'));
-    else break;
-    if (phase)
-      *ch = L'\0'; // wipe
-    ch++;
-    v <<= 4;
-    c = *ch;
-    if (c >= L'0' && c <= L'9') v |= (uint8_t)(c - L'0');
-    else if (c >= L'A' && c <= L'F') v |= (uint8_t)(10 + (c - L'A'));
-    else if (c >= L'a' && c <= L'f') v |= (uint8_t)(10 + (c - L'a'));
-    else break;
-    if (phase)
-      *ch = L'\0'; // wipe
-    ch++;
-    if (phase)
-      *buf = v;
-    buf++;
-    len -= 2;
-  }
-  if (len) {
-    return 0;
-  }
-  len = (unsigned)(buf - (uint8_t*)GetBuf());
-  if (phase) {
-    ReleaseBuf_SetEnd(len / 2); // length in bytes -> length in wchar_t
-  } else {
-    InsertAtFront(PWD_IS_HEX_KEY_MARK); // artificial mark (PasswordIsKey) - GetBuf()+1 points to HEX of key(s)
-  }
-  return len;
-}
 
 // ---------- UString2 ----------
 
 void UString2::ReAlloc2(unsigned newLimit)
 {
   // wrong (_len) is allowed after this function
-  CHECK_STRING_ALLOC_LEN(newLimit)
+  if (newLimit > k_Alloc_Len_Limit) throw 20130221;
   // MY_STRING_REALLOC(_chars, wchar_t, newLimit + 1, 0);
   if (_chars)
   {
@@ -1849,7 +1822,7 @@ bool CStringFinder::FindWord_In_LowCaseAsciiList_NoCase(const char *p, const wch
       break;
     if (c <= 0x20 || c > 0x7f)
       return false;
-    _temp.Add_Char((char)MyCharLower_Ascii((char)c));
+    _temp += (char)MyCharLower_Ascii((char)c);
   }
 
   while (*p != 0)
@@ -1862,17 +1835,17 @@ bool CStringFinder::FindWord_In_LowCaseAsciiList_NoCase(const char *p, const wch
       c2 = *s2++;
     }
     while (c == c2);
-    
+
     if (c == ' ')
     {
       if (c2 == 0)
         return true;
       continue;
     }
-    
+
     while (*p++ != ' ');
   }
-  
+
   return false;
 }
 
@@ -1900,48 +1873,4 @@ void SplitString(const UString &srcString, UStringVector &destStrings)
   }
   if (!s.IsEmpty())
     destStrings.Add(s);
-}
-
-// ----------------------------------------
-
-UString GetQuotedString(const UString &src)
-{
-  UString s2 ('\"');
-  unsigned bcount = 0;
-  wchar_t c; const wchar_t *f = src.Ptr(), *s = f, *b = f;
-  // add string considering backslashes before quote (escape them):
-  while (1)
-  {
-    c = *s++;
-    switch (c)
-    {
-      case L'\\':
-        // a backslash - save the position and count them up to quote-char or regular char
-        if (!bcount) b = s-1;
-        bcount++;
-      break;
-      case L'\0':
-        // end of string (it is always quoted, so need to escape backslashes too):
-      case L'"':
-        // add part before backslash (and unescaped backslashes if some are there):
-        s2.AddFrom(f, (unsigned)(s - f - 1));
-        f = s;
-        if (bcount) {
-          // escape backslashes before quote (same count of BS again):
-          s2.AddFrom(b, (unsigned)(s - b - 1));
-        }
-        // done if end of string
-        if (c == L'\0') goto done;
-        // escape this quote char:
-        s2 += L"\\\"";
-      break;
-      default:
-        // a regular character, reset backslash counter
-        bcount = 0;
-    }
-  }
-  s2.AddFrom(f, (unsigned)(s - f - 1));
-done:
-  s2.Add_Char('\"');
-  return s2;
 }

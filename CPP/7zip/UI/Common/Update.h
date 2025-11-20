@@ -12,6 +12,8 @@
 #include "UpdateAction.h"
 #include "UpdateCallback.h"
 
+#include "DirItem.h"
+
 enum EArcNameMode
 {
   k_ArcNameMode_Smart,
@@ -94,7 +96,6 @@ struct CUpdateOptions
 
   bool DeleteAfterCompressing;
   bool SetArcMTime;
-  bool RenameMode;
 
   CBoolPair NtSecurity;
   CBoolPair AltStreams;
@@ -140,7 +141,6 @@ struct CUpdateOptions
     
     DeleteAfterCompressing(false),
     SetArcMTime(false),
-    RenameMode(false),
 
     ArcNameMode(k_ArcNameMode_Smart),
     PathMode(NWildcard::k_RelatPath)
@@ -195,9 +195,6 @@ Z7_PURE_INTERFACES_BEGIN
   virtual HRESULT FinishArchive(const CFinishArchiveStat &st) x \
   virtual HRESULT DeletingAfterArchiving(const FString &path, bool isDir) x \
   virtual HRESULT FinishDeletingAfterArchiving() x \
-  virtual HRESULT MoveArc_Start(const wchar_t *srcTempPath, const wchar_t *destFinalPath, UInt64 size, Int32 updateMode) x \
-  virtual HRESULT MoveArc_Progress(UInt64 total, UInt64 current) x \
-  virtual HRESULT MoveArc_Finish() x \
 
 DECLARE_INTERFACE(IUpdateCallbackUI2):
     public IUpdateCallbackUI,

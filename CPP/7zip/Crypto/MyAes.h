@@ -71,9 +71,7 @@ public:
       unsigned keySize
       // , bool ctrMode
       );
-
-  virtual ~CAesCoder();
-
+  virtual ~CAesCoder() {}   // we need virtual destructor for derived classes
   void SetKeySize(unsigned size) { _keySize = size; }
 };
 
