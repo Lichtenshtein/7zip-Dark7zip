@@ -108,4 +108,43 @@ OBJS = \
   $(UI_COMMON_OBJS) \
   $(CONSOLE_OBJS) \
 
+_COMPRESS_OBJS = \
+  $O/Bcj2Coder.o \
+  $O/Bcj2Register.o \
+  $O/BcjCoder.o \
+  $O/BcjRegister.o \
+  $O/BitlDecoder.o \
+  $O/BranchMisc.o \
+  $O/BranchRegister.o \
+  $O/ByteSwap.o \
+  $O/BZip2Crc.o \
+  $O/BZip2Decoder.o \
+  $O/BZip2Encoder.o \
+  $O/BZip2Register.o \
+  $O/CopyCoder.o \
+  $O/CopyRegister.o \
+  $O/Deflate64Register.o \
+  $O/DeflateDecoder.o \
+  $O/DeflateEncoder.o \
+  $O/DeflateRegister.o \
+  $O/DeltaFilter.o \
+  $O/ImplodeDecoder.o \
+  $O/Lzma2Decoder.o \
+  $O/Lzma2Encoder.o \
+  $O/Lzma2Register.o \
+  $O/LzmaDecoder.o \
+  $O/LzmaEncoder.o \
+  $O/LzmaRegister.o \
+  $O/LzOutWindow.o \
+  $O/LzxDecoder.o \
+  $O/PpmdDecoder.o \
+  $O/PpmdEncoder.o \
+  $O/PpmdRegister.o \
+  $O/PpmdZip.o \
+  $O/QuantumDecoder.o \
+  $O/ShrinkDecoder.o \
+  $O/XzDecoder.o \
+  $O/XzEncoder.o \
+  $O/ZstdDecoder.o \
+
 include ../../7zip_gcc.mak
