@@ -62,7 +62,7 @@ jobs:
         shell: pwsh
         run: |
           mkdir asset
-          cp Dark7zip-zstd-7zz-src/CPP/7zip/Bundles/Alone2/x64/7zz.exe asset/
+          cp Dark7zip-zstd-7zz/CPP/7zip/Bundles/Alone2/x64/7zz.exe asset/
 #          cp -r 7zip-doc/ asset/
       - uses: actions/upload-artifact@v4
         with:
