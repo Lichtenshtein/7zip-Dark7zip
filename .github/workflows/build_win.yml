@@ -71,6 +71,10 @@ jobs:
           set 7Z_PATH=build\bin-%PLATFORM%\7z.exe
           tclsh tests\7z-test.tcl -verbose tpsem
 
+      - name: Copy files to root
+        shell: bash
+        run: cp "${{ github.workspace }}/Lang" "${{ github.workspace }}/build/Lang"
+
       - name: Upload a Build Artifact
         uses: actions/upload-artifact@v4
         with:
