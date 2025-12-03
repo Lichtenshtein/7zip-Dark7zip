@@ -73,7 +73,7 @@ CFLAGS_WARN_LEVEL = -Wall
 !ENDIF
 
 # CFLAGS = $(CFLAGS) -nologo -c -Fo$O/ $(CFLAGS_WARN_LEVEL) -EHsc -Gy -MT -MP -GR- -GL -Gw
-CFLAGS = $(CFLAGS) -nologo -c -Fo$O/ -W4 -EHsc -Gy -MT -MP -GR- -GL -Gw -std:c++20 -GF
+CFLAGS = $(CFLAGS) -nologo -c -Fo$O/ -W4 -EHsc -Gy -MT -MP -GR- -GL -Gw -std:c++20 -GF -Zc:enumTypes -Os -pipe -march=broadwell -mtune=broadwell
 
 !IF "$(CC)" == "clang-cl"
 
